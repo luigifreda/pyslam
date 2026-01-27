@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to be activated when called within virtual python environment 
-set(BUILD_WITH_MARCH_NATIVE ON CACHE BOOL "Build with -march=native")
+set(WITH_MARCH_NATIVE ON CACHE BOOL "Build with -march=native")
 
 set(PYSLAM_ROOT ${PROJECT_SOURCE_DIR}/..)
 set(PYSLAM_SLAM_CPP_SRC ${PYSLAM_ROOT}/pyslam/slam/cpp)
@@ -28,11 +28,11 @@ endif()
 
 # Add -march=native if requested and not on macOS
 # (macOS system clang doesn't properly support -march=native on Apple Silicon)
-if(BUILD_WITH_MARCH_NATIVE AND NOT APPLE)
+if(WITH_MARCH_NATIVE AND NOT APPLE)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
     message(STATUS "Using -march=native for optimization")
-elseif(BUILD_WITH_MARCH_NATIVE)
+elseif(WITH_MARCH_NATIVE)
     message(STATUS "Skipping -march=native on macOS (system clang limitation)")
 endif()
 

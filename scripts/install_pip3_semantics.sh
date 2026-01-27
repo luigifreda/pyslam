@@ -51,8 +51,9 @@ fi
 
 # semantic mapping packages
 # Torchvision will be installed already
-# Install transformers with specific version due to break of last version
-pip install transformers==4.38.2 $CONSTRAINTS # originally suggested version 4.51.0
+# Install transformers with specific version due to API compatibility
+#pip install transformers==4.38.2 $CONSTRAINTS # originally suggested version 4.51.0
+pip install "transformers>=4.41.2" $CONSTRAINTS # supports RTDetrV2 and rf_detr
 
 # Install f3rm for the dense CLIP model
 pip install "fpsample<0.3.0"  # required by f3rm without upgrading pybind11 version
@@ -81,6 +82,11 @@ print_blue '================================================================'
 print_blue "Installing python packages for ODISE ..."
 # Install ODISE
 $SCRIPT_DIR_/install_odise.sh
+
+print_blue '================================================================'
+print_blue "Installing python packages for RF-DETR ..."
+# Install RF-DETR
+$SCRIPT_DIR_/install_rf_detr.sh
 
 # HACK
 shopt -s nullglob

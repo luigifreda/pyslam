@@ -33,8 +33,11 @@ from .semantic_segmentation_base import SemanticSegmentationBase
 from .semantic_segmentation_output import SemanticSegmentationOutput
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from .semantic_color_map_factory import semantic_color_map_factory
+from .semantic_instance_utils import ensure_unique_instance_ids
 
 from pyslam.utilities.logging import Printer
+from pyslam.config_parameters import Parameters
+
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
@@ -181,6 +184,8 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
         input_size=None,
         max_size=None,
         use_fp16=True,
+        enforce_unique_instance_ids=Parameters.kSemanticSegmentationEnforceUniqueInstanceIds,
+        unique_instance_min_pixels=Parameters.kSemanticSegmentationUniqueInstanceMinPixels,
         **kwargs,
     ):
         """
@@ -199,9 +204,13 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
                        Smaller values (384, 512) are faster but less accurate
             max_size: Maximum input image size. If None, defaults to 1.5 * input_size
             use_fp16: Use float16 for faster inference (default: True)
+            enforce_unique_instance_ids: If True, split disconnected components to unique IDs
+            unique_instance_min_pixels: Minimum component size when splitting instance IDs
         """
         self.label_mapping = None
         self.semantic_dataset_type = semantic_dataset_type
+        self.enforce_unique_instance_ids = enforce_unique_instance_ids
+        self.unique_instance_min_pixels = unique_instance_min_pixels
 
         # Validate feature type
         if semantic_feature_type not in self.supported_feature_types:
@@ -888,7 +897,8 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
         # Postprocess predictions
         semantics, instances = self._postprocess_predictions(predictions, rgb_image)
 
-        return SemanticSegmentationOutput(semantics=semantics, instances=instances)
+        self.semantics = semantics
+        return SemanticSegmentationOutput(semantics=self.semantics, instances=instances)
 
     def _preprocess_image(self, image: np.ndarray) -> np.ndarray:
         """
@@ -982,6 +992,11 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
                     (orig_w, orig_h),
                     interpolation=cv2.INTER_NEAREST,
                 ).astype(np.int32)
+
+        if instance_ids is not None and self.enforce_unique_instance_ids:
+            instance_ids = ensure_unique_instance_ids(
+                instance_ids, background_id=0, min_pixels=self.unique_instance_min_pixels
+            )
 
         return semantic_labels, instance_ids
 
@@ -1159,20 +1174,34 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
             # Find max segment ID to determine lookup table size
             max_seg_id = int(panoptic_np.max()) if panoptic_np.size > 0 else 0
             max_seg_id = max(max_seg_id, max(thing_seg_ids))
+            min_seg_id = int(panoptic_np.min()) if panoptic_np.size > 0 else 0
+            min_seg_id = min(min_seg_id, min(thing_seg_ids))
+            min_seg_id = min(min_seg_id, min(segment_id_to_instance_id.keys()))
+            offset = -min_seg_id if min_seg_id < 0 else 0
+            lookup_size = max_seg_id + offset + 1
 
-            # Create lookup table: lookup[seg_id] = instance_id, default 0 (background)
-            # Use int32 to match panoptic_np dtype
-            lookup = np.zeros(max_seg_id + 1, dtype=np.int32)
-            # First, copy valid segment IDs (> 0) directly
-            for seg_id in thing_seg_ids:
-                if seg_id > 0:
-                    lookup[seg_id] = seg_id
-            # Then, remap problematic ones (<= 0)
-            for seg_id, instance_id in segment_id_to_instance_id.items():
-                lookup[seg_id] = instance_id
+            # Guard against huge sparse IDs that would blow up the lookup table.
+            if lookup_size > 5_000_000:
+                instance_ids = np.zeros_like(panoptic_np, dtype=np.int32)
+                for seg_id in thing_seg_ids:
+                    if seg_id > 0:
+                        instance_ids[panoptic_np == seg_id] = seg_id
+                for seg_id, instance_id in segment_id_to_instance_id.items():
+                    instance_ids[panoptic_np == seg_id] = instance_id
+            else:
+                # Create lookup table: lookup[seg_id + offset] = instance_id, default 0 (background)
+                # Use int32 to match panoptic_np dtype
+                lookup = np.zeros(lookup_size, dtype=np.int32)
+                # First, copy valid segment IDs (> 0) directly
+                for seg_id in thing_seg_ids:
+                    if seg_id > 0:
+                        lookup[seg_id + offset] = seg_id
+                # Then, remap problematic ones (<= 0)
+                for seg_id, instance_id in segment_id_to_instance_id.items():
+                    lookup[seg_id + offset] = instance_id
 
-            # Vectorized remapping: single pass through image using advanced indexing
-            instance_ids = lookup[panoptic_np]
+                # Vectorized remapping: single pass through image using advanced indexing
+                instance_ids = lookup[panoptic_np + offset]
 
         return instance_ids
 

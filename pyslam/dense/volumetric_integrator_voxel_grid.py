@@ -241,6 +241,11 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                         else:
                             depth_filtered = depth_undistorted
 
+                        # Ensure depth is in desired format for C++ binding
+                        depth_filtered = np.ascontiguousarray(
+                            depth_filtered, dtype=self.dtype_depths
+                        )
+
                         # Get appropriate camera intrinsics (rectified if depth was rectified)
                         fx, fy, cx, cy = self.get_camera_intrinsics_for_depth()
                         point_cloud = depth2pointcloud(
@@ -280,7 +285,9 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                                 f"VolumetricIntegratorVoxelGrid: using carving with threshold: {Parameters.kVolumetricIntegrationVoxelGridCarvingDepthThreshold}"
                             )
                             self.camera_frustrum.set_T_cw(pose)
-                            # Ensure depth is in float32 format for C++ binding
+                            # Ensure depth is in desired format for C++ binding
+                            # NOTE: For carving we use the undistorted depth image (not filtered) since it
+                            #       is the original depth image from the camera and contains the depth for all the pixels.
                             depth_for_carving = np.ascontiguousarray(
                                 depth_undistorted, dtype=self.dtype_depths
                             )

@@ -65,7 +65,7 @@ kDefaultSparsePointSize = 2
 kDefaultDensePointSize = 2
 
 kViewportWidth = 1024
-kViewportHeight = 620
+kViewportHeight = 660
 
 kDrawReferenceCamera = True
 
@@ -178,7 +178,7 @@ class Viewer3DDenseInput:
         self.point_cloud = None
         self.mesh = None
         self.camera_images = []  # list of VizCameraImage objects
-        self.objects = None  # list of objects
+        self.objects = None  # list of objects (VolumetricIntegrationObjectList)
 
 
 # Visual odometry input
@@ -607,7 +607,7 @@ class Viewer3D(object):
         self.viewer_init(kViewportWidth, kViewportHeight)
         is_running.value = 1
 
-        # init local vars for the the process
+        # Init other local vars for the the process/thread
         self.thread_gt_trajectory = None
         self.thread_gt_trajectory_aligned = None
         self.thread_gt_trajectory_aligned_associated = None
@@ -620,23 +620,6 @@ class Viewer3D(object):
         self.thread_last_frame_id_gt_was_aligned = 0
         self.thread_last_time_gt_was_aligned = time.time()
         self.thread_alignment_gt_data_queue = alignment_gt_data_queue  # used by slam_plot_drawer.py
-
-        self.is_dense_state_updated = False
-        self.gl_point_cloud_direct = (
-            glutils.GlPointCloudDirectD()
-            if Parameters.kDenseMappingDtypeVertices == "float64"
-            else glutils.GlPointCloudDirectF()
-        )
-        self.gl_mesh_direct = (
-            glutils.GlMeshDirectD()
-            if Parameters.kDenseMappingDtypeVertices == "float64"
-            else glutils.GlMeshDirectF()
-        )
-        self.gl_object_set = (
-            glutils.GlObjectSetD()
-            if Parameters.kDenseMappingDtypeVertices == "float64"
-            else glutils.GlObjectSetF()
-        )
 
         is_looping.value = 1
         while not pangolin.ShouldQuit() and (is_running.value == 1):
@@ -674,6 +657,7 @@ class Viewer3D(object):
         is_closed.value = 1
         print("Viewer3D: loop exit...")
 
+    # Init
     def viewer_init(self, w, h):
         # pangolin.ParseVarsFile('app.cfg')
 
@@ -714,6 +698,7 @@ class Viewer3D(object):
         self.is_draw_dense = True
         self.is_draw_semantic_colors = False
 
+        self.draw_object_bounding_boxes = False
         self.draw_wireframe = False
 
         self.draw_gt_changed = False
@@ -762,6 +747,10 @@ class Viewer3D(object):
         self.densePointSizeSlider = pangolin.VarInt(
             "ui.Dense Point Size", value=kDefaultDensePointSize, min=1, max=10
         )
+
+        self.checkboxDrawObjectBoundingBoxes = pangolin.VarBool(
+            "ui.Draw Object BBs", value=False, toggle=True
+        )
         self.checkboxWireframe = pangolin.VarBool("ui.Mesh Wireframe", value=False, toggle=True)
 
         self.sparsePointSize = self.sparsePointSizeSlider.Get()
@@ -774,6 +763,24 @@ class Viewer3D(object):
         self.camera_images = (
             glutils.CameraImages()
         )  # current buffer of camera images update by draw_dense_map()
+
+        self.is_dense_state_updated = False
+        self.gl_point_cloud_direct = (
+            glutils.GlPointCloudDirectD()
+            if Parameters.kDenseMappingDtypeVertices == "float64"
+            else glutils.GlPointCloudDirectF()
+        )
+        self.gl_mesh_direct = (
+            glutils.GlMeshDirectD()
+            if Parameters.kDenseMappingDtypeVertices == "float64"
+            else glutils.GlMeshDirectF()
+        )
+        self.gl_object_set = (
+            glutils.GlObjectSetD()
+            if Parameters.kDenseMappingDtypeVertices == "float64"
+            else glutils.GlObjectSetF()
+        )
+        self.gl_object_set.set_bounding_box_line_width(2)
 
     def viewer_refresh(
         self,
@@ -855,6 +862,7 @@ class Viewer3D(object):
         self.draw_gt_associations = self.checkboxGTassociations.Get()
         self.draw_predicted = self.checkboxPredicted.Get()
         self.draw_fov_centers = self.checkboxFovCenters.Get()
+        self.draw_object_bounding_boxes = self.checkboxDrawObjectBoundingBoxes.Get()
         self.draw_wireframe = self.checkboxWireframe.Get()
         self.is_draw_sparse = self.checkboxDrawSparseCloud.Get()
 
@@ -1137,6 +1145,7 @@ class Viewer3D(object):
                 elif self.dense_state.objects is not None:
                     objects: VolumetricIntegrationObjectList = self.dense_state.objects
                     # print(f"Viewer3D: viewer_refresh - dense_state #objects: {objects.num_objects}")
+                    gl.glPointSize(self.densePointSize)
                     color_draw_mode = glutils.ObjectColorDrawMode.POINTS
                     if self.is_draw_semantic_colors:
                         if is_draw_objects.value == 1:
@@ -1144,12 +1153,14 @@ class Viewer3D(object):
                         else:
                             color_draw_mode = glutils.ObjectColorDrawMode.CLASS
                     self.gl_object_set.set_color_draw_mode(color_draw_mode)
+                    self.gl_object_set.enable_bounding_boxes(self.draw_object_bounding_boxes)
                     if self.is_dense_state_updated or self.gui_dense_changed:
                         self.is_dense_state_updated = False
                         self.gl_object_set.update_from_volumetric_objects(
                             object_list=objects.object_list,
                             class_id_colors=objects.semantic_colors,
                             object_id_colors=objects.object_colors,
+                            use_background_bounding_box=False,
                         )
                     self.gl_object_set.draw()
 

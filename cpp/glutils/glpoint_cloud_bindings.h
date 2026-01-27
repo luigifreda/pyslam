@@ -88,48 +88,32 @@ void BindGlPointCloudDirect(py::module_ &m, const char *name) {
         .def("draw", &GlPointCloudDirectT::Draw, py::call_guard<py::gil_scoped_release>())
         .def("update", &GlPointCloudDirectT::Update, py::arg("points"), py::arg("colors"),
              py::arg("point_count"), py::call_guard<py::gil_scoped_release>())
-        // Zero-copy bindings: accept contiguous numpy arrays without dtype casting.
-        .def(
-            "update",
-            [](GlPointCloudDirectT &self, const py::array_t<PointT, py::array::c_style> &points,
-               const py::object &colors_obj) {
-                ValidatePointsArray(points);
-                auto points_info = points.request();
-                const auto *point_data = static_cast<const PointT *>(points_info.ptr);
-                const auto point_count = static_cast<std::size_t>(points_info.shape[0]);
-
-                const ColorT *color_data = nullptr;
-                if (!colors_obj.is_none()) {
-                    auto colors = colors_obj.cast<py::array_t<ColorT, py::array::c_style>>();
-                    ValidateColorsArray(colors);
-                    auto colors_info = colors.request();
-                    if (colors_info.shape[0] != points_info.shape[0]) {
-                        throw std::runtime_error("points and colors must have the same length");
-                    }
-                    color_data = static_cast<const ColorT *>(colors_info.ptr);
-                }
-                py::gil_scoped_release release;
-                self.Update(point_data, color_data, point_count);
-            },
-            py::arg("points"), py::arg("colors") = py::none())
-        // Fallback binding: allow dtype conversion if needed (may copy).
+        // Prefer zero-copy views; fall back to force-cast when needed.
         .def(
             "update",
             [](GlPointCloudDirectT &self, const py::array &points_obj,
                const py::object &colors_obj) {
-                auto points =
-                    py::array_t<PointT, py::array::c_style | py::array::forcecast>(points_obj);
-                ValidatePointsArray(points);
-                auto points_info = points.request();
+                auto points_view = py::array_t<PointT, py::array::c_style>::ensure(points_obj);
+                if (!points_view) {
+                    points_view = py::array_t<PointT, py::array::c_style | py::array::forcecast>(
+                        points_obj);
+                }
+                ValidatePointsArray(points_view);
+                auto points_info = points_view.request();
                 const auto *point_data = static_cast<const PointT *>(points_info.ptr);
                 const auto point_count = static_cast<std::size_t>(points_info.shape[0]);
 
                 const ColorT *color_data = nullptr;
                 if (!colors_obj.is_none()) {
-                    auto colors =
-                        py::array_t<ColorT, py::array::c_style | py::array::forcecast>(colors_obj);
-                    ValidateColorsArray(colors);
-                    auto colors_info = colors.request();
+                    auto colors_view =
+                        py::array_t<ColorT, py::array::c_style>::ensure(colors_obj);
+                    if (!colors_view) {
+                        colors_view = py::array_t<ColorT,
+                                                  py::array::c_style | py::array::forcecast>(
+                            colors_obj);
+                    }
+                    ValidateColorsArray(colors_view);
+                    auto colors_info = colors_view.request();
                     if (colors_info.shape[0] != points_info.shape[0]) {
                         throw std::runtime_error("points and colors must have the same length");
                     }

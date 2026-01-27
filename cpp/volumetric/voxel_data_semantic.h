@@ -19,6 +19,7 @@
 #pragma once
 
 #include "voxel_data.h"
+#include "voxel_semantic_shared_data.h"
 
 #include <algorithm>
 #include <array>
@@ -35,15 +36,15 @@
 
 namespace volumetric {
 
-class VoxelSemanticSharedData {
-  public:
-    inline static std::atomic<int32_t> next_object_id{
-        1}; // next object ID (starts at 1, since 0 is reserved for "no specific object")
-
-    VoxelSemanticSharedData() = default;
-
-    static int32_t get_next_object_id() { return next_object_id.fetch_add(1); }
-};
+// IMPORTANT NOTE:
+//      SEMANTICS:
+//          - class_id =0 -> background,
+//                     -1 -> invalid class,
+//                     >0 -> actual class
+//          - object_id =0 -> no specific object,
+//                      -1 -> invalid object,
+//                      >0 -> specific object
+//     The code relies on < 0 checks, so object_id/instance_id should stay signed.
 
 //=================================================================================================
 // Voxel Semantic Data Comparison Notes
@@ -102,10 +103,6 @@ class VoxelSemanticSharedData {
 // and class IDs of the voxel. It is incremented when the instance and class IDs are the same and
 // decremented when they are different. If the confidence counter is less than or equal to 0, the
 // instance and class IDs are set to the new values and the confidence counter is reset to 1.
-// NOTE:
-//      Semantics:
-//          - class_id=0 -> background, class_id>0 -> actual class
-//          - object_id=0 -> no specific object, object_id>0 -> specific object
 template <typename Tpos, typename Tcolor = float> struct VoxelSemanticDataT {
     inline static float kDepthThreshold =
         10.0f; // [m] depth threshold for updating semantics with depth
@@ -249,10 +246,6 @@ using VoxelSemanticDataF = VoxelSemanticDataT<float, float>;
 //
 // **NOTE**: Read the comparison note above concerning the differences between
 // VoxelSemanticDataProbabilistic and VoxelSemanticDataProbabilistic2.
-// NOTE:
-//      Semantics:
-//          - class_id=0 -> background, class_id>0 -> actual class
-//          - object_id=0 -> no specific object, object_id>0 -> specific object
 template <typename Tpos, typename Tcolor = float> struct VoxelSemanticDataProbabilisticT {
 
     inline static float kDepthThreshold =

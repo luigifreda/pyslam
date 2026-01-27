@@ -1,0 +1,42 @@
+diff --git a/rfdetr/models/backbone/dinov2_with_windowed_attn.py b/rfdetr/models/backbone/dinov2_with_windowed_attn.py
+index 5f2b5da..93cc3de 100644
+--- a/rfdetr/models/backbone/dinov2_with_windowed_attn.py
++++ b/rfdetr/models/backbone/dinov2_with_windowed_attn.py
+@@ -23,15 +23,35 @@ from transformers.modeling_outputs import (
+     ImageClassifierOutput,
+ )
+ from transformers.modeling_utils import PreTrainedModel
+-from transformers.pytorch_utils import find_pruneable_heads_and_indices, prune_linear_layer
++try:
++    from transformers.pytorch_utils import find_pruneable_heads_and_indices, prune_linear_layer
++except ImportError:
++    from transformers.pytorch_utils import prune_linear_layer
++
++    def find_pruneable_heads_and_indices(
++        heads: Set[int], n_heads: int, head_size: int, already_pruned_heads: Set[int]
++    ) -> Tuple[Set[int], torch.LongTensor]:
++        """Fallback for older/newer transformers that moved this helper."""
++        mask = torch.ones(n_heads, head_size)
++        heads = set(heads) - already_pruned_heads
++        for head in heads:
++            # Adjust head index to account for already pruned heads.
++            head = head - sum(1 if h < head else 0 for h in already_pruned_heads)
++            mask[head] = 0
++        mask = mask.view(-1).contiguous().eq(1)
++        index = torch.arange(len(mask))[mask].long()
++        return heads, index
+ from transformers.utils import (
+     add_code_sample_docstrings,
+     add_start_docstrings,
+     add_start_docstrings_to_model_forward,
+     logging,
+     replace_return_docstrings,
+-    torch_int,
+ )
++try:
++    from transformers.utils import torch_int
++except ImportError:
++    torch_int = int
+ from transformers.utils.backbone_utils import (
+     BackboneConfigMixin,
+     BackboneMixin,

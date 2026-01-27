@@ -217,6 +217,10 @@ template <typename VertexT, typename ColorT = VertexT> class GlMeshT {
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
+    std::size_t VertexCount() const { return vertex_count_; }
+    std::size_t ColorCount() const { return has_colors_ ? (colors_.size() / 3) : 0; }
+    std::size_t TriangleCount() const { return index_count_ / 3; }
+
   private:
     void EnsureBuffers(bool need_colors) {
         if (!vbo_pos_)

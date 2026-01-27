@@ -54,6 +54,7 @@ def generate_hsv_color_map(n: int, s=0.65, v=0.95):
 # ==============================================
 # PASCAL VOC
 # ==============================================
+# https://www.robots.ox.ac.uk/~vgg/projects/pascal/VOC/
 
 
 def get_voc_color_map():
@@ -118,6 +119,7 @@ def get_voc_labels():
 # ==============================================
 # CITYSCAPES
 # ==============================================
+# https://www.cityscapes-dataset.com/
 
 
 def get_cityscapes_color_map():
@@ -178,6 +180,7 @@ def get_cityscapes_labels():
 # ==============================================
 # NYU40
 # ==============================================
+# https://cs.nyu.edu/~fergus/datasets/nyu_depth_v2.html
 
 
 def get_nyu40_color_map():
@@ -284,6 +287,7 @@ def get_nyu40_labels():
 # ==============================================
 # ADE20K
 # ==============================================
+# https://groups.csail.mit.edu/vision/datasets/ADE20K/
 
 
 def get_ade20k_to_scannet40_map():

@@ -8,6 +8,12 @@
     "editor.defaultFormatter": "ms-python.black-formatter",
     "editor.formatOnSave": true
   },
+  // "black-formatter.args": [
+  //   "--exclude",
+  //   ".*\\/thirdparty\\/rf_detr\\/.*",
+  //   "--force-exclude",
+  //   ".*\\/thirdparty\\/rf_detr\\/.*"
+  // ],
   "files.associations": {
     ".fantomasignore": "ignore",
     "*.c": "cpp",

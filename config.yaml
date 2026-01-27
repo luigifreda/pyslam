@@ -63,8 +63,12 @@ ICL_NUIM_DATASET:
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/icl_nuim
   #
-  name: living_room_traj0_frei_png  
-  settings: settings/ICL_NUIM.yaml # do not forget to set the corresponding camera settings file 
+  name: living_room_traj0_frei_png
+  #name: living_room_traj0n_frei_png
+  settings: settings/ICL_NUIM.yaml # do not forget to set the corresponding camera settings file   
+  #
+  #name: traj1_frei_png
+  #settings: settings/ICL_NUIM.yaml # do not forget to set the corresponding camera settings file 
   #
   associations: associations.txt
   groundtruth_file: auto

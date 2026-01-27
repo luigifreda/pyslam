@@ -59,7 +59,8 @@ void carve(VoxelGridT &voxel_grid, const CameraFrustrum &camera_frustrum,
     cv::Mat depth_image_float = convert_image_type_if_needed(depth_image, CV_32F, "Depth");
 
     const auto callback = [&](VoxelDataT &v, const VoxelKey &key,
-                              const std::array<double, 3> &pos_w, const ImagePoint &image_point) {
+                              const typename VoxelDataT::Pos3 &pos_w,
+                              const ImagePoint &image_point) {
         const float point_depth = image_point.depth;
         const float image_depth = depth_image_float.at<float>(image_point.v, image_point.u);
 

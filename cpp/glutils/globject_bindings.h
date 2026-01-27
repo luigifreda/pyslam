@@ -32,6 +32,7 @@ namespace glutils_bindings_detail {
 
 struct ColorBuffer {
     const std::array<float, 3> *data = nullptr;
+    const float *flat_data = nullptr;
     std::size_t size = 0;
     std::vector<std::array<float, 3>> owned;
     py::array array_owner;
@@ -82,7 +83,7 @@ inline ColorBuffer ColorsFromPyObject(const py::object &colors_obj, std::size_t 
                                          " size must match object_data_list size");
             }
             buffer.array_owner = array;
-            buffer.data = reinterpret_cast<const std::array<float, 3> *>(colors.data());
+            buffer.flat_data = colors.data();
             buffer.size = rows;
             return buffer;
         }
@@ -142,7 +143,11 @@ void BindGlObject(py::module_ &m, const char *name) {
              py::call_guard<py::gil_scoped_release>())
         .def("set_bounding_box", &GlObjectT::SetBoundingBox, py::arg("box_matrix"),
              py::arg("box_size"), py::call_guard<py::gil_scoped_release>())
+        .def("set_use_bounding_box", &GlObjectT::SetUseBoundingBox, py::arg("use_bounding_box"),
+             py::call_guard<py::gil_scoped_release>())
         .def_static("set_color_draw_mode", &GlObjectT::SetColorDrawMode, py::arg("color_draw_mode"))
+        .def_static("enable_bounding_boxes", &GlObjectT::EnableBoundingBoxes,
+                    py::arg("enable_bounding_boxes"))
         .def_static("set_bounding_box_line_width", &GlObjectT::SetBoundingBoxLineWidth,
                     py::arg("bounding_box_line_width"));
 }
@@ -160,7 +165,7 @@ void BindGlObjectSet(py::module_ &m, const char *name) {
                 auto &object_data_list = object_data_group.object_vector;
                 auto class_colors =
                     ColorsFromPyObject(class_id_colors, object_data_list.size(), "class_id_colors");
-                const ColorBuffer *object_colors_ptr = nullptr;
+                ColorBuffer *object_colors_ptr = nullptr;
                 ColorBuffer object_colors;
                 if (object_id_colors.is_none()) {
                     object_colors_ptr = &class_colors;
@@ -170,14 +175,53 @@ void BindGlObjectSet(py::module_ &m, const char *name) {
                     object_colors_ptr = &object_colors;
                 }
                 py::gil_scoped_release release;
-                self.Update(object_data_list, class_colors.data, object_colors_ptr->data,
-                            object_data_list.size());
+                const bool class_flat = class_colors.flat_data != nullptr;
+                const bool object_flat =
+                    object_colors_ptr && object_colors_ptr->flat_data != nullptr;
+                if (class_flat && object_flat) {
+                    self.Update(object_data_list, class_colors.flat_data,
+                                object_colors_ptr ? object_colors_ptr->flat_data : nullptr,
+                                object_data_list.size());
+                } else if (class_flat || object_flat) {
+                    const std::size_t count = object_data_list.size();
+                    std::vector<float> class_flat_owned;
+                    std::vector<float> object_flat_owned;
+                    const float *class_flat_ptr = class_colors.flat_data;
+                    const float *object_flat_ptr =
+                        object_colors_ptr ? object_colors_ptr->flat_data : nullptr;
+
+                    if (!class_flat) {
+                        class_flat_owned.resize(count * 3);
+                        for (std::size_t i = 0; i < count; ++i) {
+                            class_flat_owned[i * 3] = class_colors.data[i][0];
+                            class_flat_owned[i * 3 + 1] = class_colors.data[i][1];
+                            class_flat_owned[i * 3 + 2] = class_colors.data[i][2];
+                        }
+                        class_flat_ptr = class_flat_owned.data();
+                    }
+
+                    if (!object_flat && object_colors_ptr) {
+                        object_flat_owned.resize(count * 3);
+                        for (std::size_t i = 0; i < count; ++i) {
+                            object_flat_owned[i * 3] = object_colors_ptr->data[i][0];
+                            object_flat_owned[i * 3 + 1] = object_colors_ptr->data[i][1];
+                            object_flat_owned[i * 3 + 2] = object_colors_ptr->data[i][2];
+                        }
+                        object_flat_ptr = object_flat_owned.data();
+                    }
+
+                    self.Update(object_data_list, class_flat_ptr, object_flat_ptr, count);
+                } else {
+                    self.Update(object_data_list, class_colors.data, object_colors_ptr->data,
+                                object_data_list.size());
+                }
             },
             py::arg("object_data_list"), py::arg("class_id_colors"), py::arg("object_id_colors"))
         .def(
             "update_from_volumetric_objects",
             [](GlObjectSetT &self, const py::sequence &object_list,
-               const py::object &class_id_colors, const py::object &object_id_colors) {
+               const py::object &class_id_colors, const py::object &object_id_colors,
+               const bool use_background_bounding_box = false) {
                 const auto object_count = static_cast<std::size_t>(object_list.size());
                 auto class_colors =
                     ColorsFromPyObject(class_id_colors, object_count, "class_id_colors");
@@ -237,18 +281,39 @@ void BindGlObjectSet(py::module_ &m, const char *name) {
                         throw std::runtime_error("object box_size must have 3 elements");
                     }
 
+                    const auto class_id = object.attr("class_id").cast<std::size_t>();
                     const auto object_id = object.attr("object_id").cast<std::size_t>();
+
+                    const auto class_color =
+                        class_colors.flat_data
+                            ? std::array<float, 3>{class_colors.flat_data[i * 3],
+                                                   class_colors.flat_data[i * 3 + 1],
+                                                   class_colors.flat_data[i * 3 + 2]}
+                            : class_colors.data[i];
+
+                    const auto object_color =
+                        object_colors_ptr->flat_data
+                            ? std::array<float, 3>{object_colors_ptr->flat_data[i * 3],
+                                                   object_colors_ptr->flat_data[i * 3 + 1],
+                                                   object_colors_ptr->flat_data[i * 3 + 2]}
+                            : object_colors_ptr->data[i];
+
                     {
                         py::gil_scoped_release release;
-                        self.Update(object_id, point_data, color_data, point_count,
-                                    class_colors.data[i], object_colors_ptr->data[i],
-                                    box_matrix.data(), box_size.data());
+                        bool use_bounding_box =
+                            (class_id != 0 && object_id != 0) ? true : use_background_bounding_box;
+                        self.Update(object_id, point_data, color_data, point_count, class_color,
+                                    object_color, box_matrix.data(), box_size.data(),
+                                    use_bounding_box);
                     }
                 }
             },
-            py::arg("object_list"), py::arg("class_id_colors"), py::arg("object_id_colors"))
+            py::arg("object_list"), py::arg("class_id_colors"), py::arg("object_id_colors"),
+            py::arg("use_background_bounding_box") = false)
         .def_static("set_color_draw_mode", &GlObjectSetT::SetColorDrawMode,
                     py::arg("color_draw_mode"))
+        .def_static("enable_bounding_boxes", &GlObjectSetT::EnableBoundingBoxes,
+                    py::arg("enable_bounding_boxes"))
         .def_static("set_bounding_box_line_width", &GlObjectSetT::SetBoundingBoxLineWidth,
                     py::arg("bounding_box_line_width"));
 }

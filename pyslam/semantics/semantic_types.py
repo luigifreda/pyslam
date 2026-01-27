@@ -53,3 +53,7 @@ class SemanticDatasetType(SerializableEnum):
     NYU40 = 3  # NYU40 dataset (#classes: 41)
     FEATURE_SIMILARITY = 4  # Feature similarity dataset
     CUSTOM_SET = 5  # Custom set dataset (#classes: custom)
+
+
+# See also
+# pyslam/semantics/semantic_segmentation_types.py

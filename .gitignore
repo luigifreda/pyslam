@@ -64,6 +64,7 @@ data/orb_descriptors_kitti.npy
 data/slam_state
 data/kitti_trajectory.txt
 data/skyseg.onnx
+data/models/
 
 pyslam/slam/cpp/tests_py/test_data
 

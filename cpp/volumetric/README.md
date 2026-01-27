@@ -23,8 +23,9 @@ The voxel data types are now defined with templates to allow compile-time custom
 
 
 **Semantic fields**
-  - `class_id=0` background, `class_id>0` actual semantic class
-  - `object_id` no specific object, `object_id>0` specific object
+  - `class_id=0` background, `class_id=-1` invalid, `class_id>0` actual semantic class
+  - `object_id=0` no specific object, `object_id=-1` invalid, `object_id>0` specific object
+  - The code relies on `<0` checks, so `object_id`/instance IDs must remain signed
 
 #### Semantic Data Type Comparison
 

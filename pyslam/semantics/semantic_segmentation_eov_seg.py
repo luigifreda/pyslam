@@ -37,7 +37,11 @@ from .semantic_color_utils import (
 )
 from .semantic_color_map_factory import semantic_color_map_factory
 from .semantic_segmentation_types import SemanticSegmentationType
+from .semantic_instance_utils import ensure_unique_instance_ids
+
 from pyslam.utilities.logging import Printer
+from pyslam.config_parameters import Parameters
+
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
@@ -107,6 +111,8 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
         cache_dir=None,
         use_compile=False,
         use_fp16=False,
+        enforce_unique_instance_ids=Parameters.kSemanticSegmentationEnforceUniqueInstanceIds,
+        unique_instance_min_pixels=Parameters.kSemanticSegmentationUniqueInstanceMinPixels,
         **kwargs,
     ):
         """
@@ -124,6 +130,8 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
             cache_dir: Directory for vocabulary cache
             use_compile: Use torch.compile() for optimization (PyTorch 2.0+)
             use_fp16: Use mixed precision (FP16) for faster inference
+            enforce_unique_instance_ids: If True, split disconnected components to unique IDs
+            unique_instance_min_pixels: Minimum component size when splitting instance IDs
         """
 
         self.label_mapping = None
@@ -179,6 +187,8 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
             self.semantic_color_map = self.semantic_color_map_obj.color_map
 
         self.semantic_dataset_type = semantic_dataset_type
+        self.enforce_unique_instance_ids = enforce_unique_instance_ids
+        self.unique_instance_min_pixels = unique_instance_min_pixels
 
         if semantic_feature_type not in self.supported_feature_types:
             raise ValueError(
@@ -384,6 +394,7 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
         self._last_visualized_output = visualized_output
 
         instances = None
+        semantics = None
 
         # Extract semantic segmentation - optimized path for panoptic
         if "panoptic_seg" in predictions:
@@ -444,7 +455,12 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
                         interpolation=cv2.INTER_NEAREST,
                     ).astype(np.int32)
 
-            self.semantics = semantic_labels
+            if instances is not None and self.enforce_unique_instance_ids:
+                instances = ensure_unique_instance_ids(
+                    instances, background_id=0, min_pixels=self.unique_instance_min_pixels
+                )
+
+            semantics = semantic_labels
 
         elif "sem_seg" in predictions:
             # Fallback to semantic segmentation output
@@ -474,17 +490,18 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
             if self.label_mapping is not None:
                 if self.semantic_feature_type == SemanticFeatureType.LABEL:
                     labels = np.argmax(probs, axis=-1)
-                    self.semantics = self.label_mapping[labels]
+                    semantics = self.label_mapping[labels]
                 else:
-                    self.semantics = self.aggregate_probabilities(probs, self.label_mapping)
+                    semantics = self.aggregate_probabilities(probs, self.label_mapping)
             else:
                 if self.semantic_feature_type == SemanticFeatureType.LABEL:
-                    self.semantics = np.argmax(probs, axis=-1).astype(np.int32)
+                    semantics = np.argmax(probs, axis=-1).astype(np.int32)
                 else:
-                    self.semantics = probs
+                    semantics = probs
         else:
             raise ValueError("No semantic segmentation found in predictions")
 
+        self.semantics = semantics
         return SemanticSegmentationOutput(semantics=self.semantics, instances=instances)
 
     def _panoptic_to_semantic_labels(self, panoptic_seg, segments_info):
@@ -546,7 +563,7 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
         # Debug: Check for mismatches
         missing_in_info = unique_segment_ids_in_image - segment_ids_in_info
         missing_in_image = segment_ids_in_info - unique_segment_ids_in_image
-        if missing_in_info or missing_in_image and kVerboseInstanceSegmentation:
+        if (missing_in_info or missing_in_image) and kVerboseInstanceSegmentation:
             SemanticSegmentationBase.print(
                 f"EOV-Seg: _panoptic_to_instances: Segment ID mismatch detected! "
                 f"IDs in image but not in info: {missing_in_info}, "
@@ -635,20 +652,34 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
                 # Find max segment ID to determine lookup table size
                 max_seg_id = int(panoptic_np.max()) if panoptic_np.size > 0 else 0
                 max_seg_id = max(max_seg_id, max(thing_seg_ids))
+                min_seg_id = int(panoptic_np.min()) if panoptic_np.size > 0 else 0
+                min_seg_id = min(min_seg_id, min(thing_seg_ids))
+                min_seg_id = min(min_seg_id, min(segment_id_to_instance_id.keys()))
+                offset = -min_seg_id if min_seg_id < 0 else 0
+                lookup_size = max_seg_id + offset + 1
 
-                # Create lookup table: lookup[seg_id] = instance_id, default 0 (background)
-                # Use int32 to match panoptic_np dtype
-                lookup = np.zeros(max_seg_id + 1, dtype=np.int32)
-                # First, copy valid segment IDs (> 0) directly
-                for seg_id in thing_seg_ids:
-                    if seg_id > 0:
-                        lookup[seg_id] = np.int32(seg_id)
-                # Then, remap problematic ones (<= 0)
-                for seg_id, instance_id in segment_id_to_instance_id.items():
-                    lookup[seg_id] = np.int32(instance_id)
+                # Guard against huge sparse IDs that would blow up the lookup table.
+                if lookup_size > 5_000_000:
+                    instance_ids = np.zeros_like(panoptic_np, dtype=np.int32)
+                    for seg_id in thing_seg_ids:
+                        if seg_id > 0:
+                            instance_ids[panoptic_np == seg_id] = np.int32(seg_id)
+                    for seg_id, instance_id in segment_id_to_instance_id.items():
+                        instance_ids[panoptic_np == seg_id] = np.int32(instance_id)
+                else:
+                    # Create lookup table: lookup[seg_id + offset] = instance_id, default 0 (background)
+                    # Use int32 to match panoptic_np dtype
+                    lookup = np.zeros(lookup_size, dtype=np.int32)
+                    # First, copy valid segment IDs (> 0) directly
+                    for seg_id in thing_seg_ids:
+                        if seg_id > 0:
+                            lookup[seg_id + offset] = np.int32(seg_id)
+                    # Then, remap problematic ones (<= 0)
+                    for seg_id, instance_id in segment_id_to_instance_id.items():
+                        lookup[seg_id + offset] = np.int32(instance_id)
 
-                # Vectorized remapping: single pass through image using advanced indexing
-                instance_ids = lookup[panoptic_np]
+                    # Vectorized remapping: single pass through image using advanced indexing
+                    instance_ids = lookup[panoptic_np + offset]
 
         # Debug logging when instances are not available
         if num_thing_segments == 0 and kVerboseInstanceSegmentation:

@@ -48,7 +48,8 @@ void bind_image_utils(py::module &m) {
     m.def("convert_image_type_if_needed", &volumetric::convert_image_type_if_needed);
     m.def(
         "remap_instance_ids",
-        [](const cv::Mat &instance_ids, volumetric::MapInstanceIdToObjectId &map) {
+        [](const cv::Mat &instance_ids, volumetric::MapInstanceIdToObjectId &map,
+           const int invalid_instance_id = -1) {
             if (instance_ids.empty()) {
                 return instance_ids;
             }
@@ -66,22 +67,23 @@ void bind_image_utils(py::module &m) {
             const int mat_depth = CV_MAT_DEPTH(instance_ids.type());
             if (mat_depth == CV_32S) {
                 return volumetric::remap_instance_ids<volumetric::MapInstanceIdToObjectId, int32_t>(
-                    instance_ids, map);
+                    instance_ids, map, invalid_instance_id);
             } else if (mat_depth == CV_8S) {
                 return volumetric::remap_instance_ids<volumetric::MapInstanceIdToObjectId, int8_t>(
-                    instance_ids, map);
+                    instance_ids, map, invalid_instance_id);
             } else if (mat_depth == CV_8U) {
                 return volumetric::remap_instance_ids<volumetric::MapInstanceIdToObjectId, uint8_t>(
-                    instance_ids, map);
+                    instance_ids, map, invalid_instance_id);
             } else if (mat_depth == CV_16S) {
                 return volumetric::remap_instance_ids<volumetric::MapInstanceIdToObjectId, int16_t>(
-                    instance_ids, map);
+                    instance_ids, map, invalid_instance_id);
             } else if (mat_depth == CV_16U) {
                 return volumetric::remap_instance_ids<volumetric::MapInstanceIdToObjectId,
-                                                      uint16_t>(instance_ids, map);
+                                                      uint16_t>(instance_ids, map,
+                                                                invalid_instance_id);
             } else {
                 throw std::runtime_error("Unsupported instance id type");
             }
         },
-        py::arg("instance_ids"), py::arg("map"));
+        py::arg("instance_ids"), py::arg("map"), py::arg("invalid_instance_id") = -1);
 }

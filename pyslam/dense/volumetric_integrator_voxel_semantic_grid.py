@@ -80,6 +80,12 @@ kRootFolder = kScriptFolder + "/../.."
 kDataFolder = kRootFolder + "/data"
 
 
+# ===================================================================
+kGenerateObjects = True  # True: generate objects representation,
+#                          False: generate point cloud representation
+# ===================================================================
+
+
 class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
     def __init__(
         self,
@@ -261,7 +267,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             color_undistorted,
                             depth_undistorted,
                             pts3d,
-                            semantic_undistorted,
+                            semantic_classes_undistorted,
                             semantic_instances_undistorted,
                         ) = self.estimate_depth_if_needed_and_rectify(keyframe_data)
 
@@ -299,11 +305,11 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                     )
 
                                 if (
-                                    semantic_undistorted is not None
-                                    and semantic_undistorted.shape[0] > 0
+                                    semantic_classes_undistorted is not None
+                                    and semantic_classes_undistorted.shape[0] > 0
                                 ):
                                     VolumetricIntegratorBase.print(
-                                        f"\t\tsemantic_undistorted: shape: {semantic_undistorted.shape}, type: {semantic_undistorted.dtype}"
+                                        f"\t\tsemantic_undistorted: shape: {semantic_classes_undistorted.shape}, type: {semantic_classes_undistorted.dtype}"
                                     )
 
                                 if (
@@ -330,16 +336,23 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             else:
                                 depth_filtered = depth_undistorted
 
+                            # Ensure depth is in desired format for C++ binding
+                            depth_filtered = np.ascontiguousarray(
+                                depth_filtered, dtype=self.dtype_depths
+                            )
+
                             self.camera_frustrum.set_T_cw(pose)
 
                             object_ids_image = None
                             if integrate_2d_instance_ids:
+
                                 # Assign object IDs to instance IDs and perform carving if needed
                                 map_instance_ids_to_object_ids = self.volume.assign_object_ids_to_instance_ids(
                                     self.camera_frustrum,
-                                    semantic_undistorted,
+                                    semantic_classes_undistorted,
                                     semantic_instances_undistorted,
-                                    depth_undistorted,
+                                    # We used depth_filtered for rejecting point associations along shadows
+                                    depth_filtered,
                                     depth_threshold=Parameters.kVolumetricIntegrationVoxelGridCarvingDepthThreshold,
                                     do_carving=Parameters.kVolumetricIntegrationVoxelGridUseCarving,
                                     min_vote_ratio=Parameters.kVolumetricSemanticIntegrationMinVoteRatio,
@@ -355,10 +368,14 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                     VolumetricIntegratorBase.print(
                                         f"VolumetricIntegratorVoxelGrid: using carving with threshold: {Parameters.kVolumetricIntegrationVoxelGridCarvingDepthThreshold}"
                                     )
+
                                     # self.camera_frustrum.set_T_cw(pose) # already updated above
-                                    # Ensure depth is in float32 format for C++ binding
+
+                                    # Ensure depth is in desired format for C++ binding
+                                    # NOTE: For carving we use the undistorted depth image (not filtered) since it
+                                    #       is the original depth image from the camera and contains the depth for all the pixels.
                                     depth_for_carving = np.ascontiguousarray(
-                                        depth_undistorted, dtype=self.dtype_depths
+                                        depth_filtered, dtype=self.dtype_depths
                                     )
                                     self.volume.carve(
                                         self.camera_frustrum,
@@ -376,7 +393,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                 cx,
                                 cy,
                                 self.volumetric_integration_depth_trunc,
-                                semantic_image=semantic_undistorted,
+                                semantic_image=semantic_classes_undistorted,
                                 object_ids_image=object_ids_image,
                             )
 
@@ -493,14 +510,11 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
 
                     if do_output:
 
-                        generate_objects = True  # True: generate objects representation,
-                        #                          False: generate point cloud representation
-
                         mesh_out = None
                         pc_out = None
                         objects_out = None
 
-                        if generate_objects:
+                        if kGenerateObjects:
                             # ================================================================
                             # START OF GENERATE OBJECTS REPRESENTATION
                             objects_data_group = self.volume.get_object_segments(
@@ -520,6 +534,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                 and SemanticMappingShared.is_semantic_mapping_enabled()
                                 else None
                             )
+
                             object_colors = None
                             object_ids_for_colors = objects_data_group.object_ids
                             if object_ids_for_colors is not None and len(object_ids_for_colors) > 0:
@@ -591,6 +606,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                 if len(voxel_grid_data.object_ids) > 0
                                 else None
                             )
+
                             semantic_colors = (
                                 np.ascontiguousarray(
                                     SemanticMappingShared.sem_img_to_rgb(semantics, bgr=True),
@@ -601,6 +617,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                 and SemanticMappingShared.is_semantic_mapping_enabled()
                                 else None
                             )
+
                             object_colors = None
                             if object_ids is not None and len(object_ids) > 0:
                                 try:

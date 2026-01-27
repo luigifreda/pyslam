@@ -115,6 +115,10 @@ template <typename PointT, typename ColorT = float> class GlObjectT {
         color_draw_mode_ = color_draw_mode;
     }
 
+    static void EnableBoundingBoxes(const bool enable_bounding_boxes) {
+        enable_bounding_boxes_ = enable_bounding_boxes;
+    }
+
     static void SetBoundingBoxLineWidth(const int bounding_box_line_width) {
         bounding_box_line_width_ = bounding_box_line_width;
     }
@@ -128,6 +132,10 @@ template <typename PointT, typename ColorT = float> class GlObjectT {
         std::memcpy(box_matrix_, box_matrix, 16 * sizeof(GLdouble));
         std::memcpy(box_size_, box_size, 3 * sizeof(GLdouble));
     }
+
+    // If you want to enable/disable this bounding box (for instance for background points), you
+    // can call this function
+    void SetUseBoundingBox(const bool use_bounding_box) { use_bounding_box_ = use_bounding_box; }
 
     /* ----------- Draw ----------- */
 
@@ -164,7 +172,7 @@ template <typename PointT, typename ColorT = float> class GlObjectT {
 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-        if (use_bounding_box_ && color_draw_mode_ == ObjectColorDrawMode::OBJECT_ID) {
+        if (use_bounding_box_ && enable_bounding_boxes_) {
             glColor3f(object_id_color_[0], object_id_color_[1], object_id_color_[2]);
 
             glPushMatrix();
@@ -284,6 +292,7 @@ template <typename PointT, typename ColorT = float> class GlObjectT {
                                 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0};
     GLdouble box_size_[3] = {1.0, 1.0, 1.0};
 
+    static bool enable_bounding_boxes_;
     static int bounding_box_line_width_;
     static ObjectColorDrawMode color_draw_mode_;
 };
@@ -293,6 +302,9 @@ ObjectColorDrawMode GlObjectT<PointT, ColorT>::color_draw_mode_ = ObjectColorDra
 
 template <typename PointT, typename ColorT>
 int GlObjectT<PointT, ColorT>::bounding_box_line_width_ = 1;
+
+template <typename PointT, typename ColorT>
+bool GlObjectT<PointT, ColorT>::enable_bounding_boxes_ = false;
 
 // ================================================================
 // Draw a set of objects.
@@ -367,22 +379,53 @@ template <typename PointT, typename ColorT = float> class GlObjectSetT {
         }
     }
 
+    void Update(std::vector<std::shared_ptr<volumetric::ObjectData>> &object_data_list,
+                const float *class_id_colors_flat, const float *object_id_colors_flat,
+                const std::size_t color_count) {
+        if (!class_id_colors_flat) {
+            throw std::runtime_error("class_id_colors must be provided");
+        }
+        assert(object_data_list.size() == color_count);
+        const float *object_colors =
+            object_id_colors_flat ? object_id_colors_flat : class_id_colors_flat;
+        for (size_t i = 0; i < object_data_list.size(); ++i) {
+            const auto &object_data = object_data_list[i];
+            const auto &id = object_data->object_id;
+            const Color3f class_id_color = {class_id_colors_flat[i * 3],
+                                            class_id_colors_flat[i * 3 + 1],
+                                            class_id_colors_flat[i * 3 + 2]};
+            const Color3f object_id_color = {object_colors[i * 3], object_colors[i * 3 + 1],
+                                             object_colors[i * 3 + 2]};
+
+            const auto it = objects_.find(id);
+            if (it != objects_.end()) {
+                it->second->Update(object_data, class_id_color, object_id_color);
+            } else {
+                auto object = std::make_shared<GlObjectType>();
+                object->Update(object_data, class_id_color, object_id_color);
+                objects_[id] = object;
+            }
+        }
+    }
+
     void Update(const size_t id, const PointT *object_points, const ColorT *object_colors,
                 const std::size_t object_point_count, const Color3f &class_id_color,
                 const Color3f &object_id_color, const double *object_box_matrix,
-                const double *object_box_size) {
+                const double *object_box_size, const bool use_bounding_box = true) {
         const auto it = objects_.find(id);
         if (it != objects_.end()) {
             it->second->Update(object_points, object_colors, object_point_count);
             it->second->SetClassIDColor(class_id_color);
             it->second->SetObjectIDColor(object_id_color);
             it->second->SetBoundingBox(object_box_matrix, object_box_size);
+            it->second->SetUseBoundingBox(use_bounding_box);
         } else {
             auto object = std::make_shared<GlObjectType>();
             object->Update(object_points, object_colors, object_point_count);
             object->SetClassIDColor(class_id_color);
             object->SetObjectIDColor(object_id_color);
             object->SetBoundingBox(object_box_matrix, object_box_size);
+            object->SetUseBoundingBox(use_bounding_box);
             objects_[id] = object;
         }
     }
@@ -393,6 +436,10 @@ template <typename PointT, typename ColorT = float> class GlObjectSetT {
 
     static void SetBoundingBoxLineWidth(const int bounding_box_line_width) {
         GlObjectType::SetBoundingBoxLineWidth(bounding_box_line_width);
+    }
+
+    static void EnableBoundingBoxes(const bool enable_bounding_boxes) {
+        GlObjectType::EnableBoundingBoxes(enable_bounding_boxes);
     }
 
   private:

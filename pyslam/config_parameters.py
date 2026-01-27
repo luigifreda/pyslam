@@ -303,10 +303,10 @@ class Parameters:
     kVolumetricIntegrationFpsThrottleBaseDelay = 0.01  # base delay [s]
     kVolumetricIntegrationFpsThrottleScale = 0.1  # delay scale per FPS over threshold
     kVolumetricIntegrationVoxelGridMinCount = (
-        3  # Minimum number of points per voxel for grid semantic integration
+        3  # Minimum number of point observations per voxel for grid integration
     )
     kVolumetricIntegrationVoxelGridMinConfidence = (
-        0.0  # Minimum confidence for grid semantic integration
+        0.6  # Minimum confidence for grid semantic integration (0.5-0.7 is a good range)
     )
     #
     kVolumetricIntegrationVoxelGridUseCarving = False  # Use carving to remove voxels that are inconsistent with the depth image (in front or behind by more than the threshold).
@@ -315,7 +315,7 @@ class Parameters:
     )
     kVolumetricIntegrationVoxelGridCarvingDepthMaxIndoor = 8.0  # Maximum depth [m] for carving. Voxels with depth greater than this will not be carved.
     kVolumetricIntegrationVoxelGridCarvingDepthMaxOutdoor = 15.0  # Maximum depth [m] for carving. Voxels with depth greater than this will not be carved.
-    kVolumetricIntegrationVoxelGridCarvingDepthThreshold = 2e-2  # Depth threshold [m] for carving. Voxels that differ from the depth image by more than this threshold will be removed.
+    kVolumetricIntegrationVoxelGridCarvingDepthThreshold = 3e-2  # Depth threshold [m] for carving. Voxels that differ from the depth image by more than this threshold will be removed.
     #
     kVolumetricIntegrationVoxelGridShadowPointsFilter = (
         True  # Filter shadow points in the grid semantic integration
@@ -376,6 +376,13 @@ class Parameters:
     kSemanticMappingDebugAndPrintToFile = True
     kUseSemanticsInOptimization = False  # To enable/disable the use of semantics in optimization (disabled by default, it's still very experimental)
     kSemanticMappingTimeoutPopKeyframe = 0.5  # [s]
+    #
+    kSemanticSegmentationEnforceUniqueInstanceIds = (
+        True  # Enforce unique instance IDs for semantic mapping
+    )
+    kSemanticSegmentationUniqueInstanceMinPixels = (
+        20  # Minimum number of pixels for a unique instance ID
+    )
 
     # ================================================================
     # Depth estimator in the front-end (EXPERIMENTAL, WIP)

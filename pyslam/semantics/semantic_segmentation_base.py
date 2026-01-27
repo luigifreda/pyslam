@@ -58,7 +58,8 @@ class SemanticSegmentationBase:
         self.transform = transform
         self.device = device
         self.semantic_feature_type = semantic_feature_type
-        self.semantics = None
+        self.semantics = None  # predicted semantic labels
+        self.semantic_instances = None  # predicted instance IDs
         self.init_print()
 
     # Run semantic segmentation inference on an image.

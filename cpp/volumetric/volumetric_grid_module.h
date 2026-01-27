@@ -24,6 +24,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <array>
+#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -90,6 +92,37 @@ inline std::string dtype_description(const py::dtype &dt) {
     const ssize_t itemsize = dt.itemsize();
     const char kind = py::cast<char>(dt.attr("kind"));
     return "kind=" + std::string(1, kind) + " itemsize=" + std::to_string(itemsize);
+}
+
+// Unified helper for integrate_segment bindings: validates shape and contiguity.
+template <typename CLASS_TYPE, typename Tpos, typename Tcol>
+inline void integrate_segment_with_arrays(CLASS_TYPE &self, py::array_t<Tpos> points,
+                                          py::array_t<Tcol> colors, const int class_id,
+                                          const int object_id) {
+    py::array_t<Tpos, py::array::c_style | py::array::forcecast> points_c = points;
+    py::array_t<Tcol, py::array::c_style | py::array::forcecast> colors_c = colors;
+    auto pts_info = points_c.request();
+    auto cols_info = colors_c.request();
+
+    if (pts_info.ndim != 2 || pts_info.shape[1] != 3) {
+        throw std::runtime_error("points must be a contiguous Nx3 array");
+    }
+
+    if (cols_info.ndim != 2 || cols_info.shape[1] != 3) {
+        throw std::runtime_error("colors must be a contiguous Nx3 array");
+    }
+
+    if (cols_info.shape[0] != pts_info.shape[0]) {
+        throw std::runtime_error("points and colors must have the same size");
+    }
+
+    {
+        py::gil_scoped_release release;
+        self.template integrate_segment_raw<Tpos, Tcol>(static_cast<const Tpos *>(pts_info.ptr),
+                                               pts_info.shape[0],
+                                               static_cast<const Tcol *>(cols_info.ptr), class_id,
+                                               object_id);
+    }
 }
 
 // Unified helper function for integration with py::array inputs
@@ -531,14 +564,8 @@ inline void integrate_with_arrays(CLASS_TYPE &self, py::array_t<Tpos> points,
             "integrate_segment",                                                                   \
             [](CLASS_TYPE &self, py::array_t<double> points, py::array_t<uint8_t> colors,          \
                const int class_id, const int object_id) {                                          \
-                auto pts_info = points.request();                                                  \
-                auto cols_info = colors.request();                                                 \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    self.integrate_segment_raw<double, uint8_t>(                                   \
-                        static_cast<const double *>(pts_info.ptr), pts_info.shape[0],              \
-                        static_cast<const uint8_t *>(cols_info.ptr), class_id, object_id);         \
-                }                                                                                  \
+                detail::integrate_segment_with_arrays<CLASS_TYPE, double, uint8_t>(                \
+                    self, points, colors, class_id, object_id);                                    \
             },                                                                                     \
             "Insert a segment of points into the voxel grid", py::arg("points"),                   \
             py::arg("colors"), py::arg("class_id"), py::arg("object_id"))                          \
@@ -546,14 +573,8 @@ inline void integrate_with_arrays(CLASS_TYPE &self, py::array_t<Tpos> points,
             "integrate_segment",                                                                   \
             [](CLASS_TYPE &self, py::array_t<double> points, py::array_t<float> colors,            \
                const int class_id, const int object_id) {                                          \
-                auto pts_info = points.request();                                                  \
-                auto cols_info = colors.request();                                                 \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    self.integrate_segment_raw<double, float>(                                     \
-                        static_cast<const double *>(pts_info.ptr), pts_info.shape[0],              \
-                        static_cast<const float *>(cols_info.ptr), class_id, object_id);           \
-                }                                                                                  \
+                detail::integrate_segment_with_arrays<CLASS_TYPE, double, float>(                  \
+                    self, points, colors, class_id, object_id);                                    \
             },                                                                                     \
             "Insert a segment of points into the voxel grid", py::arg("points"),                   \
             py::arg("colors"), py::arg("class_id"), py::arg("object_id"))                          \
@@ -561,14 +582,8 @@ inline void integrate_with_arrays(CLASS_TYPE &self, py::array_t<Tpos> points,
             "integrate_segment",                                                                   \
             [](CLASS_TYPE &self, py::array_t<float> points, py::array_t<uint8_t> colors,           \
                const int class_id, const int object_id) {                                          \
-                auto pts_info = points.request();                                                  \
-                auto cols_info = colors.request();                                                 \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    self.integrate_segment_raw<float, uint8_t>(                                    \
-                        static_cast<const float *>(pts_info.ptr), pts_info.shape[0],               \
-                        static_cast<const uint8_t *>(cols_info.ptr), class_id, object_id);         \
-                }                                                                                  \
+                detail::integrate_segment_with_arrays<CLASS_TYPE, float, uint8_t>(                 \
+                    self, points, colors, class_id, object_id);                                    \
             },                                                                                     \
             "Insert a segment of points into the voxel grid", py::arg("points"),                   \
             py::arg("colors"), py::arg("class_id"), py::arg("object_id"))                          \
@@ -576,14 +591,8 @@ inline void integrate_with_arrays(CLASS_TYPE &self, py::array_t<Tpos> points,
             "integrate_segment",                                                                   \
             [](CLASS_TYPE &self, py::array_t<float> points, py::array_t<float> colors,             \
                const int class_id, const int object_id) {                                          \
-                auto pts_info = points.request();                                                  \
-                auto cols_info = colors.request();                                                 \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    self.integrate_segment_raw<float, float>(                                      \
-                        static_cast<const float *>(pts_info.ptr), pts_info.shape[0],               \
-                        static_cast<const float *>(cols_info.ptr), class_id, object_id);           \
-                }                                                                                  \
+                detail::integrate_segment_with_arrays<CLASS_TYPE, float, float>(                   \
+                    self, points, colors, class_id, object_id);                                    \
             },                                                                                     \
             "Insert a segment of points into the voxel grid", py::arg("points"),                   \
             py::arg("colors"), py::arg("class_id"), py::arg("object_id"))                          \

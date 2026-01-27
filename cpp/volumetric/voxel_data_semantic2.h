@@ -41,10 +41,6 @@ namespace volumetric {
 // corresponding ID is set to the new value and its confidence counter is reset to 1.
 // **NOTE**: Read the comparison note above concerning the differences between
 // VoxelSemanticDataProbabilistic and VoxelSemanticDataProbabilistic2.
-// NOTE:
-//      Semantics:
-//          - class_id=0 -> background, class_id>0 -> actual class
-//          - object_id=0 -> no specific object, object_id>0 -> specific object
 template <typename Tpos, typename Tcolor = float> struct VoxelSemanticData2T {
     inline static float kDepthThreshold =
         10.0f; // [m] depth threshold for updating semantics with depth
@@ -234,10 +230,6 @@ using VoxelSemanticData2F = VoxelSemanticData2T<float, float>;
 //
 // **NOTE**: Read the comparison note above concerning the differences between
 // VoxelSemanticDataProbabilistic and VoxelSemanticDataProbabilistic2.
-// NOTE:
-//      Semantics:
-//          - class_id=0 -> background, class_id>0 -> actual class
-//          - object_id=0 -> no specific object, object_id>0 -> specific object
 template <typename Tpos, typename Tcolor = float> struct VoxelSemanticDataProbabilistic2T {
 
     inline static float kDepthThreshold =
