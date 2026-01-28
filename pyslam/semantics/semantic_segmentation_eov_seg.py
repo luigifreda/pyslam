@@ -353,7 +353,7 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
         return 150  # Common default for ADE20K-like datasets
 
     @torch.no_grad()
-    def infer(self, image):
+    def infer(self, image) -> SemanticSegmentationOutput:
         """
         Run semantic segmentation inference on an image.
 
@@ -787,7 +787,7 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
 
         return aggregated
 
-    def to_rgb(self, semantics, bgr=False):
+    def sem_img_to_viz_rgb(self, semantics, bgr=False):
         """Convert semantics to RGB visualization using extracted detectron2 color map.
 
         This method uses the color map extracted from detectron2's metadata (same colors
@@ -841,3 +841,6 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
             visualized_output=getattr(self, "_last_visualized_output", None),
             bgr=bgr,
         )
+
+    def sem_img_to_rgb(self, semantic_img, bgr=False):
+        return self.semantic_color_map_obj.sem_img_to_rgb(semantic_img, bgr=bgr)

@@ -37,6 +37,7 @@ from .semantic_fusion_methods import SemanticFusionMethods
 from .semantic_mapping_base import SemanticMappingType, SemanticMappingBase
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from .semantic_mapping_configs import SemanticMappingConfig
+from .semantic_segmentation_output import SemanticSegmentationOutput
 from .semantic_color_utils import (
     labels_color_map_factory,
     single_label_to_color,
@@ -69,6 +70,10 @@ kSemanticMappingSleepTime = 5e-3  # [s]
 
 
 class SemanticMappingDenseBase(SemanticMappingBase):
+    """
+    Base class for dense semantic mapping. It is used by both SemanticMappingDense and SemanticMappingDenseProcess.
+    """
+
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
 
     def __init__(
@@ -125,10 +130,8 @@ class SemanticMappingDenseBase(SemanticMappingBase):
         self.draw_semantic_mapping_init = False
         # Cache whether casting predictions from int64 to int32 is value-safe
         self._is_sem_pred_cast_to_int32_safe = None
-        self.curr_semantic_prediction = None  # (H, W) for LABEL, (H, W, num_classes) for PROBABILITY_VECTOR, or (H, W, D) for FEATURE_VECTOR
-        self.curr_semantic_instances = (
-            None  # (H, W) for INSTANCES (optional, None if not available)
-        )
+
+        self.curr_semantic_inference: SemanticSegmentationOutput | None = None
 
     def _ensure_cpp_compatible_array(self, array, target_dtype, cast_safety_cache=None):
         """
@@ -171,18 +174,30 @@ class SemanticMappingDenseBase(SemanticMappingBase):
         return array, cast_safety_cache
 
     def update_kf_cur_semantics(self):
+        inference_output = self.curr_semantic_inference
+        curr_semantic_prediction = (
+            inference_output.semantics if inference_output is not None else None
+        )
+        curr_semantic_instances = (
+            inference_output.instances if inference_output is not None else None
+        )
+
         # Ensure semantics use int32 for C++ compatibility
         # The C++ type caster requires exact np.int32 dtype, not platform-specific int types
         if Parameters.USE_CPP_CORE:
-            self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe = (
+            curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe = (
                 self._ensure_cpp_compatible_array(
-                    self.curr_semantic_prediction, np.int32, self._is_sem_pred_cast_to_int32_safe
+                    curr_semantic_prediction, np.int32, self._is_sem_pred_cast_to_int32_safe
                 )
             )
             # Ensure instances use int32 for C++ compatibility (supports large panoptic segment IDs)
-            self.curr_semantic_instances, _ = self._ensure_cpp_compatible_array(
-                self.curr_semantic_instances, np.int32, None  # No safety cache needed for int32
+            curr_semantic_instances, _ = self._ensure_cpp_compatible_array(
+                curr_semantic_instances, np.int32, None  # No safety cache needed for int32
             )
+
+        if inference_output is not None:
+            inference_output.semantics = curr_semantic_prediction
+            inference_output.instances = curr_semantic_instances
 
         Printer.green(f"#semantic inference, timing: {self.timer_inference.last_elapsed}")
         # TODO(dvdmc): the prints don't work for some reason. They block the Thread ?
@@ -190,8 +205,8 @@ class SemanticMappingDenseBase(SemanticMappingBase):
 
         # update keypoints of current keyframe
         self.timer_update_keyframe.start()
-        self.kf_cur.set_semantics(self.curr_semantic_prediction)
-        self.kf_cur.set_semantic_instances(self.curr_semantic_instances)
+        self.kf_cur.set_semantics(curr_semantic_prediction)
+        self.kf_cur.set_semantic_instances(curr_semantic_instances)
         self.timer_update_keyframe.refresh()
         Printer.green(f"#set KF semantics, timing: {self.timer_update_keyframe.last_elapsed}")
         # SemanticMappingBase.print(f'#keypoints: {self.kf_cur.num_keypoints()}, timing: {self.timer_update_keyframe.last_elapsed}')
@@ -208,19 +223,23 @@ class SemanticMappingDenseBase(SemanticMappingBase):
     def draw_semantic_prediction(self):
         if self.headless:
             return
+        inference_output = self.curr_semantic_inference
+        curr_semantic_prediction = (
+            inference_output.semantics if inference_output is not None else None
+        )
         draw = False
         use_cv2_for_drawing = (
             platform.system() != "Darwin"
         )  # under mac we can't use cv2 imshow here
 
-        if self.curr_semantic_prediction is not None:
+        if curr_semantic_prediction is not None:
             if not self.draw_semantic_mapping_init:
                 if use_cv2_for_drawing:
                     cv2.namedWindow("semantic prediction")  # to get a resizable window
                 self.draw_semantic_mapping_init = True
             draw = True
-            semantic_color_img = self.semantic_segmentation.to_rgb(
-                self.curr_semantic_prediction, bgr=True
+            semantic_color_img = self.semantic_segmentation.sem_img_to_viz_rgb(
+                curr_semantic_prediction, bgr=True
             )
             if use_cv2_for_drawing:
                 cv2.imshow("semantic prediction", semantic_color_img)
@@ -253,7 +272,7 @@ class SemanticMappingDenseBase(SemanticMappingBase):
                 return single_label_to_color(label, self.semantic_color_map, bgr=bgr)
 
     def sem_img_to_rgb(self, semantic_img, bgr=False):
-        return self.semantic_segmentation.to_rgb(semantic_img, bgr=bgr)
+        return self.semantic_segmentation.sem_img_to_rgb(semantic_img, bgr=bgr)
 
     def get_semantic_weight(self, semantic_des):
         if self.semantic_feature_type == SemanticFeatureType.LABEL:
@@ -273,6 +292,10 @@ class SemanticMappingDenseBase(SemanticMappingBase):
 
 
 class SemanticMappingDense(SemanticMappingDenseBase):
+    """
+    Dense semantic mapping. It is used to run the semantic mapping on a main thread.
+    """
+
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
 
     def __init__(
@@ -310,8 +333,7 @@ class SemanticMappingDense(SemanticMappingDenseBase):
         # do dense semantic segmentation inference
         self.timer_inference.start()
         inference_output = self.semantic_segmentation.infer(self.img_cur)
-        self.curr_semantic_prediction = inference_output.semantics
-        self.curr_semantic_instances = inference_output.instances
+        self.curr_semantic_inference = inference_output
         self.timer_inference.refresh()
 
         self.update_kf_cur_semantics()

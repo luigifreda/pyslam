@@ -13,6 +13,8 @@ graph LR;
     semantic_segmentation_factory -->|*SemanticSegmentationType*| DETIC;
     semantic_segmentation_factory -->|*SemanticSegmentationType*| ODISE;
     semantic_segmentation_factory -->|*SemanticSegmentationType*| EOV_SEG;
+    semantic_segmentation_factory -->|*SemanticSegmentationType*| RFDETR;
+    semantic_segmentation_factory -->|*SemanticSegmentationType*| YOLO;
 
 
     %% Segmentation types create corresponding classes
@@ -22,11 +24,18 @@ graph LR;
     DETIC -->|*creates*| SemanticSegmentationDetic;
     ODISE -->|*creates*| SemanticSegmentationOdise;
     EOV_SEG -->|*creates*| SemanticSegmentationEovSeg;
+    RFDETR -->|*creates*| SemanticSegmentationRfDetr;
+    YOLO -->|*creates*| SemanticSegmentationYolo;
 
     %% Each segmentation class --> base
     SemanticSegmentationDeepLabV3 -->|*_is-a_*| SemanticSegmentationBase;
     SemanticSegmentationSegformer -->|*_is-a_*| SemanticSegmentationBase;
     SemanticSegmentationCLIP -->|*_is-a_*| SemanticSegmentationBase;
+    SemanticSegmentationDetic -->|*_is-a_*| SemanticSegmentationBase;
+    SemanticSegmentationEovSeg -->|*_is-a_*| SemanticSegmentationBase;   
+    SemanticSegmentationOdise -->|*_is-a_*| SemanticSegmentationBase;   
+    SemanticSegmentationRfDetr -->|*_is-a_*| SemanticSegmentationBase;
+    SemanticSegmentationYolo -->|*_is-a_*| SemanticSegmentationBase;
 
     %% Semantic mapping creation
     semantic_mapping_factory -->|*SemanticMappingType.DENSE*| SemanticMappingDense;
@@ -50,13 +59,18 @@ graph LR;
     class DETIC segmentation;
     class EOV_SEG segmentation;
     class ODISE segmentation;
+    class RFDETR segmentation;
+    class YOLO segmentation;
 
-    class SemanticSegmentationDetic segmentation;
-    class SemanticSegmentationEovSeg segmentation;
-    class SemanticSegmentationOdise segmentation;
     class SemanticSegmentationDeepLabV3 segmentation;
     class SemanticSegmentationSegformer segmentation;
     class SemanticSegmentationCLIP segmentation;
+    class SemanticSegmentationDetic segmentation;
+    class SemanticSegmentationEovSeg segmentation;
+    class SemanticSegmentationOdise segmentation;    
+    class SemanticSegmentationRfDetr segmentation;
+    class SemanticSegmentationYolo segmentation;
+
     class SemanticSegmentationBase segmentation;
 
     %% Mapping classes

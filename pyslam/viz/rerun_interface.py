@@ -106,6 +106,14 @@ class Rerun:
         Rerun.blueprint = rrb.Vertical(
             rrb.Horizontal(
                 rrb.Spatial3DView(name="3D", origin="/world"),
+                # rrb.Spatial3DView(
+                #     name="3D",
+                #     origin="/world",
+                #     eye_controls=rrb.EyeControls3D(
+                #         kind=rrb.Eye3DKind.FirstPerson,
+                #         tracking_entity="/world/camera",  # <- try this first
+                #     ),
+                # ),
                 rrb.Spatial2DView(name="Camera", origin="/world/camera/image"),
             ),
             rrb.Horizontal(
@@ -127,7 +135,9 @@ class Rerun:
     # ===================================================================================
 
     @staticmethod
-    def log_3d_camera_img_seq(frame_id: int, img, depth, camera: Camera, camera_pose) -> None:
+    def log_3d_camera_img_seq(
+        frame_id: int, img, depth, camera: Camera, camera_pose, size=0.5
+    ) -> None:
         """
         Log a camera image and depth map.
 
@@ -142,7 +152,7 @@ class Rerun:
         R = camera_pose[:3, :3]
         t = camera_pose[:3, 3]
 
-        rr.set_time_sequence("frame_id", frame_id)
+        rr.set_time("frame_id", sequence=frame_id)
 
         if Rerun.is_z_up:
             # Log camera pose in Z-up coordinates
@@ -153,7 +163,9 @@ class Rerun:
             rr.log(
                 "/world/camera",
                 rr.Transform3D(
-                    translation=t, mat3x3=R * Rerun.current_camera_view_scale, from_parent=False
+                    translation=t,
+                    mat3x3=R,  # R * Rerun.current_camera_view_scale,
+                    from_parent=False,
                 ),
             )
             rr.log(
@@ -173,7 +185,7 @@ class Rerun:
                 resolution=[camera.width, camera.height],
                 focal_length=[camera.fx, camera.fy],
                 principal_point=[camera.cx, camera.cy],
-                # image_plane_distance=20,
+                image_plane_distance=20.0 * size,
             ),
         )
 
@@ -211,7 +223,7 @@ class Rerun:
             num_divs: The number of divisions.
             div_size: The size of each division.
         """
-        rr.set_time_sequence("frame_id", 0)
+        rr.set_time("frame_id", sequence=0)
         # Plane parallel to x-z at origin with normal -y
         minx = -num_divs * div_size
         minz = -num_divs * div_size
@@ -290,7 +302,7 @@ class Rerun:
             color: The color of the trajectory.
             size: The size of the trajectory.
         """
-        # rr.set_time_sequence("frame_id", frame_id)
+        # rr.set_time("frame_id", sequence=frame_id)
         points = np.array(points).reshape(-1, 3)
         rr.log(
             "world/" + trajectory_string,
@@ -386,6 +398,42 @@ class Rerun:
             ),
         )
 
+    @staticmethod
+    def log_3d_view_from_camera_pose(
+        frame_id: int,
+        camera_pose: np.ndarray,
+        invert_pose: bool = True,
+        world_path: str = "/world",
+    ) -> None:
+        """
+        Move the current 3D view by applying a transform to the scene root.
+
+        Note:
+            Rerun 0.23.x does not expose a direct API to set the viewer camera
+            pose, so we move the view by updating the transform of the world
+            entity. Passing a camera pose here will make the view follow the
+            camera (by applying the inverse transform).
+
+        Args:
+            frame_id: The frame ID to log the view update on.
+            camera_pose: 4x4 pose of the camera in world coordinates.
+            invert_pose: If True, apply the inverse pose so the view follows
+                the camera.
+            world_path: The scene entity path to move (defaults to "/view").
+        """
+        if camera_pose.shape != (4, 4):
+            raise ValueError("camera_pose should have shape (4, 4)")
+
+        view_pose = utils_geom.inv_T(camera_pose) if invert_pose else camera_pose
+        R = view_pose[:3, :3]
+        t = view_pose[:3, 3]
+
+        rr.set_time("frame_id", sequence=frame_id)
+        rr.log(
+            world_path,
+            rr.Transform3D(translation=t, mat3x3=R, from_parent=False),
+        )
+
     # ===================================================================================
     # 2D logging
     # ===================================================================================
@@ -400,8 +448,8 @@ class Rerun:
             frame_id: The frame ID of the scalar sequence.
             scalar_data: The scalar data.
         """
-        rr.set_time_sequence("frame_id", frame_id)
-        rr.log(topic, rr.Scalar(scalar_data))
+        rr.set_time("frame_id", sequence=frame_id)
+        rr.log(topic, rr.Scalars(scalar_data))
 
     @staticmethod
     def log_2d_time_scalar(topic: str, frame_time_ns, scalar_data) -> None:
@@ -414,7 +462,7 @@ class Rerun:
             scalar_data: The scalar data.
         """
         rr.set_time_nanos("time", frame_time_ns)
-        rr.log(topic, rr.Scalar(scalar_data))
+        rr.log(topic, rr.Scalars(scalar_data))
 
     @staticmethod
     def log_img_seq(topic: str, frame_id: int, img, adjust_rgb=True) -> None:
@@ -429,7 +477,7 @@ class Rerun:
         """
         if adjust_rgb:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        rr.set_time_sequence("frame_id", frame_id)
+        rr.set_time("frame_id", sequence=frame_id)
         if Rerun.img_compress:
             rr.log(topic, rr.Image(img).compress(jpeg_quality=Rerun.img_compress_jpeg_quality))
         else:

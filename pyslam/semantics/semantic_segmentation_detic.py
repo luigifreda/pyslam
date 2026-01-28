@@ -80,6 +80,9 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
             config_file: Path to Detic config file (YAML). If None, uses default.
             model_weights: Path to model weights file (.pth). If empty, uses default from config.
             semantic_dataset_type: Target dataset type for label mapping
+                NOTE: Detic does not currently apply any label mapping; outputs use Detic's
+                vocabulary IDs (e.g., LVIS/COCO/OpenImages). Label mapping is only implemented
+                for the "sem_seg" path and self.label_mapping is not populated here.
             image_size: (height, width) - currently not used (model handles resizing)
             semantic_feature_type: LABEL or PROBABILITY_VECTOR
             vocabulary: Vocabulary to use ('lvis', 'coco', 'openimages', 'objects365', 'custom')
@@ -486,7 +489,7 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
         return 1203  # LVIS has 1203 classes, which is a common use case for DETIC
 
     @torch.no_grad()
-    def infer(self, image):
+    def infer(self, image) -> SemanticSegmentationOutput:
         """
         Run semantic segmentation inference on an image.
 
@@ -865,7 +868,7 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
 
         return aggregated
 
-    def to_rgb(self, semantics, bgr=False):
+    def sem_img_to_viz_rgb(self, semantics, bgr=False):
         """Convert semantics to RGB visualization using color map.
 
         Args:
@@ -903,3 +906,6 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
             visualized_output=getattr(self, "_last_visualized_output", None),
             bgr=bgr,
         )
+
+    def sem_img_to_rgb(self, semantic_img, bgr=False):
+        return self.semantic_color_map_obj.sem_img_to_rgb(semantic_img, bgr=bgr)

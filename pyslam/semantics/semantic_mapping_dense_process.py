@@ -70,9 +70,14 @@ def override(method):
     return method
 
 
-# This class is used to manage semantic mapping on a separate process. It does the same job as SemanticMappingDense,
-# but on a separate process.
+# This class is used to run semantic mapping by moving the image segmentation to a separate process.
+# The main thread (from SemanticMappingBase) is responsible for managing the semantic mapping,
+# while the separate process (spawned here) is responsible for the image segmentation.
 class SemanticMappingDenseProcess(SemanticMappingDenseBase):
+    """
+    Dense semantic mapping. It is used to run the semantic mapping on a separate process.
+    """
+
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
 
     def __init__(
@@ -158,6 +163,7 @@ class SemanticMappingDenseProcess(SemanticMappingDenseBase):
             QimageViewer.get_instance().quit()
         SemanticMappingBase.print("SemanticMapping: done")
 
+    # Step in the main loop of the semantic mapping thread (see SemanticMappingBase.run())
     # Depending on the implementation the step might just add semantics to new frames, keyframes or it might
     # segment objects and track 3D segments
     @override
@@ -166,7 +172,7 @@ class SemanticMappingDenseProcess(SemanticMappingDenseBase):
             if not self.stop_requested:
                 work_done = False
 
-                # Process all available keyframes and add them to the segmentation queue
+                # Process all available pushed keyframes from the main thread and add them to the segmentation queue
                 # Use non-blocking get when queue is not empty for better performance
                 if not self.queue.empty():
                     ret = self.pop_keyframe(timeout=0.0)  # non-blocking
@@ -372,21 +378,35 @@ class SemanticMappingDenseProcess(SemanticMappingDenseBase):
         # process the dense semantic segmentation inference output
         self.timer_inference.start()
         # inference_output is now a SemanticSegmentationOutput object containing both semantics and instances
-        self.curr_semantic_prediction = perception_output.inference_output.semantics
-        self.curr_semantic_instances = perception_output.inference_output.instances
+        self.curr_semantic_inference = perception_output.inference_output
         self.curr_semantic_prediction_color_image = perception_output.inference_color_image
+
+        curr_semantic_prediction = (
+            self.curr_semantic_inference.semantics
+            if self.curr_semantic_inference is not None
+            else None
+        )
+        curr_semantic_instances = (
+            self.curr_semantic_inference.instances
+            if self.curr_semantic_inference is not None
+            else None
+        )
 
         # CRITICAL: After multiprocessing pickling/unpickling, numpy arrays may have platform-specific
         # dtypes (e.g., np.intc instead of np.int32) that pybind11 doesn't recognize.
         # Only convert dtype if necessary for C++ compatibility, preserving the actual values.
-        self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe = (
+        curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe = (
             self._ensure_cpp_compatible_array_after_multiprocessing(
-                self.curr_semantic_prediction, np.int32, self._is_sem_pred_cast_to_int32_safe
+                curr_semantic_prediction, np.int32, self._is_sem_pred_cast_to_int32_safe
             )
         )
-        self.curr_semantic_instances, _ = self._ensure_cpp_compatible_array_after_multiprocessing(
-            self.curr_semantic_instances, np.int32, None  # No safety cache needed for int32
+        curr_semantic_instances, _ = self._ensure_cpp_compatible_array_after_multiprocessing(
+            curr_semantic_instances, np.int32, None  # No safety cache needed for int32
         )
+
+        if self.curr_semantic_inference is not None:
+            self.curr_semantic_inference.semantics = curr_semantic_prediction
+            self.curr_semantic_inference.instances = curr_semantic_instances
 
         self.timer_inference.refresh()
 
@@ -406,7 +426,12 @@ class SemanticMappingDenseProcess(SemanticMappingDenseBase):
             platform.system() != "Darwin"
         )  # under mac we can't use cv2 imshow here
 
-        if self.curr_semantic_prediction is not None:
+        curr_semantic_prediction = (
+            self.curr_semantic_inference.semantics
+            if self.curr_semantic_inference is not None
+            else None
+        )
+        if curr_semantic_prediction is not None:
             if not self.draw_semantic_mapping_init:
                 if use_cv2_for_drawing:
                     cv2.namedWindow("semantic prediction")  # to get a resizable window
@@ -422,8 +447,8 @@ class SemanticMappingDenseProcess(SemanticMappingDenseBase):
                 semantic_color_img = self.curr_semantic_prediction_color_image
             else:
                 # Fallback to generating it (shouldn't happen in normal operation)
-                semantic_color_img = self.semantic_segmentation.to_rgb(
-                    self.curr_semantic_prediction, bgr=True
+                semantic_color_img = self.semantic_segmentation.sem_img_to_viz_rgb(
+                    curr_semantic_prediction, bgr=True
                 )
 
             if use_cv2_for_drawing:

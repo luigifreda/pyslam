@@ -1107,7 +1107,7 @@ class VolumetricIntegratorBase:
             "Volume integration is not implemented for this volumetric integrator"
         )
 
-    # called by add_keyframe() and periodically by the keyframe_queue_timer
+    # Called by add_keyframe() and periodically by the keyframe_queue_timer
     def flush_keyframe_queue(self):
         # iterate over the keyframe queue and flush the keyframes into the task queue
         # Thread-safe pattern using lock to protect concurrent access
@@ -1178,6 +1178,7 @@ class VolumetricIntegratorBase:
                 if processed_count >= max_checks:
                     break
 
+    # This lives in the main process and is called by the local mapping process.
     def add_keyframe(self, keyframe: KeyFrame, img, img_right, depth, print=print):
         VolumetricIntegratorBase.print(
             f"VolumetricIntegratorBase: add_keyframe: adding frame {keyframe.id}"

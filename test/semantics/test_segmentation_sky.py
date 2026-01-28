@@ -1,3 +1,22 @@
+"""
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import os
 import sys
 
@@ -32,7 +51,7 @@ if __name__ == "__main__":
     sky_extractor = SkyMaskExtractor()
     img_writer = ImgWriter(font_scale=0.7)
 
-    cv2.namedWindow("semantic prediction", cv2.WINDOW_NORMAL)  # to get a resizable window
+    cv2.namedWindow("semantic prediction")  # to get a resizable window
 
     img_id = 0  # 180, 340, 400   # you can start from a desired frame id if needed
     key = None
@@ -58,7 +77,7 @@ if __name__ == "__main__":
 
             # colorize sky as red (BGR: (0, 0, 255))
             colored = sky_extractor.colorize_sky_region(img, sky_mask, color=(0, 0, 255), alpha=0.9)
-            cv2.imshow("sky colored", colored)
+            cv2.imshow("sky red-colored", colored)
 
             key = cv2.waitKey(1)
         else:

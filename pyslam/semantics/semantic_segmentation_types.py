@@ -21,7 +21,24 @@
 from pyslam.utilities.serialization import SerializableEnum, register_class
 
 
-# - Panoptic/instance: DETIC, ODISE, EOV_SEG
+# Just for science
+"""
+|----------------------------|---------------------------|---------------------------|---------------------------------|
+|      **Aspect**            | **Semantic Segmentation** | **Instance Segmentation** | **Panoptic Segmentation**       |
+|----------------------------|---------------------------|---------------------------|---------------------------------|
+| Objects ("things")         |       ❌ no               |         ✅ yes            |         ✅ yes                  | 
+| Background ("stuff")       |       ✅ yes              |         ❌ no             |         ✅ yes                  | 
+| Every pixel labeled        |       ✅ yes              |         ❌ no             |         ✅ yes                  | 
+| Instance IDs               |       ❌ no               |         ✅ yes            |         ✅ yes (things only)    | 
+| Overlapping objects        |       ❌ no               |         ❌ limited        |         ❌ no                   | 
+| Object parts distinguished |       ❌ no               |         ❌ no             |         ❌ no                   | 
+| Scene understanding        |       Medium              |         Partial           |         Complete                | 
+| Typical output             |       Per-pixel class map |         Mask per object   |  Unified map (class + instance) |
+"""
+
+
+#
+# - Panoptic segmentation:
 #   * DETIC: Object detection-based (CenterNet2 + CLIP), supports large vocabularies (LVIS/COCO/OpenImages/Objects365).
 #            Architecture: Object detector (CenterNet2) detects individual objects first, then segments each detection.
 #            Can output both "instances" (direct instance segmentation) and "panoptic_seg" formats.
@@ -41,10 +58,17 @@ from pyslam.utilities.serialization import SerializableEnum, register_class
 #            Instance extraction: Same as ODISE - derived from panoptic segments, may group multiple objects.
 #            Result: Similar to ODISE, instance segmentation may group multiple objects of the same category together
 #            (e.g., two pillows may be detected as one "pillow" instance).
-# - Semantic segmentation only:
+#
+# - Semantic segmentation:
 #   * DEEPLABV3: Semantic segmentation model from torchvision DeepLab's v3.
 #   * SEGFORMER: Semantic segmentation model from transformer's Segformer.
 #   * CLIP: uses CLIP patch embeddings + text similarity to produce labels/probabilities (it is not a dedicated "segmentation head").
+#
+# - Instance segmentation:
+#   * RFDETR: RF-DETR segmentation models (instance masks, COCO classes by default).
+#   * YOLO: Ultralytics YOLO segmentation models (instance masks).
+
+
 @register_class
 class SemanticSegmentationType(SerializableEnum):
     DEEPLABV3 = 0  # Semantics from torchvision DeepLab's v3 [Semantic only:]
@@ -55,6 +79,8 @@ class SemanticSegmentationType(SerializableEnum):
     )
     DETIC = 4  # Semantics from Detic (Detecting Twenty-thousand Classes) [Panoptic/instance]
     ODISE = 5  # Semantics from ODISE (Open-vocabulary DIffusion-based panoptic SEgmentation) [Panoptic/instance]
+    RFDETR = 6  # Semantics from RF-DETR segmentation models [Instance segmentation]
+    YOLO = 7  # Semantics from Ultralytics YOLO segmentation models [Instance segmentation]
 
     @staticmethod
     def from_string(name: str):

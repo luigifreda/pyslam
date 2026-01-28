@@ -74,9 +74,11 @@ kRootFolder = kScriptFolder + "/../.."
 kDataFolder = kRootFolder + "/data"
 
 
-# Entry point for semantic segmentation on a parallel process. An instance of SemanticSegmentationProcess is used by SemanticMappingDenseProcess.
-# For efficiency, we use multiprocessing to run semantic segmentation tasks in a parallel process. That means on a different CPU core thanks to multiprocessing.
-# This wouldn't be possible with python multithreading that runs threads on the same CPU core (due to the GIL).
+# Entry point for semantic segmentation on a parallel process. An instance of SemanticSegmentationProcess may be used
+# by SemanticMappingDenseProcess, as an alternative to the semantic mapping on a separate thread.
+# For efficiency, we use multiprocessing to run semantic segmentation tasks in a parallel process. That means on a
+# different CPU core thanks to multiprocessing. This wouldn't be possible with python multithreading that runs
+# threads on the same CPU core (due to the GIL).
 # A SemanticSegmentationProcess instance is owned by SemanticMappingDenseProcess.
 # The latter does the full job of managing
 #   (1) semantic segmentation on a separate process
@@ -211,8 +213,11 @@ class SemanticSegmentationProcess:
     def text_embs(self):
         return self._text_embs
 
-    def to_rgb(self, semantics, bgr=False):
+    def sem_img_to_viz_rgb(self, semantics, bgr=False):
         return self.semantic_color_map.to_rgb(semantics, bgr=bgr)
+
+    def sem_img_to_rgb(self, semantic_img, bgr=False):
+        return self.semantic_color_map.sem_img_to_rgb(semantic_img, bgr=bgr)
 
     def __getstate__(self):
         """
@@ -811,7 +816,7 @@ class SemanticSegmentationProcess:
                                 self.last_input_task.keyframe_data.img
                             )
                             if not headless:
-                                inference_color_image = semantic_segmentation.to_rgb(
+                                inference_color_image = semantic_segmentation.sem_img_to_viz_rgb(
                                     inference_output.semantics, bgr=True
                                 )
                             else:

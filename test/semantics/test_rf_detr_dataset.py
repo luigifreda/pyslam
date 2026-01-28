@@ -1,3 +1,22 @@
+"""
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import cv2
 import supervision as sv
 from rfdetr import RFDETRSegMedium
@@ -32,8 +51,8 @@ if __name__ == "__main__":
     mask_annotator = sv.MaskAnnotator()
     label_annotator = sv.LabelAnnotator()
 
-    cv2.namedWindow("image", cv2.WINDOW_NORMAL)
-    cv2.namedWindow("rfdetr masks", cv2.WINDOW_NORMAL)
+    cv2.namedWindow("image")
+    cv2.namedWindow("rfdetr masks")
 
     img_id = 0
     while True:

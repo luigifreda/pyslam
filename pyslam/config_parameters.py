@@ -363,9 +363,11 @@ class Parameters:
     # ================================================================
     # Sparse semantic mapping and image segmentation
     # ================================================================
-    kDoSparseSemanticMappingAndSegmentation = False  # To enable/disable _sparse_ semantic mapping (TODO: may be problematic under mac, fix it)
-    # NOTE: if you want _dense_ semantic mapping, enable this and setkDoVolumetricIntegration = True and  kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" or "VOXEL_SEMANTIC_GRID"
-    # kSemanticSegmentationType: None/"", "DEEPLABV3", "SEGFORMER", "CLIP", "EOV_SEG", "DETIC", "ODISE" (see semantic_segmentation_factory.py)
+    kDoSparseSemanticMappingAndSegmentation = False  # To enable/disable _sparse_ semantic mapping and image segmentation (TODO: may be problematic under mac, fix it)
+    # NOTE: If you want _dense_ semantic mapping, enable this and set
+    # kDoVolumetricIntegration = True and  kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" or "VOXEL_SEMANTIC_GRID"
+    #
+    # kSemanticSegmentationType: None/"", "DEEPLABV3", "SEGFORMER", "CLIP", "EOV_SEG", "DETIC", "ODISE", "RFDETR", "YOLO" (see semantic_segmentation_factory.py)
     kSemanticSegmentationType = ""  # Override the semantic model selected in semantic_mapping_configs.py. If kSemanticSegmentationType = "" or None, a default model will be selected based on the dataset (see semantic_mapping_configs.py)
     kSemanticMappingOnSeparateThread = (
         True  # To enable/disable the use of a separate thread for semantic mapping

@@ -215,7 +215,7 @@ The objective of this document is to present the pySLAM framework, its main feat
 
     \item A suite of segmentation models for
     \textbf{\protect\hyperlink{semantic-mapping}{semantic understanding}} of
-    the scene, such as DeepLabv3\cite{chen2017rethinking}, Segformer\cite{xie2021segformer}, CLIP\cite{lin2023clip}, EOV-Seg\cite{eov_seg}, DETIC\cite{detic}, and ODISE\cite{odise}.
+    the scene, such as DeepLabv3\cite{chen2017rethinking}, Segformer\cite{xie2021segformer}, CLIP\cite{lin2023clip}, EOV-Seg\cite{eov_seg}, DETIC\cite{detic}, ODISE\cite{odise}, RFDETR\cite{rfdetr}, and YOLO\cite{redmon2016yolo,redmon2017yolo9000,redmon2018yolov3,bochkovskiy2020yolov4,jocher2020yolov5, wang2022yolov7, jocher2023yolov8, sapkota2025ultralytics}.
     
     \item A \textbf{\protect\hyperlink{scene-from-views}{Scene from Views}} module providing a unified interface for end-to-end inference of 3D scenes from multiple views, supporting models such as DUSt3R\cite{wang2023dust3r}, MASt3R\cite{leroy2024grounding}, Depth Anything V3\cite{depthanything3}, MV-DUSt3R\cite{tang2025mv}, and VGGT\cite{wang2025vggt}.
     
@@ -471,7 +471,7 @@ The diagram in Fig.~\ref{Fig:SemanticMapping} outlines the architecture of the \
 \end{scriptsize}
 Both these classes extend \texttt{SemanticMappingDenseBase} and runs asynchronously in a dedicated thread to process keyframes as they become available. In particular, the \texttt{SemanticMappingDenseProcess} class offloads semantic segmentation inference to a separate process, thereby making better use of CPU core parallelism.
 
-Both \texttt{SemanticMappingDense} and \texttt{SemanticMappingDenseProcess} integrate semantic information into the SLAM map by leveraging per-frame predictions from a semantic segmentation model. The segmentation model is instantiated via the \texttt{semantic\_segmentation\_factory}, based on the selected \texttt{semantic\_segmentation\_type}. Supported segmentation backends include \texttt{DEEPLABV3}\cite{chen2017rethinking}, \texttt{SEGFORMER}\cite{xie2021segformer}, \texttt{CLIP}\cite{lin2023clip}, \texttt{EOV\_SEG}\cite{eov_seg}, \texttt{DETIC}\cite{detic}, and \texttt{ODISE}\cite{odise}, each of which corresponds to a dedicated class (\texttt{SemanticSegmentationDeepLabV3}, \texttt{SemanticSegmentationSegformer}, \texttt{SemanticSegmentationCLIP}, \texttt{SemanticSegmentationEovSeg}, \texttt{Semantic\-Segmentation\-Detic}, \texttt{Semantic\-Segmentation\-Odise}) inheriting from the shared \texttt{SemanticSegmentationBase}.
+Both \texttt{SemanticMappingDense} and \texttt{SemanticMappingDenseProcess} integrate semantic information into the SLAM map by leveraging per-frame predictions from a semantic segmentation model. The segmentation model is instantiated via the \texttt{semantic\_segmentation\_factory}, based on the selected \texttt{semantic\_segmentation\_type}. Supported segmentation backends include \texttt{DEEPLABV3}\cite{chen2017rethinking}, \texttt{SEGFORMER}\cite{xie2021segformer}, \texttt{CLIP}\cite{lin2023clip}, \texttt{EOV\_SEG}\cite{eov_seg}, \texttt{DETIC}\cite{detic}, \texttt{ODISE}\cite{odise}, \texttt{YOLO}\cite{redmon2016yolo,redmon2017yolo9000,redmon2018yolov3,bochkovskiy2020yolov4,jocher2020yolov5, wang2022yolov7, jocher2023yolov8, sapkota2025ultralytics}, and \texttt{RFDETR}\cite{rfdetr}, each of which corresponds to a dedicated class (\texttt{SemanticSegmentationDeepLabV3}, \texttt{SemanticSegmentationSegformer}, \texttt{SemanticSegmentationCLIP}, \texttt{SemanticSegmentationEovSeg}, \texttt{Semantic\-Segmentation\-Detic}, \texttt{Semantic\-Segmentation\-Odise}), \texttt{Semantic\-Segmentation\-RfDetr}), \texttt{Semantic\-Segmentation\-Yolo}), all inheriting from the shared \texttt{SemanticSegmentationBase}.
 
 The system supports multiple semantic feature representations~--~such as categorical labels, probability vectors, and high-dimensional feature embeddings~--~and fuses them into the map using configurable methods like count-based fusion, Bayesian fusion, or feature averaging.
 
@@ -973,6 +973,8 @@ support semantic mapping using \textbf{dense semantic segmentation}.
 \item \texttt{EOV\_SEG}: open-vocabulary panoptic segmentation model.
 \item \texttt{DETIC}: open-vocabulary object detection and segmentation model.
 \item \texttt{ODISE}: open-vocabulary diffusion-based panoptic segmentation model.
+\item \texttt{RFDETR}: real-time transformer architecture for object detection and instance segmentation (built on a DINOv2 vision transformer backbone). 
+\item \texttt{YOLO}: built on years of foundational research in computer vision and AI. 
 \end{itemize}
 
 \textbf{Semantic features} are assigned to \textbf{keypoints} on the
@@ -1819,6 +1821,11 @@ methods}\label{supported-semantic-segmentation-methods}}
   \href{https://arxiv.org/abs/2201.02605}{DETIC}~\cite{detic}: Detecting Twenty-thousand Classes using Image-level Supervision.
 \item
   \href{https://arxiv.org/abs/2303.04803}{ODISE}~\cite{odise}: Open-Vocabulary Panoptic Segmentation with Text-to-Image Diffusion Models.
+\item
+  \href{https://arxiv.org/abs/2511.09554}{RFDETR}~\cite{rfdetr}: A real-time transformer architecture for object detection and instance segmentation, built on a DINOv2 vision transformer backbone.
+\item
+  \href{https://arxiv.org/abs/2510.09653}{YOLO}~\cite{sapkota2025ultralytics}: One of the most influential and widely adopted series of models for real-time object detection, that attains an excellent balance
+between high accuracy and inference speed.
 \end{itemize}
 \hypertarget{supported-models-for-end-to-end-inference-of-3d-scenes-from-multiple-images}{%
 \subsubsection{Supported models for end-to-end inference of 3D scenes
@@ -2209,80 +2216,80 @@ If you want to \textbf{use your camera}, you have to:
 \hypertarget{credits}{%
 \section{Credits}\label{credits}}
 
-The following is a list of frameworks that inspired or has been integrated into pySLAM. Many thanks to their Authors for their great work.
-
-\begin{itemize}
-\tightlist
-\item
-  \href{https://github.com/stevenlovegrove/Pangolin}{Pangolin}
-\item
-  \href{https://github.com/uoip/g2opy}{g2opy}
-\item
-  \href{https://github.com/raulmur/ORB_SLAM2}{ORBSLAM2} \cite{ORB_SLAM2}
-\item
-  \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPointPretrainedNetwork} \cite{detone18superpoint}
-\item
-  \href{https://github.com/vbalnt/tfeat}{Tfeat} \cite{Tfeat}
-\item
-  \href{https://github.com/vcg-uvic/image-matching-benchmark-baselines}{Image Matching Benchmark Baselines} \cite{ImageMatchingBenchmarkBaselines}
-\item
-  \href{https://github.com/DagnyT/hardnet.git}{Hardnet} \cite{Hardnet}
-\item
-  \href{https://github.com/lzx551402/geodesc.git}{GeoDesc} \cite{GeoDesc}
-\item
-  \href{https://github.com/yuruntian/SOSNet.git}{SOSNet} \cite{SOSNet}
-\item
-  \href{https://github.com/yuruntian/L2-Net}{L2Net} \cite{L2Net}
-\item
-  \href{https://github.com/cvlab-epfl/log-polar-descriptors}{Log-polar descriptor} \cite{LogPolarDescriptor}
-\item
-  \href{https://github.com/mihaidusmanu/d2-net}{D2-Net} \cite{D2Net}
-\item
-  \href{https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md}{DELF} \cite{DELF}
-\item
-  \href{https://github.com/lzx551402/contextdesc}{Contextdesc} \cite{Contextdesc}
-\item
-  \href{https://github.com/vcg-uvic/lf-net-release}{LFNet} \cite{LFNet}
-\item
-  \href{https://github.com/naver/r2d2}{R2D2} \cite{R2D2}
-\item
-  \href{https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf}{BEBLID} \cite{BEBLID}
-\item
-  \href{https://arxiv.org/abs/2006.13566}{DISK} \cite{DISK}
-\item
-  \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{Xfeat}
-\item
-  \href{https://arxiv.org/abs/2306.13643}{LightGlue} \cite{LightGlue}
-\item
-  \href{https://github.com/axelBarroso/Key.Net}{Key.Net} \cite{barroso2020key}
-\item
-  \href{https://github.com/geohot/twitchslam}{Twitchslam} 
-\item
-  \href{https://github.com/uoip/monoVO-python}{MonoVO} 
-\item
-  \href{https://github.com/stschubert/VPR_Tutorial.git}{VPR\_Tutorial} \cite{VPR_Tutorial}
-\item
-  \href{https://github.com/DepthAnything/Depth-Anything-V2}{DepthAnythingV2} \cite{DepthAnythingV2}
-\item
-  \href{https://github.com/apple/ml-depth-pro}{DepthPro} \cite{depthpro2023}
-\item
-  \href{https://github.com/princeton-vl/RAFT-Stereo}{RAFT-Stereo} \cite{RAFTStereo}
-\item
-  \href{https://github.com/megvii-research/CREStereo}{CREStereo} and
-  \href{https://github.com/ibaiGorordo/CREStereo-Pytorch}{CREStereo-Pytorch} \cite{CREStereo}
-\item
-  \href{https://github.com/muskie82/MonoGS}{MonoGS} \cite{MonoGS}
-\item
-  \href{https://github.com/naver/mast3r}{MASt3R} \cite{master}
-\item
-  \href{https://github.com/facebookresearch/mvdust3r}{MV-DUSt3R} \cite{mvduster}
-\item
-  Many thanks to \href{https://github.com/anathonic}{Anathonic} for
-  adding the first version of the trajectory-saving feature and for the comparison notebook:
-  \href{https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb}{pySLAM vs ORB-SLAM3}.
-\item 
-	Many thanks to \href{https://github.com/dvdmc}{David Morilla Cabello} for his great work on creating the first version of sparse semantic mapping module in pySLAM~\cite{pyslamSemantic2025}.
-\end{itemize}
+A list of the frameworks that inspired or has been integrated into pySLAM are available \href{https://github.com/luigifreda/pyslam?tab=readme-ov-file#credits}{here}. Many thanks to their Authors for their great work.
+%
+%\begin{itemize}
+%\tightlist
+%\item
+%  \href{https://github.com/stevenlovegrove/Pangolin}{Pangolin}
+%\item
+%  \href{https://github.com/uoip/g2opy}{g2opy}
+%\item
+%  \href{https://github.com/raulmur/ORB_SLAM2}{ORBSLAM2} \cite{ORB_SLAM2}
+%\item
+%  \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPointPretrainedNetwork} \cite{detone18superpoint}
+%\item
+%  \href{https://github.com/vbalnt/tfeat}{Tfeat} \cite{Tfeat}
+%\item
+%  \href{https://github.com/vcg-uvic/image-matching-benchmark-baselines}{Image Matching Benchmark Baselines} \cite{ImageMatchingBenchmarkBaselines}
+%\item
+%  \href{https://github.com/DagnyT/hardnet.git}{Hardnet} \cite{Hardnet}
+%\item
+%  \href{https://github.com/lzx551402/geodesc.git}{GeoDesc} \cite{GeoDesc}
+%\item
+%  \href{https://github.com/yuruntian/SOSNet.git}{SOSNet} \cite{SOSNet}
+%\item
+%  \href{https://github.com/yuruntian/L2-Net}{L2Net} \cite{L2Net}
+%\item
+%  \href{https://github.com/cvlab-epfl/log-polar-descriptors}{Log-polar descriptor} \cite{LogPolarDescriptor}
+%\item
+%  \href{https://github.com/mihaidusmanu/d2-net}{D2-Net} \cite{D2Net}
+%\item
+%  \href{https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md}{DELF} \cite{DELF}
+%\item
+%  \href{https://github.com/lzx551402/contextdesc}{Contextdesc} \cite{Contextdesc}
+%\item
+%  \href{https://github.com/vcg-uvic/lf-net-release}{LFNet} \cite{LFNet}
+%\item
+%  \href{https://github.com/naver/r2d2}{R2D2} \cite{R2D2}
+%\item
+%  \href{https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf}{BEBLID} \cite{BEBLID}
+%\item
+%  \href{https://arxiv.org/abs/2006.13566}{DISK} \cite{DISK}
+%\item
+%  \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{Xfeat}
+%\item
+%  \href{https://arxiv.org/abs/2306.13643}{LightGlue} \cite{LightGlue}
+%\item
+%  \href{https://github.com/axelBarroso/Key.Net}{Key.Net} \cite{barroso2020key}
+%\item
+%  \href{https://github.com/geohot/twitchslam}{Twitchslam} 
+%\item
+%  \href{https://github.com/uoip/monoVO-python}{MonoVO} 
+%\item
+%  \href{https://github.com/stschubert/VPR_Tutorial.git}{VPR\_Tutorial} \cite{VPR_Tutorial}
+%\item
+%  \href{https://github.com/DepthAnything/Depth-Anything-V2}{DepthAnythingV2} \cite{DepthAnythingV2}
+%\item
+%  \href{https://github.com/apple/ml-depth-pro}{DepthPro} \cite{depthpro2023}
+%\item
+%  \href{https://github.com/princeton-vl/RAFT-Stereo}{RAFT-Stereo} \cite{RAFTStereo}
+%\item
+%  \href{https://github.com/megvii-research/CREStereo}{CREStereo} and
+%  \href{https://github.com/ibaiGorordo/CREStereo-Pytorch}{CREStereo-Pytorch} \cite{CREStereo}
+%\item
+%  \href{https://github.com/muskie82/MonoGS}{MonoGS} \cite{MonoGS}
+%\item
+%  \href{https://github.com/naver/mast3r}{MASt3R} \cite{master}
+%\item
+%  \href{https://github.com/facebookresearch/mvdust3r}{MV-DUSt3R} \cite{mvduster}
+%\item
+%  Many thanks to \href{https://github.com/anathonic}{Anathonic} for
+%  adding the first version of the trajectory-saving feature and for the comparison notebook:
+%  \href{https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb}{pySLAM vs ORB-SLAM3}.
+%\item 
+%	Many thanks to \href{https://github.com/dvdmc}{David Morilla Cabello} for his great work on creating the first version of sparse semantic mapping module in pySLAM~\cite{pyslamSemantic2025}.
+%\end{itemize}
 
 
 %\hypertarget{contributing-to-pyslam}{%

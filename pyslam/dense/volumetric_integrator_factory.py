@@ -61,6 +61,24 @@ def volumetric_integrator_factory(
     sensor_type,
     viewer_queue=None,
 ):
+    """
+    Factory function to create a VolumetricIntegratorBase instance based on the volumetric_integrator_type.
+    Args:
+        volumetric_integrator_type: VolumetricIntegratorType enum value
+        camera: Camera instance
+        environment_type: DatasetEnvironmentType enum value
+        sensor_type: SensorType enum value
+        viewer_queue: Queue instance for the viewer
+    Returns:
+        VolumetricIntegratorBase instance
+
+    Associations:
+        VolumetricIntegratorType.VOXEL_GRID                        -> VolumetricIntegratorVoxelGrid
+        VolumetricIntegratorType.VOXEL_SEMANTIC_GRID               -> VolumetricIntegratorVoxelSemanticGrid
+        VolumetricIntegratorType.VOXEL_SEMANTIC_PROBABILISTIC_GRID -> VolumetricIntegratorVoxelSemanticGrid
+        VolumetricIntegratorType.TSDF                              -> VolumetricIntegratorTsdf
+        VolumetricIntegratorType.GAUSSIAN_SPLATTING                -> VolumetricIntegratorGaussianSplatting
+    """
     if volumetric_integrator_type == VolumetricIntegratorType.VOXEL_GRID:
         return VolumetricIntegratorVoxelGrid(
             camera=camera,

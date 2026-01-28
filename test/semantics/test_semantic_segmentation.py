@@ -1,3 +1,22 @@
+"""
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import os
 import sys
 
@@ -169,7 +188,7 @@ if __name__ == "__main__":
 
     # Select your semantic segmentation configuration (see the file semantics/semantic_segmentation_factory.py)
 
-    semantic_segmentation_type = SemanticSegmentationType.DETIC
+    semantic_segmentation_type = SemanticSegmentationType.RFDETR
     semantic_feature_type = SemanticFeatureType.LABEL
     # semantic_dataset_type = SemanticDatasetType.ADE20K
     semantic_dataset_type = SemanticDatasetType.CITYSCAPES
@@ -194,8 +213,8 @@ if __name__ == "__main__":
     img_writer = ImgWriter(font_scale=0.7)
 
     # Create windows before the loop to avoid delay on first display
-    cv2.namedWindow("img", cv2.WINDOW_NORMAL)
-    cv2.namedWindow("semantic prediction", cv2.WINDOW_NORMAL)
+    cv2.namedWindow("img")
+    cv2.namedWindow("semantic prediction")
 
     img_id = 0  # 180, 340, 400   # you can start from a desired frame id if needed
     key = None
@@ -233,7 +252,9 @@ if __name__ == "__main__":
                 # Enable strict connectedness check if you want hard failures.
                 # check_instances_connected(curr_semantic_instances, min_pixels=50)
 
-            semantic_color_img = semantic_segmentation.to_rgb(curr_semantic_prediction, bgr=True)
+            semantic_color_img = semantic_segmentation.sem_img_to_viz_rgb(
+                curr_semantic_prediction, bgr=True
+            )
             if curr_semantic_instances is not None:
                 # Use instances_to_rgb method from semantic segmentation class
                 # This uses hash-based color mapping for instance IDs (which can be arbitrary integers)

@@ -7,12 +7,12 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
  
 **pySLAM** is a hybrid **python/C++** implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features in a **single python environment**:
 - A wide range of classical and modern **[local features](#supported-local-features)** with a convenient interface for their integration.
-- Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (*BoW*, *iBow*), Vector of Locally Aggregated Descriptors (*VLAD*) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
+- Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (*BoW*, *iBow*), Vector of Locally Aggregated Descriptors (*VLAD*) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors such as *SAD*, *NetVLAD*, *HDC-Delf*, *CosPlace*, *EigenPlaces*, *Megaloc*).
 - A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports different voxel grid models (with semantic support) and **TSDF** with voxel hashing, and incremental **Gaussian Splatting**. 
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include *DepthPro*, *DepthAnythingV2*, *DepthAnythingV3*, *RAFT-Stereo*, *CREStereo*, etc.  
-- A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as *DeepLabv3*, *Segformer*, *CLIP*, *DETIC*, *EOV-SEG*, *ODISE*, etc.
+- A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as *DeepLabv3*, *Segformer*, *CLIP*, *DETIC*, *EOV-SEG*, *ODISE*, *RFDETR*, *YOLO*, etc.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
-- Built-in support for over [10 dataset types](#datasets).
+- Built-in support for over **[10 dataset types](#datasets)**.
 - A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes. The Python and C++ implementations are interoperable: maps saved by one can be loaded by the other. Further details [here](pyslam/slam/cpp/README.md).
 - A modular pipeline for **end-to-end inference of 3D scenes from multiple images**. Supports models like *DUSt3R*, *Mast3r*, *MV-DUSt3R*, *VGGT*, *Robust VGGT*, *DepthFromAnythingV3*, and *Fast3R*. Further details [here](pyslam/scene_from_views/README.md).
 
@@ -154,6 +154,8 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
 * `main_map_dense_reconstruction.py` reloads a saved map and uses a configured volumetric integrator to obtain a dense reconstruction (see [here](#volumetric-reconstruction)). 
 
 * `main_slam_evaluation.py` enables automated SLAM evaluation by executing `main_slam.py` across a collection of datasets and configuration presets (see [here](#evaluating-slam)).
+
+* `main_semantic_image_segmentation.py` infers and visualize extracted semantic information on each frame of the selected dataset.
 
 * `main_scene_from_views.py` infers 3D scenes from multiple images using models like Mast3r, VGGT, and DepthFromAnythingV3 (see [here](#end-to-end-inference-of-3d-scenes-from-image-views)).  
 
@@ -479,13 +481,18 @@ Different segmetation methods are available (see [here](./docs/semantics.md) for
     - Instance extraction: Same as `ODISE` - derived from panoptic segments, may group multiple objects.
     - Result: Similar to `ODISE`, instance segmentation may group multiple objects of the same category together (e.g., two pillows may be detected as one "pillow" instance).
 
-**Semantic segmentation only:**
+**Semantic segmentation:**
   - `DEEPLABV3`: from `torchvision`, pre-trained on COCO/VOC.
     - Semantic segmentation model from torchvision DeepLab's v3.
   - `SEGFORMER`: from `transformers`, pre-trained on Cityscapes or ADE20k.
     - Semantic segmentation model from transformer's Segformer.
   - `CLIP`: from `f3rm` package for open-vocabulary support.
     - Uses CLIP patch embeddings + text similarity to produce labels/probabilities (it is not a dedicated "segmentation head"). 
+
+**Instance segmentation:**
+  - `RFDETR`: from https://github.com/roboflow/rf-detr.git
+    - RF-DETR instance segmentation; pretrained weights target COCO classes by default.
+  - `YOLO`: from https://github.com/ultralytics/ultralytics/ 
 
 #### Sparse Semantic Mapping
 
@@ -494,7 +501,9 @@ Different segmetation methods are available (see [here](./docs/semantics.md) for
 - *Probability vectors*: probability vectors for each class.
 - *Feature vectors*: feature vectors obtained from an encoder. This is generally used for open vocabulary mapping.
 
-The simplest way to test the available segmentation models is to run: `test/semantics/test_semantic_segmentation.py`.
+The simplest way to test the available segmentation models is to run: `test/semantics/test_semantic_segmentation.py`. 
+
+Further information about the **semantic module** is available [here](docs/semantics.md).
 
 
 #### Volumetric Semantic mapping
@@ -503,10 +512,11 @@ Volumetric semantic mapping can be enabled by setting:
 ```python
 kDoSparseSemanticMappingAndSegmentation=True #  enable sparse mapping and segmentation
 kDoVolumetricIntegration = True # enable volumetric integration
-kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" # use semantic volumetric models like VOXEL_SEMANTIC_PROBABILISTIC_GRID and VOXEL_SEMANTIC_GRID
+kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" # use semantic volumetric models like
+                                                                 # VOXEL_SEMANTIC_PROBABILISTIC_GRID and VOXEL_SEMANTIC_GRID
 ```
 
-Further information about the **volumetric integration models and SW architecture** are available [here](cpp/volumetric/README.md).
+Further information about the **volumetric integration models** and its SW architecture is available [here](cpp/volumetric/README.md).
 
 ---
 
@@ -794,6 +804,7 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 - [EOV-Seg](https://github.com/nhw649/EOV-Seg): [_"EOV-Seg: Efficient Open-Vocabulary Panoptic Segmentation"_](https://arxiv.org/abs/2412.08628)
 - [Detic](https://github.com/facebookresearch/Detic): [_"Detecting Twenty-thousand Classes using Image-level Supervision"_](https://arxiv.org/abs/2201.02605)
 - [ODISE](https://github.com/NVlabs/ODISE): [_"Open-Vocabulary Panoptic Segmentation with Text-to-Image Diffusion Models"_](https://arxiv.org/abs/2303.04803)
+- [RF-DETR](https://github.com/roboflow/rf-detr.git): [_"RF-DETR: Neural Architecture Search for Real-Time Detection Transformers"_](https://arxiv.org/abs/2511.09554)
 
 
 ### Supported models for end-to-end inference of 3D scenes from multiple images
@@ -1029,6 +1040,7 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [MAST3R](https://github.com/naver/mast3r) 
 * [EOV-Seg](https://github.com/nhw649/EOV-Seg.git)
 * [ODISE](https://github.com/NVlabs/ODISE.git)
+* [RF-DETR](from https://github.com/roboflow/rf-detr.git)
 * [Detic](https://github.com/facebookresearch/Detic.git)
 * [Detectron2](https://github.com/facebookresearch/detectron2.git)
 * [Nanoflann](https://github.com/jlblancoc/nanoflann)

@@ -1,7 +1,25 @@
+"""
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import open3d as o3d
 import numpy as np
 import time
-
 
 
 # Function to create a grid
@@ -38,15 +56,15 @@ if __name__ == "__main__":
 
     # Add a grid to the visualizer
     grid = create_grid(size=1000, divisions=1000)
-    vis.add_geometry(grid)    
-    
+    vis.add_geometry(grid)
+
     # Add a coordinate frame to the visualizer
     axis_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=1.0, origin=[0, 0, 0])
     vis.add_geometry(axis_frame)
-        
+
     # Create initial trajectory
     trajectory_points = np.array([[0.0, 0.0, 0.0]])
-    lines = []  # No connections initially    
+    lines = []  # No connections initially
     colors = []  # Line color (red)
     line_set = o3d.geometry.LineSet(
         points=o3d.utility.Vector3dVector(trajectory_points),
@@ -61,7 +79,7 @@ if __name__ == "__main__":
     view_control = vis.get_view_control()
     view_control.set_constant_z_near(0.1)
     view_control.set_constant_z_far(1000)
-    #view_control.set_zoom(0.1)
+    # view_control.set_zoom(0.1)
     # view_control.set_lookat([0, 0, 0])
     # view_control.scale(1000)
 
@@ -74,7 +92,7 @@ if __name__ == "__main__":
         # Add new point
         new_point = np.array([i * delta, np.sin(i * delta), np.cos(i * delta)])
         trajectory_points = np.vstack((trajectory_points, new_point))
-                
+
         # Update LineSet geometry
         lines = [[j, j + 1] for j in range(len(trajectory_points) - 1)]
         colors = [[1.0, 0.0, 0.0] for _ in lines]
@@ -83,18 +101,18 @@ if __name__ == "__main__":
         line_set.points = o3d.utility.Vector3dVector(trajectory_points)
         line_set.lines = o3d.utility.Vector2iVector(lines)
         line_set.colors = o3d.utility.Vector3dVector(colors)  # Keep color red
-        
+
         # Update visualizer
         vis.update_geometry(line_set)
-        
+
         # Adjust FoV and zoom dynamically
-        #bbox = line_set.get_axis_aligned_bounding_box()
-        #view_control.set_lookat(bbox.get_center())        
+        # bbox = line_set.get_axis_aligned_bounding_box()
+        # view_control.set_lookat(bbox.get_center())
         view_control.set_lookat(new_point)
-            
+
         vis.poll_events()
         vis.update_renderer()
-        
+
         time.sleep(0.03)  # Simulate a delay
 
     # Keep the window open
