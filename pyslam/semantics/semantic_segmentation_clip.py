@@ -225,7 +225,7 @@ class SemanticSegmentationCLIP(SemanticSegmentationBase):
         return len(self.label_names)
 
     @torch.no_grad()
-    def infer(self, image):
+    def infer(self, image) -> SemanticSegmentationOutput:
         prev_width = image.shape[1]
         prev_height = image.shape[0]
         recover_size = transforms.Resize(
@@ -273,15 +273,20 @@ class SemanticSegmentationCLIP(SemanticSegmentationBase):
         self.semantics = pred.cpu().numpy()
         return SemanticSegmentationOutput(semantics=self.semantics, instances=None)
 
-    def to_rgb(self, semantics, bgr=False):
+    def sem_img_to_viz_rgb(self, semantics, bgr=False):
+        return self.sem_img_to_rgb(semantics, bgr=bgr)
+
+    def sem_img_to_rgb(self, semantic_img, bgr=False):
         if self.semantic_feature_type == SemanticFeatureType.LABEL:
-            return labels_to_image(semantics, self.semantic_color_map, bgr=bgr)
+            return labels_to_image(semantic_img, self.semantic_color_map, bgr=bgr)
         elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
-            return labels_to_image(np.argmax(semantics, axis=-1), self.semantic_color_map, bgr=bgr)
+            return labels_to_image(
+                np.argmax(semantic_img, axis=-1), self.semantic_color_map, bgr=bgr
+            )
         elif self.semantic_feature_type == SemanticFeatureType.FEATURE_VECTOR:
             # Transform semantic to tensor
             # TODO(dvdmc): check if doing these operations (and functions below) in CPU is more efficient (it probably is)
-            semantics = torch.from_numpy(semantics).to(self.device)
+            semantics = torch.from_numpy(semantic_img).to(self.device)
             # Compute similarity
             sims = semantics @ self.text_embs.T  # (H, W, D) @ (D, N) -> (H, W, N)
             if self.semantic_dataset_type == SemanticDatasetType.FEATURE_SIMILARITY:

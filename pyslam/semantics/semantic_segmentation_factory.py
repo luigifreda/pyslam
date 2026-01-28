@@ -40,6 +40,8 @@ try:
     from .semantic_segmentation_eov_seg import SemanticSegmentationEovSeg
     from .semantic_segmentation_detic import SemanticSegmentationDetic
     from .semantic_segmentation_odise import SemanticSegmentationOdise
+    from .semantic_segmentation_rf_detr import SemanticSegmentationRfDetr
+    from .semantic_segmentation_yolo import SemanticSegmentationYolo
 except ModuleNotFoundError:
     SemanticSegmentationBase = import_from(
         "pyslam.semantics.semantic_segmentation_base", "SemanticSegmentationBase"
@@ -62,6 +64,12 @@ except ModuleNotFoundError:
     SemanticSegmentationOdise = import_from(
         "pyslam.semantics.semantic_segmentation_odise", "SemanticSegmentationOdise"
     )
+    SemanticSegmentationRfDetr = import_from(
+        "pyslam.semantics.semantic_segmentation_rf_detr", "SemanticSegmentationRfDetr"
+    )
+    SemanticSegmentationYolo = import_from(
+        "pyslam.semantics.semantic_segmentation_yolo", "SemanticSegmentationYolo"
+    )
 
 
 from typing import TYPE_CHECKING
@@ -73,6 +81,8 @@ if TYPE_CHECKING:
     from pyslam.semantics.semantic_segmentation_eov_seg import SemanticSegmentationEovSeg
     from pyslam.semantics.semantic_segmentation_detic import SemanticSegmentationDetic
     from pyslam.semantics.semantic_segmentation_odise import SemanticSegmentationOdise
+    from pyslam.semantics.semantic_segmentation_rf_detr import SemanticSegmentationRfDetr
+    from pyslam.semantics.semantic_segmentation_yolo import SemanticSegmentationYolo
 
 
 kScriptPath = os.path.realpath(__file__)
@@ -146,6 +156,24 @@ def semantic_segmentation_factory(
     elif semantic_segmentation_type == SemanticSegmentationType.ODISE:
         # For ODISE, config_file, model_weights, vocab, label_list, etc. can be passed via kwargs
         return SemanticSegmentationOdise(
+            device=device,
+            semantic_dataset_type=semantic_dataset_type,
+            image_size=image_size,
+            semantic_feature_type=semantic_feature_type,
+            **kwargs,
+        )
+    elif semantic_segmentation_type == SemanticSegmentationType.RFDETR:
+        # For RF-DETR, model_variant, weights_path, weights_name, etc. can be passed via kwargs
+        return SemanticSegmentationRfDetr(
+            device=device,
+            semantic_dataset_type=semantic_dataset_type,
+            image_size=image_size,
+            semantic_feature_type=semantic_feature_type,
+            **kwargs,
+        )
+    elif semantic_segmentation_type == SemanticSegmentationType.YOLO:
+        # For YOLO, model_name, weights_path, model_url, etc. can be passed via kwargs
+        return SemanticSegmentationYolo(
             device=device,
             semantic_dataset_type=semantic_dataset_type,
             image_size=image_size,

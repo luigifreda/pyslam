@@ -1,34 +1,32 @@
 # Semantic Mapping and Segmentation 
 
+The `semantics` module in pySLAM provides **sparse semantic mapping** and **image segmentation** within the SLAM pipeline. It is intended for rapid prototyping, benchmarking, and evaluation of semantic mapping and segmentation methods. When paired with the `volumetric` mapping module, it also enables **semantic volumetric mapping**.
+
 <!-- TOC -->
 
 - [Semantic Mapping and Segmentation](#semantic-mapping-and-segmentation)
-    - [1. Sparse Semantic Mapping and Segmentation](#1-sparse-semantic-mapping-and-segmentation)
-        - [1.1. Quick test](#11-quick-test)
-    - [2. Short description](#2-short-description)
-        - [2.1. Semantic features types](#21-semantic-features-types)
-        - [2.2. Dense vs Object-Based](#22-dense-vs-object-based)
-        - [2.3. Supported Models](#23-supported-models)
-        - [2.4. Dataset Type Support](#24-dataset-type-support)
-        - [2.5. Feature Fusion](#25-feature-fusion)
-        - [2.6. Visualizations](#26-visualizations)
-    - [3. Volumetric Semantic mapping](#3-volumetric-semantic-mapping)
-    - [4. TODOs](#4-todos)
+  - [Sparse Semantic Mapping and Image Segmentation](#sparse-semantic-mapping-and-image-segmentation)
+    - [Quick test](#quick-test)
+    - [Short description](#short-description)
+    - [Semantic feature types](#semantic-feature-types)
+    - [Dense vs Object-Based](#dense-vs-object-based)
+    - [Supported Models](#supported-models)
+    - [Dataset Type Support](#dataset-type-support)
+    - [Sparse Feature Fusion Methods](#sparse-feature-fusion-methods)
+    - [Visualizations](#visualizations)
+  - [Volumetric Semantic mapping](#volumetric-semantic-mapping)
+  - [TODOs](#todos)
 
 <!-- /TOC -->
 
-
-The `semantics` module in pySLAM enables **semantic mapping** and **image segmentation** capabilities. It is designed to support rapid prototyping, benchmarking, and evaluation of semantic mapping methods within the SLAM pipeline. If combined with the volumetric mapping module, the `semantics` module allows to get semantic volumetric mapping.
-
-
 ---
-## Sparse Semantic Mapping and Segmentation
+## Sparse Semantic Mapping and Image Segmentation
 
 ### Quick test
 
 1. Enable sparse semantic mapping and segmentation by setting:
     ```python
-    kDoSparseSemanticMappingAndSegmentation=True #  enable sparse mapping and segmentation
+    kDoSparseSemanticMappingAndSegmentation=True #  enable sparse mapping and image segmentation
     ```
 2. Run the `main_slam.py` example to run Segformer (trained on Cityscapes) on the default KITTI video.
 
@@ -39,29 +37,34 @@ kSemanticSegmentationType="CLIP" # in config_parameters.py
 Then change your query word in `semantic_segmentation_clip.py` to your desire.
 
 
-## Short description
+### Short description
 
-The _sparse semantic mapping module_ assigns semantic features to keypoints on keyframes and uses them to assign semantic features to map points.
+The _sparse semantic mapping_ module:
+- infers semantic information from each keyframe image,
+- assigns semantic features to keyframe keypoints,
+- and propagates those features to the corresponding sparse map points.
 
-The semantic mapping module acts **after** the local mapping module has refined a keyframe and **before** the loop closure and volumetric integration modules. If semantic volumetric mapping is requested, the volumetric mapping waits the semantic prediction of a keyframe is available before processing it. 
+The semantic mapping module runs **after** local mapping refines a keyframe and **before** loop closure and volumetric integration. When `volumetric` mapping is enabled together with the `semantics` module, volumetric integration waits until a keyframe’s semantic prediction is available before processing it.
 
-In a few words, the semantic mapping module takes as input the extracted keyframes and returns as output the semantic features for KPs and MPs.
+### Semantic feature types
 
-### Semantic features types
-
-- **Labels**: categorical labels  
-- **Probability vectors**: with confidence or probability for each of the classes.  
-- **Feature vectors**: with latent features (used for open-vocabulary semantic mapping)
+- **Labels**: categorical class IDs; stored on keypoints/map points and used for fusion, visualization, and semantic weighting.
+- **Probability vectors**: per-class confidence/probability scores; fused across observations to estimate robust semantics.
+- **Feature vectors**: latent embeddings used for open-vocabulary semantic mapping and similarity-based inference.
 
 ### Dense vs Object-Based
 
-The semantic mapping module can potentially be “dense” or “object-based”. Both will maintain the same interface.
-- **Dense** version:
-  - Uses per-pixel semantic segmentation.
+The semantic mapping module can potentially be _“dense”_ or _“object-based”_; both are intended to expose the same interface.
+
+The currently implemented version is **Dense**: it runs per-pixel semantic segmentation on keyframe images, assigns semantic descriptors to keypoints, and fuses them into the corresponding sparse map points.
+
+An **Object-based** variant is currently implemented only in combination with the `volumetric` module, where object segments are grouped 3D points with shared semantic class and object IDs (which are still extracted from keyframe images and then backprojected and integrated into voxels).
+
+<!--
 - **Object-based** [*WIP*]:
   - Generate, track, and maintain 3D segments as groups of points.
   - Features are assigned at object-level: multiple KPs or MPs share "object descriptors".
-  - Possible approaches: project 2D masks and use label fusion and DBSCAN for 3D clustering (WIP).
+  - Possible approaches: project 2D masks and use label fusion and DBSCAN for 3D clustering (WIP). -->
 
 ### Supported Models
 
@@ -97,6 +100,11 @@ The semantic mapping module can potentially be “dense” or “object-based”
     - Uses CLIP patch embeddings + text similarity to produce labels/probabilities (it is not a dedicated "segmentation head"). 
 
 
+**Instance segmentation:**
+  - `RFDETR`: from https://github.com/roboflow/rf-detr.git
+    - RF-DETR instance segmentation; pretrained weights target COCO classes by default.
+  - `YOLO`: from https://github.com/ultralytics/ultralytics
+
 ### Dataset Type Support
 
 - Trained for a “dataset type” managing label-color mappings and equivalence mappings.
@@ -104,7 +112,7 @@ The semantic mapping module can potentially be “dense” or “object-based”
   - **closed_set**: user-defined labels and generic color map
   - **feature_sim**: similarity map based on a query word
 
-### Feature Fusion
+### Sparse Feature Fusion Methods
 
 - Features are fused from KPs into MPs using one of the fusion methods available [here](../pyslam/semantics/semantic_fusion_methods.py).
 
@@ -123,17 +131,20 @@ It is possible to visualize both in 2D and 3D the:
 
 ## Volumetric Semantic mapping
 
-Semantic volumetric mapping can be performed by setting: 
+Semantic volumetric mapping is enabled by setting: 
 ```python
 kDoSparseSemanticMappingAndSegmentation=True #  enable sparse mapping and segmentation
 kDoVolumetricIntegration = True # enable volumetric integration
-kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" # use semantic volumetric models like VOXEL_SEMANTIC_PROBABILISTIC_GRID and VOXEL_SEMANTIC_GRID
+kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" # use semantic volumetric models like
+                                                                 # VOXEL_SEMANTIC_PROBABILISTIC_GRID and VOXEL_SEMANTIC_GRID
 ```
+
+ When `volumetric` mapping and `semantic` module are both enabled, the volumetric mapping waits the semantic prediction of a keyframe is available before processing it.
 
 Further information about the volumetric integration models and SW architecture are available [here](../cpp/volumetric/README.md).
 
 ## TODOs
 
-- [ ] Investigate variants in KF count for LABEL vs PROBABILITY_VECTOR
+- [ ] Investigate variants in KF count for `LABEL` vs `PROBABILITY_VECTOR`
 - [ ] Implement object-level semantic mapping [WIP]
 - [ ] Add interaction in 3D viewer to change query word (open-vocab)

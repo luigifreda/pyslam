@@ -1,0 +1,555 @@
+#!/usr/bin/env python3
+"""
+VeloDepth video demo (realtime-friendly):
+- Loads a video (or folder of frames)
+- Generates backward optical flow using OpenCV DIS (no RAFT at inference)
+- Runs the VeloDepth temporal model on chunks of frames to reduce VRAM
+- Optionally uses a constant camera JSON for the clip
+- Saves RGB / depth / rays frames and (optionally) a PLY for a chosen frame
+"""
+
+import argparse
+import glob
+import json
+import os
+from collections import deque
+from pathlib import Path
+
+import cv2
+import numpy as np
+import torch
+from PIL import Image
+
+from velodepth.models import VeloDepth  # your model class
+from velodepth.utils.camera import BatchCamera, Fisheye624, Spherical, OPENCV, Pinhole, MEI, Camera
+from velodepth.utils.constants import IMAGENET_DATASET_MEAN, IMAGENET_DATASET_STD
+from velodepth.utils.visualization import colorize, save_file_ply
+
+
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder + "/../.."
+kVelodepthFolder = kRootFolder + "/thirdparty/velodepth"
+kResultsFolder = kRootFolder + "/results/velodepth"
+
+
+def _iter_video_cv2(path: str, max_frames: int | None = None, stride: int = 1):
+    """
+    Yields frames as (H, W, 3) uint8 RGB.
+    Supports a numeric string for camera index (e.g., "0").
+    """
+    source: int | str = int(path) if path.isdigit() else path
+    cap = cv2.VideoCapture(source)
+    if not cap.isOpened():
+        raise FileNotFoundError(f"Could not open video/camera: {path}")
+
+    idx = 0
+    yielded = 0
+    try:
+        while True:
+            ok, frame_bgr = cap.read()
+            if not ok:
+                break
+            if idx % stride == 0:
+                frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+                yield frame_rgb.astype(np.uint8)
+                yielded += 1
+                if max_frames is not None and yielded >= max_frames:
+                    break
+            idx += 1
+    finally:
+        cap.release()
+
+
+def _iter_frames_folder(path: str, max_frames: int | None = None, stride: int = 1):
+    """
+    Path should point to a folder containing images.
+    Yields frames as (H, W, 3) uint8 RGB.
+    """
+    exts = ("*.png", "*.jpg", "*.jpeg", "*.bmp", "*.tif", "*.tiff")
+    files = []
+    for e in exts:
+        files.extend(glob.glob(os.path.join(path, e)))
+    files = sorted(files)
+    if not files:
+        raise FileNotFoundError(f"No images in folder: {path}")
+
+    yielded = 0
+    for i, fp in enumerate(files):
+        if i % stride != 0:
+            continue
+        img = Image.open(fp).convert("RGB")
+        yield np.array(img, dtype=np.uint8)
+        yielded += 1
+        if max_frames is not None and yielded >= max_frames:
+            break
+
+
+def _load_camera(camera_json: str, H: int, W: int, device: torch.device) -> Camera:
+    """
+    Load a single camera spec for the whole clip.
+    JSON format expected:
+    {
+        "name": "Fisheye624" | "Spherical" | "OPENCV" | "Pinhole" | "MEI",
+        "params": [...],  # per your camera class
+    }
+    """
+    with open(camera_json, "r") as f:
+        cam = json.load(f)
+    name = cam["name"]
+    params = torch.tensor(cam["params"], dtype=torch.float32, device=device)
+    assert name in ["Fisheye624", "Spherical", "OPENCV", "Pinhole", "MEI"], f"Unknown camera {name}"
+    return eval(name)(params=params).to(device)
+
+
+def _ensure_outdir(path: str | None) -> Path | None:
+    if path is None:
+        return None
+    p = Path(path)
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _save_frame_outputs(
+    outdir: Path,
+    base: str,
+    rgb_tc_hw: torch.Tensor,
+    depth_tc_hw: torch.Tensor,
+    rays_tc_hw: torch.Tensor,
+    t: int,
+) -> None:
+    """
+    Save RGB/depth/rays for frame t.
+    rgb_tc_hw: (3,H,W) uint8
+    depth_tc_hw: (1,H,W) float
+    rays_tc_hw: (3,H,W) float in [-1,1] approx
+    """
+    # denormalize RGB for saving
+    rgb_u8 = rgb_tc_hw.permute(1, 2, 0).cpu().numpy().astype(np.uint8)
+
+    # depth color
+    depth_np = depth_tc_hw.cpu().numpy()
+    depth_color = colorize(depth_np.squeeze())
+
+    # rays to 0..255 visualization
+    rays_vis = ((rays_tc_hw.clamp(-1, 1) + 1) * 127.5).permute(1, 2, 0).cpu().numpy()
+    rays_u8 = rays_vis.astype(np.uint8)
+
+    Image.fromarray(rgb_u8).save(outdir / f"{base}_{t:06d}_rgb.png")
+    Image.fromarray(depth_color).save(outdir / f"{base}_{t:06d}_depth.png")
+    Image.fromarray(rays_u8).save(outdir / f"{base}_{t:06d}_rays.png")
+
+
+def _show_frame(rgb_tc_hw: torch.Tensor, depth_tc_hw: torch.Tensor, t: int, wait_ms: int) -> None:
+    rgb_u8 = rgb_tc_hw.permute(1, 2, 0).cpu().numpy().astype(np.uint8)
+    depth_np = depth_tc_hw.cpu().numpy()
+    depth_color = colorize(depth_np.squeeze())
+    rgb_bgr = cv2.cvtColor(rgb_u8, cv2.COLOR_RGB2BGR)
+    depth_bgr = cv2.cvtColor(depth_color, cv2.COLOR_RGB2BGR)
+    vis = np.concatenate([rgb_bgr, depth_bgr], axis=1)
+    cv2.imshow("VeloDepth RGB / Depth", vis)
+    cv2.waitKey(wait_ms)
+
+
+def _make_ground_grid(
+    size: float = 10.0,
+    step: float = 0.5,
+    color: tuple[float, float, float] = (0.6, 0.6, 0.6),
+):
+    """
+    Create an Open3D LineSet grid on the ground plane (y=0).
+    """
+    try:
+        import open3d as o3d
+    except Exception as exc:
+        raise ImportError("Open3D is required for grid visualization") from exc
+
+    half = float(size) / 2.0
+    coords = np.arange(-half, half + 1e-6, step, dtype=np.float64)
+    points = []
+    lines = []
+    colors = []
+
+    for x in coords:
+        points.append([x, 0.0, -half])
+        points.append([x, 0.0, half])
+        lines.append([len(points) - 2, len(points) - 1])
+        colors.append(color)
+
+    for z in coords:
+        points.append([-half, 0.0, z])
+        points.append([half, 0.0, z])
+        lines.append([len(points) - 2, len(points) - 1])
+        colors.append(color)
+
+    grid = o3d.geometry.LineSet()
+    grid.points = o3d.utility.Vector3dVector(np.asarray(points))
+    grid.lines = o3d.utility.Vector2iVector(np.asarray(lines, dtype=np.int32))
+    grid.colors = o3d.utility.Vector3dVector(np.asarray(colors))
+    return grid
+
+
+class RealtimeVeloDepthProcessor:
+    """
+    Stateful processor that ingests one frame at a time.
+    First prediction is produced only after the internal buffer is full.
+    """
+
+    def __init__(
+        self,
+        model: VeloDepth,
+        buffer_size: int,
+        camera: Camera | None = None,
+        normalize_inputs: bool = True,
+        return_cpu: bool = True,
+    ) -> None:
+        if buffer_size < 1:
+            raise ValueError("buffer_size must be >= 1")
+        self.model = model
+        self.buffer_size = buffer_size
+        self.camera = camera
+        self.normalize_inputs = normalize_inputs
+        self.return_cpu = return_cpu
+        self.device = getattr(model, "device", next(model.parameters()).device)
+        self._frames: deque[np.ndarray] = deque(maxlen=buffer_size)
+
+    def reset(self) -> None:
+        self._frames.clear()
+
+    @torch.no_grad()
+    def push_frame(self, frame_rgb_u8: np.ndarray) -> dict | None:
+        """
+        Push a single frame (H,W,3) uint8 RGB.
+        Returns a dict for the latest frame when buffer is full, otherwise None.
+        """
+        if frame_rgb_u8.dtype != np.uint8:
+            raise ValueError("frame_rgb_u8 must be uint8")
+        if frame_rgb_u8.ndim != 3 or frame_rgb_u8.shape[-1] != 3:
+            raise ValueError("frame_rgb_u8 must be HxWx3")
+
+        self._frames.append(frame_rgb_u8)
+        if len(self._frames) < self.buffer_size:
+            return None
+
+        frames_np = np.stack(list(self._frames), axis=0)  # (T,H,W,3)
+        rgbs_tc_hw = torch.from_numpy(frames_np).to(self.device).permute(0, 3, 1, 2)
+        outputs = self.model.infer(
+            rgbs=rgbs_tc_hw,
+            camera=self.camera,
+            normalize=self.normalize_inputs,
+        )
+        outputs_last = {k: v[-1] for k, v in outputs.items()}
+        if self.return_cpu:
+            outputs_last = {k: v.detach().cpu() for k, v in outputs_last.items()}
+        return outputs_last
+
+
+@torch.no_grad()
+def run_velodepth_on_sequence(
+    model: VeloDepth,
+    frames_rgb_u8: np.ndarray,  # (T,H,W,3) uint8 RGB
+    camera: Camera | None = None,
+    normalize_inputs: bool = True,  # passed straight to model.infer(...)
+    save_dir: str | None = None,
+    save_ply_frame: int | None = None,
+    chunk_size: int | None = None,
+    stream_outputs: bool = False,
+    show: bool = False,
+    show_wait_ms: int = 1,
+    show_every: int = 1,
+) -> dict:
+    """
+    Call model.infer(...) on a TCHW tensor, chunked to reduce VRAM.
+    Returns per-frame outputs stacked back to (T, C, H, W) unless stream_outputs is set.
+    """
+    device = getattr(model, "device", next(model.parameters()).device)
+    outdir = _ensure_outdir(save_dir)
+
+    # (T,3,H, W) in uint8
+    rgbs_raw_tc_hw = torch.from_numpy(frames_rgb_u8).to(device).permute(0, 3, 1, 2)
+    total_frames = rgbs_raw_tc_hw.shape[0]
+
+    if chunk_size is None or chunk_size >= total_frames:
+        outputs = model.infer(
+            rgbs=rgbs_raw_tc_hw,
+            camera=camera,
+            normalize=normalize_inputs,
+        )
+        if outdir is not None:
+            base = "velodepth"
+            for t in range(total_frames):
+                _save_frame_outputs(
+                    outdir, base, rgbs_raw_tc_hw[t], outputs["depth"][t], outputs["rays"][t], t
+                )
+                if show and (t % show_every == 0):
+                    _show_frame(rgbs_raw_tc_hw[t], outputs["depth"][t], t, show_wait_ms)
+            if save_ply_frame is not None and 0 <= save_ply_frame < total_frames:
+                t = save_ply_frame
+                pts = outputs["points"][t].permute(1, 2, 0).reshape(-1, 3).detach().cpu().numpy()
+                rgb = rgbs_raw_tc_hw[t].permute(1, 2, 0).reshape(-1, 3).cpu().numpy()
+                save_file_ply(pts, rgb, str(outdir / f"velodepth_{t:06d}.ply"))
+        elif show:
+            for t in range(total_frames):
+                if t % show_every == 0:
+                    _show_frame(rgbs_raw_tc_hw[t], outputs["depth"][t], t, show_wait_ms)
+        return {} if stream_outputs else outputs
+
+    outputs_accum: dict[str, list[torch.Tensor]] = {}
+    for start in range(0, total_frames, chunk_size):
+        end = min(start + chunk_size, total_frames)
+        chunk = rgbs_raw_tc_hw[start:end]
+        outputs_chunk = model.infer(
+            rgbs=chunk,
+            camera=camera,
+            normalize=normalize_inputs,
+        )
+        if outdir is not None:
+            base = "velodepth"
+            for t in range(start, end):
+                local_t = t - start
+                _save_frame_outputs(
+                    outdir,
+                    base,
+                    rgbs_raw_tc_hw[t],
+                    outputs_chunk["depth"][local_t],
+                    outputs_chunk["rays"][local_t],
+                    t,
+                )
+                if show and (t % show_every == 0):
+                    _show_frame(rgbs_raw_tc_hw[t], outputs_chunk["depth"][local_t], t, show_wait_ms)
+            if save_ply_frame is not None and start <= save_ply_frame < end:
+                local_t = save_ply_frame - start
+                pts = (
+                    outputs_chunk["points"][local_t]
+                    .permute(1, 2, 0)
+                    .reshape(-1, 3)
+                    .detach()
+                    .cpu()
+                    .numpy()
+                )
+                rgb = rgbs_raw_tc_hw[save_ply_frame].permute(1, 2, 0).reshape(-1, 3).cpu().numpy()
+                save_file_ply(pts, rgb, str(outdir / f"velodepth_{save_ply_frame:06d}.ply"))
+        elif show:
+            for t in range(start, end):
+                if t % show_every == 0:
+                    local_t = t - start
+                    _show_frame(rgbs_raw_tc_hw[t], outputs_chunk["depth"][local_t], t, show_wait_ms)
+
+        if not stream_outputs:
+            for k, v in outputs_chunk.items():
+                outputs_accum.setdefault(k, []).append(v.detach().cpu())
+
+        del outputs_chunk
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    if stream_outputs:
+        if show:
+            cv2.destroyAllWindows()
+        return {}
+    outputs = {k: torch.cat(v, dim=0) for k, v in outputs_accum.items()}
+    if show:
+        cv2.destroyAllWindows()
+    return outputs
+
+
+def parse_args():
+    p = argparse.ArgumentParser(description="VeloDepth Video Demo (realtime-friendly)")
+    p.add_argument(
+        "--video",
+        type=str,
+        default=kVelodepthFolder + "/assets/demo/cars.mp4",
+        help="Path to input video file OR a folder with frames.",
+    )
+    p.add_argument(
+        "--camera_json", type=str, default=None, help="Optional camera JSON applied to all frames."
+    )
+    p.add_argument(
+        "--out_dir",
+        type=str,
+        default=None,
+        help="Optional output directory to save RGB/depth/rays (per-frame) and PLY.",
+    )
+    p.add_argument(
+        "--ply_frame", type=int, default=None, help="If set, save a PLY for this frame index."
+    )
+    p.add_argument("--max_frames", type=int, default=None, help="Limit number of frames.")
+    p.add_argument("--stride", type=int, default=1, help="Sample every Nth frame.")
+    p.add_argument(
+        "--resolution_level", type=int, default=3, help="Model resolution bucket [0..9]."
+    )
+    p.add_argument(
+        "--interpolation",
+        type=str,
+        default="bilinear",
+        choices=["bilinear", "bicubic"],
+        help="Output upsampling mode inside the model.",
+    )
+    p.add_argument(
+        "--frames_from_folder",
+        action="store_true",
+        help="Interpret --video as a folder of frames instead of a video file.",
+    )
+    p.add_argument(
+        "--chunk_size", type=int, default=4, help="Chunk size used as default buffer size."
+    )
+    p.add_argument(
+        "--buffer_size",
+        type=int,
+        default=None,
+        help="Sliding buffer size (defaults to --chunk_size).",
+    )
+    p.add_argument(
+        "--show", action="store_true", default=True, help="Show live RGB/depth visualization."
+    )
+    p.add_argument(
+        "--show_wait_ms",
+        type=int,
+        default=1,
+        help="Delay between frames when showing visualization.",
+    )
+    p.add_argument("--show_every", type=int, default=1, help="Show every Nth frame.")
+    p.add_argument(
+        "--viz3d", action="store_true", default=True, help="Show live 3D point cloud with Open3D."
+    )
+    p.add_argument("--viz3d_every", type=int, default=1, help="Update 3D view every Nth frame.")
+    p.add_argument(
+        "--viz3d_stride", type=int, default=4, help="Subsample points by stride for 3D view."
+    )
+    p.add_argument("--viz3d_point_size", type=float, default=2.0, help="Point size for 3D view.")
+    p.add_argument("--viz3d_zoom", type=float, default=0.6, help="Initial zoom for 3D view.")
+    return p.parse_args()
+
+
+def main():
+    """ "
+    Main function to run the VeloDepth demo. You need to install velodepth in the thirdparty folder with the script install_velodepth.sh
+    """
+    args = parse_args()
+    print("Torch:", torch.__version__)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Load model
+    model = VeloDepth.from_pretrained("lpiccinelli/velodepth")
+    model.to(device).eval()
+
+    # Optional model runtime knobs
+    model.resolution_level = args.resolution_level
+    model.interpolation_mode = args.interpolation
+
+    frame_iter = (
+        _iter_frames_folder(args.video, max_frames=args.max_frames, stride=args.stride)
+        if args.frames_from_folder
+        else _iter_video_cv2(args.video, max_frames=args.max_frames, stride=args.stride)
+    )
+
+    try:
+        first_frame = next(frame_iter)
+    except StopIteration:
+        raise ValueError("No frames found to process.")
+
+    H, W, _ = first_frame.shape
+    print(f"Streaming frames at {W}x{H}")
+
+    # Load camera (optional)
+    camera = None
+    if args.camera_json is not None:
+        camera = _load_camera(args.camera_json, H, W, device)
+        print(f"Loaded camera from {args.camera_json}")
+
+    # Process frames in a streaming loop
+    outdir = _ensure_outdir(args.out_dir)
+    base = "velodepth"
+    buffer_size = args.buffer_size if args.buffer_size is not None else args.chunk_size
+    processor = RealtimeVeloDepthProcessor(
+        model=model,
+        buffer_size=buffer_size,
+        camera=camera,
+        normalize_inputs=True,
+        return_cpu=True,
+    )
+
+    vis3d = None
+    pcd = None
+    o3d = None
+    vis3d_initialized = False
+    if args.viz3d:
+        try:
+            import open3d as o3d
+        except Exception as exc:
+            raise ImportError("Open3D is required for --viz3d") from exc
+        vis3d = o3d.visualization.Visualizer()
+        vis3d.create_window(window_name="VeloDepth 3D", width=960, height=540)
+        pcd = o3d.geometry.PointCloud()
+        vis3d.add_geometry(pcd)
+        grid = _make_ground_grid(size=1000.0, step=100.0)
+        vis3d.add_geometry(grid)
+        render_opt = vis3d.get_render_option()
+        if render_opt is not None:
+            render_opt.point_size = float(args.viz3d_point_size)
+
+    def _handle_output(t: int, frame: np.ndarray, outputs_last: dict) -> None:
+        nonlocal vis3d_initialized
+        rgb_tc_hw = torch.from_numpy(frame).permute(2, 0, 1)
+        depth_tc_hw = outputs_last["depth"]
+        rays_tc_hw = outputs_last["rays"]
+        if outdir is not None:
+            _save_frame_outputs(outdir, base, rgb_tc_hw, depth_tc_hw, rays_tc_hw, t)
+            if args.ply_frame is not None and t == args.ply_frame:
+                pts = outputs_last["points"].permute(1, 2, 0).reshape(-1, 3).numpy()
+                rgb = rgb_tc_hw.permute(1, 2, 0).reshape(-1, 3).numpy()
+                save_file_ply(pts, rgb, str(outdir / f"velodepth_{t:06d}.ply"))
+        if args.show and (t % args.show_every == 0):
+            _show_frame(rgb_tc_hw, depth_tc_hw, t, args.show_wait_ms)
+        if vis3d is not None and (t % args.viz3d_every == 0):
+            pts = outputs_last["points"].permute(1, 2, 0).reshape(-1, 3).numpy()
+            rgb = rgb_tc_hw.permute(1, 2, 0).reshape(-1, 3).numpy()
+            mask = np.isfinite(pts).all(axis=1)
+            pts = pts[mask]
+            rgb = rgb[mask]
+            if pts.size == 0:
+                return
+            if args.viz3d_stride > 1:
+                pts = pts[:: args.viz3d_stride]
+                rgb = rgb[:: args.viz3d_stride]
+            pcd.points = o3d.utility.Vector3dVector(pts.astype(np.float64))
+            pcd.colors = o3d.utility.Vector3dVector((rgb / 255.0).astype(np.float64))
+            vis3d.update_geometry(pcd)
+            if not vis3d_initialized:
+                z_med = float(np.median(pts[:, 2]))
+                view_ctl = vis3d.get_view_control()
+                # Reset to a valid view first, then enforce a camera-like view.
+                vis3d.reset_view_point(True)
+                # Look slightly down toward the ground plane and forward.
+                view_ctl.set_lookat([0.0, 0.0, z_med])
+                # View from behind the source camera toward +Z (shoulder view).
+                # front is the view direction from the camera to the lookat.
+                view_ctl.set_front([0.0, 0.0, -1.0])
+                view_ctl.set_up([0.0, -1.0, 0.0])
+                view_ctl.set_zoom(float(args.viz3d_zoom))
+                vis3d_initialized = True
+            vis3d.poll_events()
+            vis3d.update_renderer()
+
+    t = 0
+    outputs_last = processor.push_frame(first_frame)
+    if outputs_last is not None:
+        _handle_output(t, first_frame, outputs_last)
+    for frame in frame_iter:
+        t += 1
+        outputs_last = processor.push_frame(frame)
+        if outputs_last is None:
+            continue
+        _handle_output(t, frame, outputs_last)
+
+    if vis3d is not None:
+        vis3d.destroy_window()
+    if args.show:
+        cv2.destroyAllWindows()
+    print("Realtime loop: streaming outputs.")
+    print("Done.")
+
+
+if __name__ == "__main__":
+    main()

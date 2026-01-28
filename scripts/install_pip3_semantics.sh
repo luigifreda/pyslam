@@ -62,6 +62,13 @@ pip install f3rm $CONSTRAINTS
 pip install timm==1.0.15 $CONSTRAINTS
 #pip install protobuf==3.20.3 --force-reinstall
 
+# Install Ultralytics for YOLO
+pip install "ultralytics>=8.4.8"
+
+print_blue '================================================================'
+print_blue "Installing python packages for RF-DETR ..."
+# Install RF-DETR
+$SCRIPT_DIR_/install_rf_detr.sh
 
 print_blue '================================================================'
 print_blue "Installing python packages for detectron2 ..."
@@ -83,10 +90,6 @@ print_blue "Installing python packages for ODISE ..."
 # Install ODISE
 $SCRIPT_DIR_/install_odise.sh
 
-print_blue '================================================================'
-print_blue "Installing python packages for RF-DETR ..."
-# Install RF-DETR
-$SCRIPT_DIR_/install_rf_detr.sh
 
 # HACK
 shopt -s nullglob

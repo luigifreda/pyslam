@@ -1,6 +1,26 @@
+"""
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import open3d as o3d
 import numpy as np
 import time
+
 
 # Function to generate or update point cloud data
 def generate_point_cloud_data(range=1.0):
@@ -9,6 +29,7 @@ def generate_point_cloud_data(range=1.0):
     points = np.random.rand(num_points, 3) * range
     colors = np.random.rand(num_points, 3)  # Random colors for the points
     return points, colors
+
 
 # Function to create a grid
 def create_grid(size=10, divisions=10):
@@ -35,19 +56,19 @@ def create_grid(size=10, divisions=10):
     line_set.lines = o3d.utility.Vector2iVector(lines)
     return line_set
 
+
 def main():
     # Initialize the visualizer
     vis = o3d.visualization.Visualizer()
     vis.create_window()
-    
+
     # Adjust the FOV using the view control
     view_control = vis.get_view_control()
     view_control.set_constant_z_near(0.1)
     view_control.set_constant_z_far(1000)
-    #view_control.set_zoom(0.1)
+    # view_control.set_zoom(0.1)
     view_control.set_lookat([0, 0, 0])
     view_control.scale(1000)
-        
 
     # Create the initial point cloud object
     point_cloud = o3d.geometry.PointCloud()
@@ -91,6 +112,7 @@ def main():
         # Close the visualizer gracefully when interrupted
         vis.destroy_window()
         print("Visualization stopped.")
+
 
 if __name__ == "__main__":
     main()

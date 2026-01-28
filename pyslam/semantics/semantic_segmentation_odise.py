@@ -1246,7 +1246,7 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
     # Visualization
     # ========================================================================
 
-    def to_rgb(self, semantics, bgr=False):
+    def sem_img_to_viz_rgb(self, semantics, bgr=False):
         """
         Convert semantics to RGB visualization using extracted detectron2 color map.
 
@@ -1290,3 +1290,6 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
             visualized_output=getattr(self, "_last_visualized_output", None),
             bgr=bgr,
         )
+
+    def sem_img_to_rgb(self, semantic_img, bgr=False):
+        return self.semantic_color_map_obj.sem_img_to_rgb(semantic_img, bgr=bgr)

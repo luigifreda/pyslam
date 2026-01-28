@@ -65,6 +65,10 @@ class SemanticMappingType(SerializableEnum):
 
 
 class SemanticMappingBase:
+    """
+    Base class for semantic mapping. A thread is to run the semantic mapping.
+    """
+
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
     logging_manager, logger = None, None
 
@@ -88,8 +92,9 @@ class SemanticMappingBase:
 
         self.queue = Queue()
         self.queue_condition = Condition()
-        self.work_thread = None  # Thread(target=self.run)
-        self.is_running = False
+
+        self.work_thread: Thread | None = None  # main thread managing the semantic mapping
+        self.is_running: bool = False
 
         self._is_idle = True
         self.idle_condition = Condition()
@@ -274,6 +279,7 @@ class SemanticMappingBase:
             self.set_idle(True)
             SemanticMappingBase.print(f"SemanticMapping: released...")
 
+    # Main loop of the semantic mapping thread
     def run(self):
         self.is_running = True
         while self.is_running:
@@ -286,6 +292,7 @@ class SemanticMappingBase:
     def step(self):
         if self.map.num_keyframes() > 0:
             if not self.stop_requested:
+
                 ret = self.pop_keyframe()  # blocking call
                 if ret is not None:
                     (self.kf_cur, self.img_cur, self.img_cur_right, self.depth_cur) = ret
@@ -318,8 +325,8 @@ class SemanticMappingBase:
 
     def semantic_mapping_impl(self):
         """
-        Semantic mapping implementations assume as possible inputs new KF, RGB image and depth image
-        They are provided in self.kf_cur, self.img_cur and self.depth_cur
+        Semantic mapping implementations assume as possible inputs new KF, RGB images and depth image
+        They are provided in self.kf_cur, self.img_cur, self.img_cur_right, and self.depth_cur
         """
         raise NotImplementedError
 

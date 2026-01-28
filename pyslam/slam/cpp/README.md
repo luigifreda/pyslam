@@ -4,7 +4,7 @@
 
 - [pySLAM C++ Core Module](#pyslam-c-core-module)
   - [Code organization and overview](#code-organization-and-overview)
-  - [Table of corresponding files](#table-of-corresponding-files)
+  - [Table of corresponding implementation files](#table-of-corresponding-implementation-files)
   - [Architecture and Design Goals](#architecture-and-design-goals)
   - [Core Principles](#core-principles)
 
@@ -65,7 +65,7 @@ The codebase is organized into the following categories:
 
 ---
 
-## Table of corresponding files 
+## Table of corresponding implementation files 
 
 | C++ Implementation | Python Implementation | Description |
 |-------------------|----------------------|-------------|
@@ -105,7 +105,7 @@ The following design requirements guide the development of the C++ core
 (*note: the module is still being refined and optimized*):  
 
 - C++ classes **mirror** their Python counterparts, maintaining identical interfaces and data field names.    
-- Support for **zero-copy data exchange** (e.g., descriptors) and **safe memory ownership** across the Python/C++ boundary, wherever feasible.  
+- Support for **zero-copy data exchange** (e.g., descriptors) and **safe memory ownership** across the Python/C++ boundary, *wherever feasible and covenient*.  
 
 ## Core Principles
 

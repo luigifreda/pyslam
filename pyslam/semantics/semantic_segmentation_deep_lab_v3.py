@@ -162,7 +162,7 @@ class SemanticSegmentationDeepLabV3(SemanticSegmentationBase):
             raise Exception("SemanticSegmentationDeepLabV3: Failed to get number of classes")
 
     @torch.no_grad()
-    def infer(self, image):
+    def infer(self, image) -> SemanticSegmentationOutput:
         prev_width = image.shape[1]
         prev_height = image.shape[0]
         recover_size = transforms.Resize(
@@ -181,8 +181,13 @@ class SemanticSegmentationDeepLabV3(SemanticSegmentationBase):
 
         return SemanticSegmentationOutput(semantics=self.semantics, instances=None)
 
-    def to_rgb(self, semantics, bgr=False):
+    def sem_img_to_viz_rgb(self, semantics, bgr=False):
+        return self.sem_img_to_rgb(semantics, bgr=bgr)
+
+    def sem_img_to_rgb(self, semantic_img, bgr=False):
         if self.semantic_feature_type == SemanticFeatureType.LABEL:
-            return labels_to_image(semantics, self.semantic_color_map, bgr=bgr)
+            return labels_to_image(semantic_img, self.semantic_color_map, bgr=bgr)
         elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
-            return labels_to_image(np.argmax(semantics, axis=-1), self.semantic_color_map, bgr=bgr)
+            return labels_to_image(
+                np.argmax(semantic_img, axis=-1), self.semantic_color_map, bgr=bgr
+            )

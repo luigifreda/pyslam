@@ -55,6 +55,12 @@ fi
 if [ -d "thirdparty/depth_anything_v3" ]; then
     rm -Rf thirdparty/depth_anything_v3
 fi
+if [ -d "thirdparty/velodepth" ]; then
+    rm -Rf thirdparty/velodepth
+fi
+if [ -d "thirdparty/rf_detr" ]; then
+    rm -Rf thirdparty/rf_detr
+fi
 if [ -d "thirdparty/crestereo" ]; then
     rm -Rf thirdparty/crestereo
 fi
@@ -111,6 +117,10 @@ if [ -d "thirdparty/lietorch" ]; then
     cd thirdparty/lietorch
     ./clean.sh
     cd "$ROOT_DIR"
+fi
+
+if [ -d "thirdparty/qhull" ]; then
+    rm -rf thirdparty/qhull
 fi
 
 if [ -d "thirdparty/monogs/submodules/simple-knn/build" ]; then

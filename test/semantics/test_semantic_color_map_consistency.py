@@ -1,4 +1,23 @@
 """
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
+
+"""
 Test to verify that semantic color maps are consistent between separate-process and non-separate-process runs.
 
 This test ensures that when semantic segmentation runs in a separate process,
@@ -402,7 +421,9 @@ def test_color_map_visual_consistency(config=None):
             visual_direct = color_map_direct.to_rgb(inference_direct, bgr=True)
         else:
             # Fallback to semantic segmentation's to_rgb
-            visual_direct = semantic_segmentation_direct.to_rgb(inference_direct, bgr=True)
+            visual_direct = semantic_segmentation_direct.sem_img_to_viz_rgb(
+                inference_direct, bgr=True
+            )
 
         visual_direct_hash = hash(visual_direct.tobytes())
 

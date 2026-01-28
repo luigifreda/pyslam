@@ -62,15 +62,31 @@ class SemanticSegmentationBase:
         self.semantic_instances = None  # predicted instance IDs
         self.init_print()
 
-    # Run semantic segmentation inference on an image.
-    # Args:
-    #     image: numpy array of shape (H, W, 3) in BGR format (OpenCV format)
-    # Returns:
-    #     SemanticSegmentationOutput: object containing semantics and optionally instances
     def infer(self, image) -> SemanticSegmentationOutput:
+        """
+        Run semantic segmentation inference on an image.
+        Args:
+            image: numpy array of shape (H, W, 3) in BGR format (OpenCV format)
+        Returns:
+            SemanticSegmentationOutput: object containing semantics and optionally instances
+        """
         raise NotImplementedError
 
-    def to_rgb(self, semantics, bgr=False):
+    def sem_img_to_viz_rgb(self, semantics, bgr=False):
+        """
+        Convert semantic predictions to a visualization RGB/BGR image.
+
+        This method is intended for visualization-only outputs and may include
+        overlays/annotations depending on the backend implementation.
+        """
+        return NotImplementedError
+
+    def sem_img_to_rgb(self, semantic_img, bgr=False):
+        """
+        Convert semantic predictions to an RGB/BGR image suitable for processing.
+
+        This should be a pure color-map conversion (no overlays/annotations).
+        """
         return NotImplementedError
 
     def instances_to_rgb(self, instances, bgr=False):
