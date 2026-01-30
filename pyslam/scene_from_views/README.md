@@ -1,6 +1,12 @@
 # Scene From Views
 
+<p align="center">
+  <img src="../images/scene_from_views.png" alt="3D Sparse Semantic Mapping" height="300"/>
+</p>
+
+
 This directory contains the implementation of the `scene_from_views` factory, which provides a **unified interface for end-to-end 3D scene reconstruction from multiple views**. The factory follows a modular architecture that allows easy integration of different reconstruction models while maintaining a consistent API. This document is a work in progress.
+
 
 <!-- TOC -->
 
@@ -24,22 +30,22 @@ This directory contains the implementation of the `scene_from_views` factory, wh
     - [Overview](#overview)
     - [Available Optimizers](#available-optimizers)
       - [DenseSceneOptimizer](#densesceneoptimizer)
-      - [3.2.2. SparseSceneOptimizer](#322-sparsesceneoptimizer)
+      - [SparseSceneOptimizer](#sparsesceneoptimizer)
     - [Configuration Dictionary](#configuration-dictionary)
       - [DenseSceneOptimizer Parameters](#densesceneoptimizer-parameters)
       - [SparseSceneOptimizer Parameters](#sparsesceneoptimizer-parameters)
     - [Global Scene Optimization Details](#global-scene-optimization-details)
       - [Dense Scene Optimization (global\_aligner)](#dense-scene-optimization-global_aligner)
-      - [3.4.2. Sparse Scene Optimization (sparse\_scene\_optimizer)](#342-sparse-scene-optimization-sparse_scene_optimizer)
+      - [Sparse Scene Optimization (sparse\_scene\_optimizer)](#sparse-scene-optimization-sparse_scene_optimizer)
       - [Key Differences Summary](#key-differences-summary)
     - [TSDF Post-Processing](#tsdf-post-processing)
     - [Unified Optimizer Interface](#unified-optimizer-interface)
       - [Key Components](#key-components)
-      - [3.6.2. Usage Examples](#362-usage-examples)
+      - [Usage Examples](#usage-examples)
       - [Benefits](#benefits)
-      - [3.6.4. Architecture](#364-architecture)
+      - [Architecture](#architecture-1)
       - [Implementation Details](#implementation-details)
-  - [Usage Examples](#usage-examples)
+  - [Usage Examples](#usage-examples-1)
     - [Basic Usage](#basic-usage)
     - [Using Dense Scene Optimizer with Dust3r](#using-dense-scene-optimizer-with-dust3r)
     - [Using Sparse Scene Optimizer with MASt3r](#using-sparse-scene-optimizer-with-mast3r)
@@ -58,7 +64,7 @@ This directory contains the implementation of the `scene_from_views` factory, wh
 
 
 <p align="center">
-<img src="./images/scene_from_views.png" alt="3D Scene From Views"  /> 
+<img src="./images/scene_from_views.png" alt="3D Scene From Views" /> 
 </p>
 
 This diagram illustrates the architecture of the *Scene from Views* module, which provides a unified interface for 3D scene reconstruction from multiple views. At its core, the `scene_from_views_factory` instantiates specific reconstruction models based on the selected `SceneFromViewsType`, such as `DUST3R`, `MAST3R`, `DEPTH_ANYTHING_V3`, `MVDUST3R`, `VGGT`, `VGGT_ROBUST`, and `FAST3R`.
@@ -364,7 +370,7 @@ reconstructor = SceneFromViewsDust3r(
 )
 ```
 
-#### 3.2.2. SparseSceneOptimizer
+#### SparseSceneOptimizer
 
 Wrapper for MASt3r's `sparse_scene_optimizer`. Performs sparse optimization on feature correspondences using a two-stage approach (coarse + fine).
 
@@ -470,7 +476,7 @@ Both `global_aligner()` (Dust3r) and `sparse_scene_optimizer()` (MASt3r) are met
 - Good initial depth estimates from model
 - Simpler optimization requirements
 
-#### 3.4.2. Sparse Scene Optimization (sparse_scene_optimizer)
+#### Sparse Scene Optimization (sparse_scene_optimizer)
 
 **Location**: `pyslam.scene_from_views.optimizers.sparse_scene_optimizer` (wrapper for `mast3r.cloud_opt.sparse_ga.sparse_scene_optimizer`)
 
@@ -604,7 +610,7 @@ optimizer_input = mast3r_reconstructor.create_optimizer_input(
 )
 ```
 
-#### 3.6.2. Usage Examples
+#### Usage Examples
 
 **Example 1: Using Unified Interface with Any Optimizer**
 
@@ -716,7 +722,7 @@ optimizer_output = optimizer.optimize(
 4. **Easy Integration**: Each `SceneFromViews` class provides `create_optimizer_input()` to convert model output to the unified format
 5. **Modular Design**: Optimizers are self-contained and can be used independently or as post-processing steps
 
-#### 3.6.4. Architecture
+#### Architecture
 
 The unified interface is built into `SceneOptimizerBase`:
 

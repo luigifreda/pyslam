@@ -3,16 +3,16 @@
 <!-- TOC -->
 
 - [System Overview](#system-overview)
-    - [1. SLAM Workflow and Components](#1-slam-workflow-and-components)
-    - [2. Main SLAM System Components](#2-main-slam-system-components)
-        - [2.1. Feature Tracker](#21-feature-tracker)
-        - [2.2. Feature Matcher](#22-feature-matcher)
-        - [2.3. Loop Detector](#23-loop-detector)
-        - [2.4. Depth Estimator](#24-depth-estimator)
-        - [2.5. Volumetric Integrator](#25-volumetric-integrator)
-        - [2.6. Semantic Mapping](#26-semantic-mapping)
-    - [3. C++ Core for Sparse SLAM](#3-c-core-for-sparse-slam)
-    - [4. Scene from Views](#4-scene-from-views)
+  - [SLAM Workflow and Components](#slam-workflow-and-components)
+  - [Main SLAM System Components](#main-slam-system-components)
+    - [Feature Tracker](#feature-tracker)
+    - [Feature Matcher](#feature-matcher)
+    - [Loop Detector](#loop-detector)
+    - [Depth Estimator](#depth-estimator)
+    - [Volumetric Integrator](#volumetric-integrator)
+    - [Semantic Mapping](#semantic-mapping)
+  - [C++ Core for Sparse SLAM](#c-core-for-sparse-slam)
+  - [Scene from Views](#scene-from-views)
 
 <!-- /TOC -->
 

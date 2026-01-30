@@ -1,27 +1,44 @@
-<p align="center"><img src="./images/pyslam-logo.png" style="height: 160px; width: auto"></p>
+<p align="center"><img src="./images/pyslam-logo.png" height="160"></p>
 
 # pySLAM v2.10.0
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
  
-**pySLAM** is a hybrid **python/C++** implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features in a **single python environment**:
+**pySLAM** is a hybrid **python/C++** implementation of a *Visual SLAM* pipeline (Simultaneous Localization And Mapping) that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features in a **single python environment**:
 - A wide range of classical and modern **[local features](#supported-local-features)** with a convenient interface for their integration.
 - Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (*BoW*, *iBow*), Vector of Locally Aggregated Descriptors (*VLAD*) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors such as *SAD*, *NetVLAD*, *HDC-Delf*, *CosPlace*, *EigenPlaces*, *Megaloc*).
 - A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports different voxel grid models (with semantic support) and **TSDF** with voxel hashing, and incremental **Gaussian Splatting**. 
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include *DepthPro*, *DepthAnythingV2*, *DepthAnythingV3*, *RAFT-Stereo*, *CREStereo*, etc.  
 - A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as *DeepLabv3*, *Segformer*, *CLIP*, *DETIC*, *EOV-SEG*, *ODISE*, *RFDETR*, *YOLO*, etc.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
-- Built-in support for over **[10 dataset types](#datasets)**.
 - A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes. The Python and C++ implementations are interoperable: maps saved by one can be loaded by the other. Further details [here](pyslam/slam/cpp/README.md).
 - A modular pipeline for **end-to-end inference of 3D scenes from multiple images**. Supports models like *DUSt3R*, *Mast3r*, *MV-DUSt3R*, *VGGT*, *Robust VGGT*, *DepthFromAnythingV3*, and *Fast3R*. Further details [here](pyslam/scene_from_views/README.md).
-
+- Built-in support for over **[10 dataset types](#datasets)**.
+  
 pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)* and *[semantic mapping](#semantic-mapping)*. It allows to explore, prototype and develop VO/SLAM pipelines both in Python and C++. pySLAM is a research framework and a work in progress.
 
 **Enjoy it!**
 
 <p align="center">
-  <img src="./images/feature-matching.png" style="height: 160px; width: auto;"/> <img src="./images/main-feature-matching.png" style="height: 160px; width: auto;" /> <img src="./images/main-vo-rerun.png" style="height: 160px; width: auto;" /> <img src="./images/STEREO.png" style="height: 160px; width: auto;" /> <img src="./images/RGBD2.png" style="height: 160px; width: auto;" /> <img src="./images/kitti-stereo.png" style="height: 160px; width: auto;" /> <img src="./images/loop-detection2.png" style="height: 160px; width: auto;" /> <img src="./images/depth-prediction.png" style="height: 160px; width: auto;" /> <img src="./images/dense-reconstruction-with-depth-prediction.png" style="height: 160px; width: auto;" /> <img src="./images/dense-reconstruction2.png" style="height: 160px; width: auto;" /> <img src="./images/dense-reconstruction-composition.gif" style="height: 300px; width: auto;" />
+  <img src="./images/STEREO.png" alt="pySLAM - Stereo mapping example" height="160">
+  <img src="./images/RGBD2.png" alt="pySLAM - RGB-D mapping example" height="160">
+  <img src="./images/kitti-stereo.png" alt="pySLAM - KITTI stereo example" height="160">
+</p>
+
+<p align="center">
+  <img src="./images/depth-prediction.png" alt="pySLAM - Depth prediction" height="160">
+  <img src="./images/dense-reconstruction-with-depth-prediction.png" alt="pySLAM - Depth prediction and 3D Reconstruction" height="160">
+</p>
+
+<p align="center">
+  <img src="./images/semantic_mapping.png" alt="pySLAM - Semantic Mapping" height="160">
+</p>
+
+<p align="center">
+  <img src="./images/dense-reconstruction-composition.gif"
+       alt="pySLAM - Dense reconstruction - Gaussian Splatting"
+       height="300">
 </p>
 
 ## Table of contents
@@ -36,7 +53,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
   - [Install](#install)
     - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)
-    - [MacOS](#macos)
+    - [macOS](#macos)
     - [Docker](#docker)
     - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
     - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
@@ -44,11 +61,11 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
     - [Visual odometry](#visual-odometry)
     - [Full SLAM](#full-slam)
     - [Selecting a dataset and different configuration parameters](#selecting-a-dataset-and-different-configuration-parameters)
-    - [Feature tracking](#feature-tracking)
+    - [Feature extraction and matching](#feature-extraction-and-matching)
     - [Loop closing and relocalization](#loop-closing-and-relocalization)
       - [Vocabulary management](#vocabulary-management)
       - [Vocabulary-free loop closing](#vocabulary-free-loop-closing)
-      - [Verify your loop detection configuration and verify vocabulary compability](#verify-your-loop-detection-configuration-and-verify-vocabulary-compability)
+      - [Verify your loop detection configuration and verify vocabulary compatibility](#verify-your-loop-detection-configuration-and-verify-vocabulary-compatibility)
         - [Loop detection method based on a pre-trained vocabulary](#loop-detection-method-based-on-a-pre-trained-vocabulary)
         - [Missing vocabulary for the selected front-end descriptor type](#missing-vocabulary-for-the-selected-front-end-descriptor-type)
     - [Volumetric reconstruction](#volumetric-reconstruction)
@@ -63,12 +80,12 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
       - [Volumetric Semantic mapping](#volumetric-semantic-mapping)
     - [C++ Core Module](#c-core-module)
     - [Saving and reloading](#saving-and-reloading)
-      - [Save the a map](#save-the-a-map)
+      - [Save a map](#save-a-map)
       - [Reload a saved map and relocalize in it](#reload-a-saved-map-and-relocalize-in-it)
       - [Trajectory saving](#trajectory-saving)
     - [Graph optimization engines](#graph-optimization-engines)
     - [SLAM GUI](#slam-gui)
-    - [Monitor the logs of tracking, local mapping, loop closing and volumetric mapping simultaneously](#monitor-the-logs-of-tracking-local-mapping-loop-closing-and-volumetric-mapping-simultaneously)
+    - [Unified log monitoring (tracking, mapping, loop closing, volumetric)](#unified-log-monitoring-tracking-mapping-loop-closing-volumetric)
     - [Evaluating SLAM](#evaluating-slam)
       - [Run a SLAM evaluation](#run-a-slam-evaluation)
       - [pySLAM performances and comparative evaluations](#pyslam-performances-and-comparative-evaluations)
@@ -110,7 +127,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
 <!-- /TOC -->
 
 ## Overview
-
+ 
 ```bash
 ├── cpp         # Pybind11 C++ bindings to slam utilities 
 │   ├── glutils     # OpenGL utilities for drawing points, cameras, etc.
@@ -163,7 +180,7 @@ Other *test/example scripts* are provided in the `test` folder.
 
 ### System overview      
 
-[This page](./docs/system_overview.md) provides a high-level system overview, including diagrams that illustrate the main **workflow**, key **components**, and **class** relationships or dependencies.
+[This page](./docs/system_overview.md) provides a high-level system overview, including diagrams that illustrate the main **workflow**, key **components**, and **class** relationships and dependencies.
 
 **paper**: ["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](https://arxiv.org/abs/2502.11955), *Luigi Freda*      
 You may find an updated version of the paper [here](./docs/tex/document.pdf).
@@ -180,7 +197,7 @@ git clone --recursive https://github.com/luigifreda/pyslam.git
 cd pyslam 
 ```
 
-Then, under **Ubuntu** and **MacOs** you can simply run:
+Then, under **Ubuntu** and **macOS** you can simply run:
 ```bash
 # pixi shell      # If you want to use pixi (experimental), run this commented command as a first step to prepare the installation. 
 ./install_all.sh   # Unified install procedure 
@@ -194,11 +211,11 @@ Grab a coffee. It will take a while.
 ./build_cpp_core.sh 
 ``` -->
 
-The install scripts creates a **single python environment** `pyslam` that hosts all the [supported components and models](#supported-components-and-models). If `conda` is available, it automatically uses it, otherwise it installs and uses `venv`. An internet connection is required.
+The install scripts create a **single Python environment** `pyslam` that hosts all the [supported components and models](#supported-components-and-models). If `conda` is available, it automatically uses it; otherwise, it installs and uses `venv`. An internet connection is required.
 
 Refer to these links for further details about the specific install procedures that are supported.
 - **Ubuntu**  [=>](#ubuntu)
-- **MacOs** [=>](#macos)  
+- **macOS** [=>](#macos)  
 - **Windows+WSL2** [=>](https://github.com/luigifreda/pyslam/issues/51)
 - **Docker** [=>](#docker)
 
@@ -225,9 +242,9 @@ The install procedure was tested under *Ubuntu 20.04*, *22.04* and *24.04*.
 - With **conda**: Run the procedure described in this other [file](./docs/CONDA.md).
 - With **pixi**: Run `pixi shell` in the root folder of the repo before launching `./install_all.sh` (see this [file](./docs/PIXI.md) for further details). Currently, pixi support is experimental and may encounter issues with building and linking.
 
-The install process creates a new python virtual environment `pyslam`.
+The install process creates a new Python virtual environment `pyslam`.
 
-### MacOS
+### macOS
 
 Follow the instructions in this [file](./docs/MAC.md). The reported procedure was tested under *Sequoia 15.1.1* and *Xcode 16.1*.
 
@@ -275,6 +292,11 @@ The file [config.yaml](./config.yaml) serves as a single entry point to configur
 
 ### Visual odometry
 
+<p align="center">
+  <img src="./images/main-vo-rerun.png" height="300"/>
+</p>
+
+
 The basic **Visual Odometry** (VO) can be run with the following commands:
 ```bash
 #pixi shell           # If you use pixi, this activates the pyslam environment. 
@@ -294,7 +316,7 @@ Similarly, you can test the **full SLAM** by running `main_slam.py`:
 ./main_slam.py
 ```
 
-This will process the same default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by clicking on one of the opened windows and pressing the key 'Q' or closing the 3D pangolin GUI. 
+This will process the same default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by clicking on one of the open windows and pressing the key 'Q' or closing the 3D Pangolin GUI. 
 
 --- 
 
@@ -306,28 +328,37 @@ To process a different **dataset** with both VO and SLAM scripts, you need to up
 * Select your dataset `type` in the section `DATASET` (further details in the section *[Datasets](#datasets)* below for further details). This identifies a corresponding dataset section (e.g. `KITTI_DATASET`, `TUM_DATASET`, etc). 
 * Select the `sensor_type` (`mono`, `stereo`, `rgbd`) in the chosen dataset section.  
 * Select the camera `settings` file in the dataset section (further details in the section *[Camera Settings](#camera-settings)* below).
-* Set the `groudtruth_file` accordingly. Further details in the section *[Datasets](#datasets)* below  (see also the files `io/ground_truth.py`, `io/convert_groundtruth_to_simple.py`).
+* Set the `groundtruth_file` accordingly. Further details in the section *[Datasets](#datasets)* below (see also the files `io/ground_truth.py`, `io/convert_groundtruth_to_simple.py`).
 
 You can use the section `GLOBAL_PARAMETERS` of the file [config.yaml](./config.yaml) to override the global configuration parameters set in [pyslam/config_parameters.py](./pyslam/config_parameters.py). This is particularly useful when running a [SLAM evaluation](#evaluating-slam).
 
 ---
 
-### Feature tracking
+### Feature extraction and matching
 
-If you just want to test the basic feature tracking capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and get a taste of the different available local features, run
+<p align="center">
+  <img src="./images/feature-matching.png" height="200"/> <img src="./images/main-feature-matching.png" height="200"/>
+</p>
+
+If you just want to test the basic feature extraction and matching capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and get a taste of the different available local features, run
 ```bash
 #pixi shell           # If you use pixi, this activates the pyslam environment. 
 . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
 ./main_feature_matching.py
 ```
 
-In any of the above scripts, you can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#supported-local-features)* below for further information). 
+In any SLAM and VO, you can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#supported-local-features)* below for further information). 
 
 Some basic examples are available in the subfolder `test/cv`. In particular, as for feature detection/description, you may want to take a look at [test/cv/test_feature_manager.py](./test/cv/test_feature_manager.py) too.
 
 ---
 
 ### Loop closing and relocalization
+
+
+<p align="center">
+  <img src="./images/loop-detection2.png" height="300" /> 
+</p>
 
 Many [loop closing methods](#loop-closing) are available, combining different [aggregation methods](#local-descriptor-aggregation-methods) and [global descriptors](#global-descriptors).
 
@@ -358,13 +389,13 @@ Most methods do not require pre-trained vocabularies. Specifically:
 
 As mentioned above, only `DBoW2`, `DBoW3`, and `VLAD` require pre-trained vocabularies.
 
-#### Verify your loop detection configuration and verify vocabulary compability
+#### Verify your loop detection configuration and verify vocabulary compatibility
 
 ##### Loop detection method based on a pre-trained vocabulary
 
 When selecting a **loop detection method based on a pre-trained vocabulary** (such as `DBoW2`, `DBoW3`, and `VLAD`), ensure the following:
 1. The back-end and the front-end are using the same descriptor type (this is also automatically checked for consistency) or their descriptor managers are independent (see further details in the configuration options `LoopDetectorConfigs` available in [pyslam/loop_closing/loop_detector_configs.py](pyslam/loop_closing/loop_detector_configs.py)).
-2. A corresponding pre-trained vocubulary is available. For more details, refer to the [vocabulary management section](#vocabulary-management).
+2. A corresponding pre-trained vocabulary is available. For more details, refer to the [vocabulary management section](#vocabulary-management).
 
 ##### Missing vocabulary for the selected front-end descriptor type
 
@@ -378,6 +409,11 @@ See the file [pyslam/loop_closing/loop_detector_configs.py](./pyslam/loop_closin
 ---
 
 ### Volumetric reconstruction
+
+
+<p align="center">
+  <img src="./images/dense-reconstruction2.png" height="300" /> 
+</p>
 
 #### Dense reconstruction while running SLAM 
 
@@ -414,7 +450,7 @@ In the case of a saved Gaussian splatting model, you can visualize it by:
     The directory ` <gs_checkpoint_path>` is expected to have the following structure:      
     ```bash
     ├── gs_checkpoint_path
-        ├── pointcloud   # folder containing different subfolders, each one with a saved .ply econding the Gaussian splatting model at a specific iteration/checkpoint
+        ├── pointcloud   # folder containing different subfolders, each one with a saved .ply encoding the Gaussian splatting model at a specific iteration/checkpoint
         ├── last_camera.json
         ├── config.yml
     ```
@@ -450,16 +486,16 @@ Refer to the file `depth_estimation/depth_estimator_factory.py` for further deta
 
 ### Semantic mapping and Image Segmentation
 
-
-<p style="text-align: center;">
-  <img src="./images/semantic_mapping_from_david.jpeg" alt="Semantic Mapping" style="height: 300px; width: auto;"/>
-</p>
-
 The sparse semantic mapping pipeline can be enabled by setting `kDoSparseSemanticMappingAndSegmentation=True` in `pyslam/config_parameters.py`. The default segmentation models assigned to each dataset are specified in `pyslam/semantics/semantic_mapping_configs.py`. You can override the currently used segmentation model by setting `kSemanticSegmentationType` in `config_parameters.py`. 
 
 #### Image Segmentation
 
-Different segmetation methods are available (see [here](./docs/semantics.md) for further details). Currently, we support semantic mapping using **dense semantic segmentation**.
+<p align="center">
+  <img src="./images/semantic_image_segmentation.png" alt="3D Sparse Semantic Mapping" height="600"/>
+</p>
+
+
+Different segmentation methods are available (see [here](./docs/semantics.md) for further details). Currently, we support semantic mapping using **dense semantic segmentation**.
 
 **Panoptic/Instance segmentation:**
   - `DETIC`: from https://github.com/facebookresearch/Detic
@@ -496,6 +532,12 @@ Different segmetation methods are available (see [here](./docs/semantics.md) for
 
 #### Sparse Semantic Mapping
 
+
+<p align="center">
+  <img src="./images/3d_sparse_semantic_mapping.jpeg" alt="3D Sparse Semantic Mapping" height="300"/>
+</p>
+
+
 **Semantic features** are assigned to **keypoints** on the image and fused into map points. The semantic features can be:
 - *Labels*: categorical labels as numbers.
 - *Probability vectors*: probability vectors for each class.
@@ -508,6 +550,16 @@ Further information about the **semantic module** is available [here](docs/seman
 
 #### Volumetric Semantic mapping
 
+<p align="center">
+  <img src="./images/3d_dense_semantic_mapping.png" alt="3D Sparse Semantic Mapping" height="600"/>
+</p>
+
+Semantic volumetric mapping fuses per-keyframe semantic predictions into a dense 3D voxel grid, enabling semantic-aware reconstruction and optional object-level segmentation. The semantic volumetric integrators live in `pyslam/dense` and rely on semantic predictions produced by `pyslam/semantics`.
+
+Two semantic fusion backends are supported:
+- **Confidence-counter fusion** (`VOXEL_SEMANTIC_GRID`): stores the most frequent class with a confidence counter.
+- **Probabilistic fusion** (`VOXEL_SEMANTIC_PROBABILISTIC_GRID`): maintains class probability distributions with Bayesian fusion (recommended for robustness).
+
 Volumetric semantic mapping can be enabled by setting: 
 ```python
 kDoSparseSemanticMappingAndSegmentation=True #  enable sparse mapping and segmentation
@@ -515,6 +567,15 @@ kDoVolumetricIntegration = True # enable volumetric integration
 kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" # use semantic volumetric models like
                                                                  # VOXEL_SEMANTIC_PROBABILISTIC_GRID and VOXEL_SEMANTIC_GRID
 ```
+
+If `kVolumetricSemanticIntegrationUseInstanceIds=True`, the volumetric integrator uses 2D instance IDs (from panoptic/instance segmentation backends) to build **3D object segments**. Object IDs are assigned via a voting scheme across observations, filtered by minimum vote ratio and count. This enables:
+- 3D object grouping and colorization by instance ID.
+- Stable object identities across multiple views.
+
+In particular, use the following GUI buttons to toggle:
+- `Colors semantics`: class/label color maps on both the 3D sparse map and the volumetric map.
+- `Objects`: per-object color map on the volumetric map (requires instance IDs).
+- `Draw object BBs`: bounding boxes for detected 3D object segments.
 
 Further information about the **volumetric integration models** and its SW architecture is available [here](cpp/volumetric/README.md).
 
@@ -543,10 +604,10 @@ See [here](./pyslam/slam/cpp/README.md) for further details.
 
 ### Saving and reloading
 
-#### Save the a map
+#### Save a map
 
 When you run the script `main_slam.py` (`main_map_dense_reconstruction.py`):
-- You can save the current map state by pressing the button `Save` on the GUI. This saves the current map along with front-end, and backend configurations into the default folder `results/slam_state` (`results/slam_state_dense_reconstruction`). 
+- You can save the current map state by pressing the button `Save` on the GUI. This saves the current map along with front-end and back-end configurations into the default folder `results/slam_state` (`results/slam_state_dense_reconstruction`). 
 - To change the default saving path, open `config.yaml` and update target `folder_path` in the section: 
   ```bash
   SYSTEM_STATE:
@@ -569,7 +630,7 @@ When you run the script `main_slam.py` (`main_map_dense_reconstruction.py`):
   ```
 
 A couple of important notes:
-- Pressing the `Save` button saves the current map, front-end, and backend configurations. Reloading a saved map replaces the current system configurations to ensure descriptor compatibility.  
+- Pressing the `Save` button saves the current map, front-end, and back-end configurations. Reloading a saved map replaces the current system configurations to ensure descriptor compatibility.  
 - The Python and C++ implementations are interoperable: maps saved by one can be loaded by the other.
 
 
@@ -578,7 +639,7 @@ A couple of important notes:
 Estimated trajectories can be saved in three **formats**: *TUM* (The Open Mapping format), *KITTI* (KITTI Odometry format), and *EuRoC* (EuRoC MAV format). pySLAM saves two **types** of trajectory estimates:
 
 - **Online**: In *online* trajectories, each pose estimate depends only on past poses. A pose estimate is saved at the end of each front-end iteration for the current frame.
-- **Final**: In *final* trajectories, each pose estimate depends on both past and future poses. A pose estimate is refined multiple times by LBA windows that include it, as well asby PGO and GBA during loop closures.
+- **Final**: In *final* trajectories, each pose estimate depends on both past and future poses. A pose estimate is refined multiple times by LBA windows that include it, as well as by PGO and GBA during loop closures.
 
 
 To enable trajectory saving, open `config.yaml` and search for the `SAVE_TRAJECTORY`: set `save_trajectory: True`, select your `format_type` (`tum`, `kitti`, `euroc`), and the output filename. For instance for a `kitti` format output:   
@@ -614,11 +675,29 @@ Some quick information about the non-trivial GUI buttons of `main_slam.py`:
 - `Reset`: Reset SLAM system. 
 - `Draw Ground Truth`:  If a ground truth dataset (e.g., KITTI, TUM, EUROC, or REPLICA) is loaded, you can visualize it by pressing this button. The ground truth trajectory will be displayed in 3D and will be progressively aligned with the estimated trajectory, updating approximately every 10-30 frames. As more frames are processed, the alignment between the ground truth and estimated trajectory becomes more accurate. After about 20 frames, if the button is pressed, a window will appear showing the Cartesian alignment errors along the main axes (i.e., $e_x$, $e_y$, $e_z$) and the history of the total $RMSE$ between the ground truth and the aligned estimated trajectories.
 
+When volumetric semantic mapping is enabled, use the following buttons to toggle:
+- `Colors semantics`: class/label color maps on both the 3D sparse map and the volumetric map.
+- `Objects`: per-object color map on the volumetric map (requires instance IDs).
+- `Draw object BBs`: bounding boxes for detected 3D object segments.
+
 ---
 
-### Monitor the logs of tracking, local mapping, loop closing and volumetric mapping simultaneously
+### Unified log monitoring (tracking, mapping, loop closing, volumetric)
 
-The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, `global_bundle_adjustments.py`, and `volumetric integrator_<X>.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, `gba.log`, and `volumetric_integrator.log`, respectively. These logs files are all stored in the folder `logs`. At runtime, for debugging purposes, you can individually monitor any of the log files by running the following command:    
+This table report the sparse SLAM submodules along with their generated logs (stored in the `logs` folder):
+
+| Module | Log file |
+| --- | --- |
+| `local_mapping.py` | `local_mapping.log` |
+| `loop_closing.py` | `loop_closing.log` |
+| `loop_detecting_process.py` | `loop_detecting.log` |
+| `global_bundle_adjustments.py` | `gba.log` |
+| `volumetric_integrator_<X>.py` | `volumetric_integrator.log` |
+| `relocalizater.py` | `relocalization.log` |
+| `semantic_segmentation_<X>.py` | `semantic_segmentation.log` |
+| `semantic_mapping_<X>.py` | `semantic_mapping.log` |
+
+At runtime, for debugging purposes, you can individually monitor any of the log files by running the following command:    
 `tail -f logs/<log file name>`     
 Otherwise, to check all logs at the same time, run this `tmux`-based script:          
 `./scripts/tmux_logs.sh`           
@@ -649,6 +728,10 @@ When you click the `Draw Ground Truth` button in the GUI (see [here](#slam-gui))
 ---
 
 ### End-to-end inference of 3D scenes from multiple image views
+
+<p align="center">
+  <img src="./images/scene_from_views.png" alt="3D Sparse Semantic Mapping" height="300"/>
+</p>
 
 A unified interface for end-to-end 3D scene reconstruction from multiple views, following a modular factory pattern architecture. The pipeline provides a consistent API across different reconstruction models while maintaining model-specific optimizations. See the main script `main_scene_from_views.py`.
 
@@ -910,21 +993,21 @@ You can download the dataset [here](https://www.doc.ic.ac.uk/~ahanda/VaFRIC/icln
 
 #### 7 Scenes dataset 
 
-To dowload the dataset follow the instructions at https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/. Select the section `SEVEN_SCENES_DATASET: settings:` in the file `config.yaml`.A calibration file `settings/SEVEN_SCENES.yaml` is already available.
+To download the dataset follow the instructions at https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/. Select the section `SEVEN_SCENES_DATASET: settings:` in the file `config.yaml`. A calibration file `settings/SEVEN_SCENES.yaml` is already available.
 
 #### Neural RGBD dataset 
 
-To dowload the dataset follow the instructions at https://github.com/dazinovic/neural-rgbd-surface-reconstruction. Select the section `NEURAL_RGBD_DATASET: settings:` in the file `config.yaml`. A calibration file `settings/NEURAL_RGBD.yaml` is already available.
+To download the dataset follow the instructions at https://github.com/dazinovic/neural-rgbd-surface-reconstruction. Select the section `NEURAL_RGBD_DATASET: settings:` in the file `config.yaml`. A calibration file `settings/NEURAL_RGBD.yaml` is already available.
 
 #### Rover dataset 
 
-To dowload the dataset follow the instructions at https://iis-esslingen.github.io/rover/. Select the section `ROVER_DATASET: settings:` in the file `config.yaml`. A calibration file for the `d435i` camera is already available: `settings/ROVER_d435i.yaml`. Other camera models will be supported in the future.
+To download the dataset follow the instructions at https://iis-esslingen.github.io/rover/. Select the section `ROVER_DATASET: settings:` in the file `config.yaml`. A calibration file for the `d435i` camera is already available: `settings/ROVER_d435i.yaml`. Other camera models will be supported in the future.
 
 #### ScanNet Datasets
 
 You can download the datasets following instructions in http://www.scan-net.org/.  There are two versions you can download: 
 - A subset of pre-processed data termed as `tasks/scannet_frames_2k`: this version is smaller, and more generally available for training neural networks. However, it only includes one frame out of each 100, which makes it unusable for SLAM. The labels are processed by mapping them from the original Scannet label annotations to NYU40.
-- The raw data: this version is the one used for SLAM. You can download the whole dataset (TBs of data) or specific scenes. A common approach for evaluation of semantic mapping is to use the `scannetv2_val.txt` scenes. For downloading and processing the data, you can use the following [repository](https://github.com/dvdmc/scannet-processing) as the original Scannet repository is tested under Python 2.7 and does't support batch downloading of scenes.
+- The raw data: this version is the one used for SLAM. You can download the whole dataset (TBs of data) or specific scenes. A common approach for evaluation of semantic mapping is to use the `scannetv2_val.txt` scenes. For downloading and processing the data, you can use the following [repository](https://github.com/dvdmc/scannet-processing) as the original Scannet repository is tested under Python 2.7 and doesn't support batch downloading of scenes.
 1. Once you have the `color`, `depth`, `pose`, and (optional for semantic mapping) `label` folders, you should place them following `{path_to_scannet}/scans/{scene_name}/[color, depth, pose, label]`. Then, configure the `base_path` and `name` in the file `config.yaml`.
 2.  Select the corresponding calibration settings file (section `SCANNET_DATASET: settings:` in the file `config.yaml`). NOTE: the RGB images are rescaled to match the depth image. The current intrinsic parameters in the existing calibration file reflect that.
 
@@ -932,14 +1015,14 @@ You can download the datasets following instructions in http://www.scan-net.org/
 
 1. Source the main ROS1 `setup.bash` after you have sourced the `pyslam` python environment.
 2. Set the paths and `ROS1BAG_DATASET: ros_parameters` in the file `config.yaml`.
-3. Select/prepare the correspoding calibration settings file (section `ROS1BAG_DATASET: settings:` in the file `config.yaml`). See the available yaml files in the folder `Settings` as an example.
+3. Select/prepare the corresponding calibration settings file (section `ROS1BAG_DATASET: settings:` in the file `config.yaml`). See the available yaml files in the folder `Settings` as an example.
 
 
 #### ROS2 bags
 
 1. Source the main ROS2 `setup.bash` after you have sourced the `pyslam` python environment.
 2. Set the paths and `ROS2BAG_DATASET: ros_parameters` in the file `config.yaml`.
-3. Select/prepare the correspoding calibration settings file (section `ROS2BAG_DATASET: settings:` in the file `config.yaml`). See the available yaml files in the folder `Settings` as an example.
+3. Select/prepare the corresponding calibration settings file (section `ROS2BAG_DATASET: settings:` in the file `config.yaml`). See the available yaml files in the folder `Settings` as an example.
 
 #### MCAP files
 

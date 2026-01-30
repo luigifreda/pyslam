@@ -63,6 +63,7 @@ kDataFolder = os.path.join(kThisFileFolder, "data/test_data")
 kOverrideInputImagesWithSelectedImageFiles = (
     False  # DEBUG: override images with selected image files
 )
+kCamScale3d = None  # 0.01  # DEBUG: Override the default camera scale for 3D visualization
 # TUM desk long_office_household (no distortion here)
 images_path = (
     "/home/luigi/Work/datasets/rgbd_datasets/tum/rgbd_dataset_freiburg3_long_office_household/rgb"
@@ -70,6 +71,12 @@ images_path = (
 start_frame_name = "1341847980.722988.png"
 n_frame = 5
 delta_frame = 101
+#
+# Kitti color (no distortion here)
+# images_path = "/home/luigi/Work/datasets/rgbd_datasets/kitti_color/dataset/sequences/14/image_2"
+# start_frame_name = "000000.png"
+# n_frame = 20
+# delta_frame = 2
 
 
 def visualize_results(
@@ -81,6 +88,7 @@ def visualize_results(
     method=None,
     img_table_resize_scale=0.6,
     img_table_num_columns=3,
+    cam_scale_3d=None if kCamScale3d is None else kCamScale3d,
 ):
     """
     Visualize reconstruction results.
@@ -187,9 +195,9 @@ def visualize_results(
 
         # Visualize camera poses if available
         viz_camera_images = []
-        cam_scale = 0.1
+        cam_scale = cam_scale_3d if cam_scale_3d is not None else 0.1
         if method == SceneFromViewsType.DUST3R or method == SceneFromViewsType.FAST3R:
-            cam_scale = 0.03
+            cam_scale = cam_scale_3d if cam_scale_3d is not None else 0.03
         if result.camera_poses is not None and len(result.camera_poses) > 0:
             for i, (pose, img) in enumerate(zip(result.camera_poses, result.processed_images)):
                 if pose is not None:
