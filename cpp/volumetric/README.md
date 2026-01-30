@@ -2,6 +2,35 @@
 
 This module provides efficient C++ implementations for volumetric data structures used in SLAM (Simultaneous Localization and Mapping) applications. It offers voxel grid representations with support for point cloud integration, color information, and semantic segmentation.
 
+
+
+<p align="center">
+  <img src="../images/dense-reconstruction2.png" height="300" /> 
+</p>
+
+<p align="center">
+  <img src="../images/dense-reconstruction-composition.gif"
+       alt="pySLAM - Dense reconstruction - Gaussian Splatting"
+       height="300">
+</p>
+
+
+<!-- TOC -->
+
+- [Volumetric Mapping Module](#volumetric-mapping-module)
+  - [Overview](#overview)
+  - [Key Components](#key-components)
+    - [Core Data Structures](#core-data-structures)
+      - [Semantic Data Type Comparison](#semantic-data-type-comparison)
+    - [Grid Implementations](#grid-implementations)
+    - [Semantic Extensions](#semantic-extensions)
+    - [Utilities](#utilities)
+  - [Features](#features)
+  - [Usage](#usage)
+
+<!-- /TOC -->
+
+
 ## Overview
 
 The volumetric module implements sparse voxel grids using hash-based data structures, optimized for real-time SLAM applications. It supports both direct voxel hashing and block-based hashing strategies, with optional semantic information (class IDs, instance/object IDs) and probabilistic fusion.
