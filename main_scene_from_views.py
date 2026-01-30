@@ -59,13 +59,17 @@ from pyslam.utilities.file_management import select_image_files, load_images_fro
 kThisFileFolder = os.path.dirname(os.path.abspath(__file__))
 kDataFolder = os.path.join(kThisFileFolder, "data/test_data")
 
+
+kOverrideInputImagesWithSelectedImageFiles = (
+    False  # DEBUG: override images with selected image files
+)
 # TUM desk long_office_household (no distortion here)
 images_path = (
     "/home/luigi/Work/datasets/rgbd_datasets/tum/rgbd_dataset_freiburg3_long_office_household/rgb"
 )
 start_frame_name = "1341847980.722988.png"
 n_frame = 5
-delta_frame = 100
+delta_frame = 101
 
 
 def visualize_results(
@@ -332,7 +336,9 @@ def main():
 
     images = load_images_from_directory(args.image_dir, args.pattern, args.max_images)
 
-    if True:  # DEBUG: override images with selected image files
+    if (
+        kOverrideInputImagesWithSelectedImageFiles
+    ):  # DEBUG: override images with selected image files
         image_filenames = select_image_files(
             images_path, start_frame_name, n_frame=n_frame, delta_frame=delta_frame
         )
