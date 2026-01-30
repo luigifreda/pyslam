@@ -186,8 +186,8 @@ if __name__ == "__main__":
     # This is normally done by the Slam class we don't have here. We need to set the static field of the class Frame and FeatureTrackerShared.
     FeatureTrackerShared.set_feature_tracker(feature_tracker)
 
-    # Select your semantic segmentation configuration (see the file semantics/semantic_segmentation_factory.py)
-
+    # Select your semantic segmentation configuration (see the file pyslam/semantics/semantic_segmentation_types.py)
+    # SemanticSegmentationType: DETIC, RFDETR, SEGFORMER, DEEPLABV3, CLIP, EOV_SEG, ODISE, YOLO
     semantic_segmentation_type = SemanticSegmentationType.DETIC
     semantic_feature_type = SemanticFeatureType.LABEL
     # semantic_dataset_type = SemanticDatasetType.ADE20K

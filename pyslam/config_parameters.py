@@ -213,7 +213,10 @@ class Parameters:
     # ================================================================
     # Global Bundle Adjustment (GBA)
     # ================================================================
-    kUseGBA = True  # Activated by loop closing
+    kUseGBA = (
+        True  # To enable/disable global bundle adjustment (GBA). It is activated by loop closing.
+    )
+    #
     kGBADebugAndPrintToFile = True
     kGBAUseRobustKernel = True
 
@@ -221,6 +224,7 @@ class Parameters:
     # Loop closing
     # ================================================================
     kUseLoopClosing = True  # To enable/disable loop closing.
+    #
     kMinDeltaFrameForMeaningfulLoopClosure = 10
     kMaxResultsForLoopClosure = 5
     kLoopDetectingTimeoutPopKeyframe = 0.5  # [s]
@@ -278,6 +282,7 @@ class Parameters:
     # Volumetric Integration
     # ================================================================
     kDoVolumetricIntegration = False  # To enable/disable volumetric integration (dense mapping)
+    #
     # kVolumetricIntegrationType: "VOXEL_GRID",
     #                             "VOXEL_SEMANTIC_GRID",  (to be used with semantic mapping activated)
     #                             "VOXEL_SEMANTIC_PROBABILISTIC_GRID", best for semantic mapping (to be used with semantic mapping activated)
@@ -364,10 +369,12 @@ class Parameters:
     # Sparse semantic mapping and image segmentation
     # ================================================================
     kDoSparseSemanticMappingAndSegmentation = False  # To enable/disable _sparse_ semantic mapping and image segmentation (TODO: may be problematic under mac, fix it)
+    #
     # NOTE: If you want _dense_ semantic mapping, enable this and set
     # kDoVolumetricIntegration = True and  kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" or "VOXEL_SEMANTIC_GRID"
     #
-    # kSemanticSegmentationType: None/"", "DEEPLABV3", "SEGFORMER", "CLIP", "EOV_SEG", "DETIC", "ODISE", "RFDETR", "YOLO" (see semantic_segmentation_factory.py)
+    # kSemanticSegmentationType: None/"", "DEEPLABV3", "SEGFORMER", "CLIP", "EOV_SEG", "DETIC", "ODISE", "RFDETR", "YOLO"
+    # (see pyslam/semantics/semantic_segmentation_types.py)
     kSemanticSegmentationType = ""  # Override the semantic model selected in semantic_mapping_configs.py. If kSemanticSegmentationType = "" or None, a default model will be selected based on the dataset (see semantic_mapping_configs.py)
     kSemanticMappingOnSeparateThread = (
         True  # To enable/disable the use of a separate thread for semantic mapping
@@ -392,7 +399,7 @@ class Parameters:
     kUseDepthEstimatorInFrontEnd = (
         False  # To enable/disable depth estimation with monocular front-end.
     )
-
+    #
     # You can directly set your desired depth estimator in main_slam.py.
     kDepthEstimatorRemoveShadowPointsInFrontEnd = True
 
