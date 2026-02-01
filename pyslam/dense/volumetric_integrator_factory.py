@@ -3,6 +3,7 @@ import traceback
 
 from pyslam.config_parameters import Parameters
 from pyslam.utilities.system import import_from
+from pyslam.utilities.logging import Printer
 from pyslam.dense.volumetric_integrator_types import VolumetricIntegratorType
 
 try:
@@ -79,6 +80,28 @@ def volumetric_integrator_factory(
         VolumetricIntegratorType.TSDF                              -> VolumetricIntegratorTsdf
         VolumetricIntegratorType.GAUSSIAN_SPLATTING                -> VolumetricIntegratorGaussianSplatting
     """
+
+    # If semantic mapping is enabled, we warn the user if they are not using a semantic-aware volumetric integrator.
+    # In the case of VOXEL_GRID, we directly force the usage of VOXEL_SEMANTIC_PROBABILISTIC_GRID instead.
+    if Parameters.kDoSparseSemanticMappingAndSegmentation:
+        if (
+            volumetric_integrator_type != VolumetricIntegratorType.VOXEL_SEMANTIC_GRID
+            and volumetric_integrator_type
+            != VolumetricIntegratorType.VOXEL_SEMANTIC_PROBABILISTIC_GRID
+        ):
+            Printer.warning("--------------------------------")
+            Printer.warning(
+                f"\nkDoSparseSemanticMappingAndSegmentation is enabled but volumetric_integrator_type is not VOXEL_SEMANTIC_GRID or VOXEL_SEMANTIC_PROBABILISTIC_GRID\n"
+            )
+            if volumetric_integrator_type == VolumetricIntegratorType.VOXEL_GRID:
+                Printer.warning(
+                    f"Using VOXEL_SEMANTIC_PROBABILISTIC_GRID instead of VOXEL_GRID to get volumetric semantic mapping results\n"
+                )
+                volumetric_integrator_type = (
+                    VolumetricIntegratorType.VOXEL_SEMANTIC_PROBABILISTIC_GRID
+                )
+            Printer.warning("--------------------------------")
+
     if volumetric_integrator_type == VolumetricIntegratorType.VOXEL_GRID:
         return VolumetricIntegratorVoxelGrid(
             camera=camera,

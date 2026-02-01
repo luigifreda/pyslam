@@ -51,7 +51,7 @@ if __name__ == "__main__":
     sky_extractor = SkyMaskExtractor()
     img_writer = ImgWriter(font_scale=0.7)
 
-    cv2.namedWindow("semantic prediction")  # to get a resizable window
+    cv2.namedWindow("Semantic prediction")  # to get a resizable window
 
     img_id = 0  # 180, 340, 400   # you can start from a desired frame id if needed
     key = None

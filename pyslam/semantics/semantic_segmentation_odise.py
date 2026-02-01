@@ -880,6 +880,15 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
         Printer.green(f"ODISE: Starting inference on image shape {rgb_image.shape[:2]}...")
         predictions = self.model.predict(rgb_image)
 
+        if (
+            self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR
+            and "sem_seg" not in predictions
+        ):
+            raise ValueError(
+                "ODISE probability vectors require a semantic segmentation head "
+                "('sem_seg' output). Current ODISE outputs are panoptic only."
+            )
+
         # Generate visualized output using centralized visualization generation
         # ODISE's demo wrapper doesn't provide visualized_output like DETIC/EOV_SEG do,
         # so we generate it on-demand using the consolidated visualization method.

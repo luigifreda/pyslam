@@ -235,16 +235,16 @@ class SemanticMappingDenseBase(SemanticMappingBase):
         if curr_semantic_prediction is not None:
             if not self.draw_semantic_mapping_init:
                 if use_cv2_for_drawing:
-                    cv2.namedWindow("semantic prediction")  # to get a resizable window
+                    cv2.namedWindow("Semantic prediction")  # to get a resizable window
                 self.draw_semantic_mapping_init = True
             draw = True
             semantic_color_img = self.semantic_segmentation.sem_img_to_viz_rgb(
                 curr_semantic_prediction, bgr=True
             )
             if use_cv2_for_drawing:
-                cv2.imshow("semantic prediction", semantic_color_img)
+                cv2.imshow("Semantic prediction", semantic_color_img)
             else:
-                QimageViewer.get_instance().draw(semantic_color_img, "semantic prediction")
+                QimageViewer.get_instance().draw(semantic_color_img, "Semantic prediction")
 
         if draw:
             if use_cv2_for_drawing:

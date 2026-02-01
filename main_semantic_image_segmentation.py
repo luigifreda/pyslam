@@ -213,10 +213,10 @@ if __name__ == "__main__":
     img_writer = ImgWriter(font_scale=0.7)
 
     # Create windows before the loop to avoid delay on first display
-    cv2.namedWindow("img")
-    cv2.namedWindow("semantic prediction viz")
-    cv2.namedWindow("semantic class map")
-    cv2.namedWindow("semantic instance map")
+    cv2.namedWindow("Camera")
+    cv2.namedWindow("Semantic prediction viz")
+    cv2.namedWindow("Semantic class map")
+    cv2.namedWindow("Semantic instance map")
 
     img_id = 0  # 180, 340, 400   # you can start from a desired frame id if needed
     key = None
@@ -274,14 +274,14 @@ if __name__ == "__main__":
 
             img_writer.write(img, f"id: {img_id}", (30, 30))
 
-            cv2.imshow("img", img)
+            cv2.imshow("Camera", img)
 
-            cv2.imshow("semantic prediction viz", semantic_color_img_viz)
+            cv2.imshow("Semantic prediction viz", semantic_color_img_viz)
 
-            cv2.imshow("semantic class map", semantic_color_img)
+            cv2.imshow("Semantic class map", semantic_color_img)
 
             if semantic_color_instances_img is not None:
-                cv2.imshow("semantic instance map", semantic_color_instances_img)
+                cv2.imshow("Semantic instance map", semantic_color_instances_img)
 
             key = cv2.waitKey(1)
         else:

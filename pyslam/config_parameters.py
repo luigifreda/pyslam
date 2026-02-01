@@ -289,7 +289,7 @@ class Parameters:
     #                             "TSDF", allows mesh extraction as output
     #                             "GAUSSIAN_SPLATTING", requires CUDA
     #                              see pyslam/dense/volumetric_integrator_types.py and cpp/volumetric/README.md
-    kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID"
+    kVolumetricIntegrationType = "VOXEL_GRID"
     kVolumetricIntegrationDebugAndPrintToFile = True
     #
     kVolumetricIntegrationVoxelLength = 0.015  # [m]
@@ -307,6 +307,7 @@ class Parameters:
     kVolumetricIntegrationFpsMaxThreshold = 10.0  # max FPS allowed
     kVolumetricIntegrationFpsThrottleBaseDelay = 0.01  # base delay [s]
     kVolumetricIntegrationFpsThrottleScale = 0.1  # delay scale per FPS over threshold
+    #
     kVolumetricIntegrationVoxelGridMinCount = (
         3  # Minimum number of point observations per voxel for grid integration
     )
@@ -362,16 +363,18 @@ class Parameters:
     kVolumetricSemanticIntegrationUseInstanceIds = (
         True  # Use image instance IDs for 3D semantic integration.
     )
-    kVolumetricSemanticIntegrationMinVoteRatio = 0.5  # Minimum vote ratio for semantic integration.
-    kVolumetricSemanticIntegrationMinVotes = 3  # Minimum votes for semantic integration.
+    kVolumetricSemanticIntegrationMinVoteRatio = 0.5  # Minimum vote ratio for semantic integration, while assingning 3D object IDs to 2D semantic instance IDs with assign_object_ids_to_instance_ids()
+    kVolumetricSemanticIntegrationMinVotes = 3  # Minimum votes for semantic integration, while assingning 3D object IDs to 2D semantic instance IDs with assign_object_ids_to_instance_ids()
 
     # ================================================================
     # Sparse semantic mapping and image segmentation
     # ================================================================
     kDoSparseSemanticMappingAndSegmentation = False  # To enable/disable _sparse_ semantic mapping and image segmentation (TODO: may be problematic under mac, fix it)
     #
-    # NOTE: If you want _dense_ semantic mapping, enable this and set
-    # kDoVolumetricIntegration = True and  kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" or "VOXEL_SEMANTIC_GRID"
+    # NOTE: If you want _volumetric_ semantic mapping, set:
+    # kDoSparseSemanticMappingAndSegmentation = True and
+    # kDoVolumetricIntegration = True and
+    # kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" or "VOXEL_SEMANTIC_GRID"
     #
     # kSemanticSegmentationType: None/"", "DEEPLABV3", "SEGFORMER", "CLIP", "EOV_SEG", "DETIC", "ODISE", "RFDETR", "YOLO"
     # (see pyslam/semantics/semantic_segmentation_types.py)

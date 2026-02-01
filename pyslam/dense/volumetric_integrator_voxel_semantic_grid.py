@@ -517,6 +517,10 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                         if kGenerateObjects:
                             # ================================================================
                             # START OF GENERATE OBJECTS REPRESENTATION
+
+                            # TODO: Add per-object filtering of isolated points (such as statistical or radius-based filtering)
+                            #       This should be done in the C++ code after the object segments are generated and before the bounding boxes are computed.
+                            #       Add corresponding option for that.
                             objects_data_group = self.volume.get_object_segments(
                                 min_count=Parameters.kVolumetricIntegrationVoxelGridMinCount,
                                 min_confidence=Parameters.kVolumetricIntegrationVoxelGridMinConfidence,

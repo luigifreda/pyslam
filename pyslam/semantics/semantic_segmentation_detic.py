@@ -531,6 +531,15 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
 
         instances = None
 
+        if (
+            self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR
+            and "sem_seg" not in predictions
+        ):
+            raise ValueError(
+                "Detic probability vectors require a semantic segmentation head "
+                "('sem_seg' output). Current Detic outputs are instance/panoptic only."
+            )
+
         # Extract semantic segmentation
         if "panoptic_seg" in predictions:
             # Panoptic segmentation: convert to semantic labels

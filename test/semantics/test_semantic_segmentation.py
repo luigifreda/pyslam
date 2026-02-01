@@ -214,7 +214,7 @@ if __name__ == "__main__":
 
     # Create windows before the loop to avoid delay on first display
     cv2.namedWindow("img")
-    cv2.namedWindow("semantic prediction")
+    cv2.namedWindow("Semantic prediction")
 
     img_id = 0  # 180, 340, 400   # you can start from a desired frame id if needed
     key = None
@@ -269,7 +269,7 @@ if __name__ == "__main__":
             img_writer.write(img, f"id: {img_id}", (30, 30))
             cv2.imshow("img", img)
 
-            cv2.imshow("semantic prediction", semantic_color_img)
+            cv2.imshow("Semantic prediction", semantic_color_img)
             if semantic_color_instances_img is not None:
                 cv2.imshow("semantic instances", semantic_color_instances_img)
 

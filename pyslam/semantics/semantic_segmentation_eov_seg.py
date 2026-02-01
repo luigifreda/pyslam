@@ -396,6 +396,15 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
         instances = None
         semantics = None
 
+        if (
+            self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR
+            and "sem_seg" not in predictions
+        ):
+            raise ValueError(
+                "EOV-Seg probability vectors require a semantic segmentation head "
+                "('sem_seg' output). Current EOV-Seg outputs are panoptic only."
+            )
+
         # Extract semantic segmentation - optimized path for panoptic
         if "panoptic_seg" in predictions:
             # Direct extraction from panoptic (faster, no softmax needed)
