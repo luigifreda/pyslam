@@ -1015,6 +1015,22 @@ class VolumetricIntegratorBase:
             keyframe_data.depth = depth
 
         if self.calib_map1 is not None and self.calib_map2 is not None:
+            def _remap_label_image(label_img):
+                """Remap label/instance images using cv2 with safe dtype."""
+                if label_img is None:
+                    return None
+                # cv2.remap does not support int32; use float32 and restore int32.
+                if label_img.dtype not in (np.uint8, np.uint16, np.float32):
+                    label_img = label_img.astype(np.float32, copy=False)
+                remapped = cv2.remap(
+                    label_img,
+                    self.calib_map1,
+                    self.calib_map2,
+                    interpolation=cv2.INTER_NEAREST,
+                )
+                # Restore int32 labels for downstream integration
+                return np.ascontiguousarray(remapped, dtype=np.int32)
+
             color_undistorted = cv2.remap(
                 color, self.calib_map1, self.calib_map2, interpolation=cv2.INTER_LINEAR
             )
@@ -1022,16 +1038,9 @@ class VolumetricIntegratorBase:
                 depth, self.calib_map1, self.calib_map2, interpolation=cv2.INTER_NEAREST
             )
             if semantic is not None:
-                semantic_undistorted = cv2.remap(
-                    semantic, self.calib_map1, self.calib_map2, interpolation=cv2.INTER_NEAREST
-                )
+                semantic_undistorted = _remap_label_image(semantic)
             if semantic_instances is not None:
-                semantic_instances_undistorted = cv2.remap(
-                    semantic_instances,
-                    self.calib_map1,
-                    self.calib_map2,
-                    interpolation=cv2.INTER_NEAREST,
-                )
+                semantic_instances_undistorted = _remap_label_image(semantic_instances)
         else:
             color_undistorted = color
             depth_undistorted = depth

@@ -206,7 +206,15 @@ class SemanticMappingDenseBase(SemanticMappingBase):
         # update keypoints of current keyframe
         self.timer_update_keyframe.start()
         self.kf_cur.set_semantics(curr_semantic_prediction)
-        self.kf_cur.set_semantic_instances(curr_semantic_instances)
+        if curr_semantic_instances is not None:
+            self.kf_cur.set_semantic_instances(curr_semantic_instances)
+        else:
+            # Avoid passing None into C++ bindings; clear only when supported.
+            if hasattr(self.kf_cur, "semantic_instances_img"):
+                try:
+                    self.kf_cur.semantic_instances_img = None
+                except Exception:
+                    pass
         self.timer_update_keyframe.refresh()
         Printer.green(f"#set KF semantics, timing: {self.timer_update_keyframe.last_elapsed}")
         # SemanticMappingBase.print(f'#keypoints: {self.kf_cur.num_keypoints()}, timing: {self.timer_update_keyframe.last_elapsed}')

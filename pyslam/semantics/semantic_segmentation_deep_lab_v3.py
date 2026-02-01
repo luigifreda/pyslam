@@ -175,7 +175,8 @@ class SemanticSegmentationDeepLabV3(SemanticSegmentationBase):
         probs = recover_size(probs[0])
 
         if self.semantic_feature_type == SemanticFeatureType.LABEL:
-            self.semantics = probs.argmax(dim=0).cpu().numpy()
+            # Ensure int32 labels for downstream consumers (e.g., volumetric integration)
+            self.semantics = probs.argmax(dim=0).cpu().numpy().astype(np.int32, copy=False)
         elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
             self.semantics = probs.permute(1, 2, 0).cpu().numpy()
 

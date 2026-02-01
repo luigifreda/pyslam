@@ -67,7 +67,7 @@ ICL_NUIM_DATASET:
   #name: living_room_traj0n_frei_png
   settings: settings/ICL_NUIM.yaml # do not forget to set the corresponding camera settings file   
   #
-  #name: traj1_frei_png
+  name: traj1_frei_png
   #settings: settings/ICL_NUIM.yaml # do not forget to set the corresponding camera settings file 
   #
   associations: associations.txt
@@ -130,7 +130,7 @@ SEVEN_SCENES_DATASET:
   type: seven_scenes
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/7scenes
-  name: 'office'  # chess, fireplace, office, kitchen, bedroom, conference, livingroom, playroom
+  name: 'redkitchen'  # chess, office, redkitchen, bedroom, fireplace, conference, livingroom, playroom
   settings: settings/SEVEN_SCENES.yaml
   groundtruth_file: auto
 
@@ -294,10 +294,10 @@ MCAP_DATASET:
   environment_type: indoor  # Here, 'environment_type' can be 'indoor' or 'outdoor'  
   fps: 30                                        # desired rate of the dataset  
 
-# DO NOT USE [LIVE_DATASET]! This section is here for future developments. 
+
 # At the present time (see the README file):
 # - main_vo.py cannot be used with your webcam since it requires a grountruth for recovering a correct inter-frame scale (see the README file) 
-# - main_slam.py does NOT have REAL-TIME processing capabilities yet (even if it does NOT need grountruth data)
+# - main_slam.py has starting having good processing capabilities (and it does NOT need grountruth data)
 # If you want to use your webcam, please, record a video by using calibration/save_video.py and then use it as a VIDEO_DATASET.
 LIVE_DATASET: 
   type: live 

@@ -81,7 +81,7 @@ kDataFolder = kRootFolder + "/data"
 
 
 # ===================================================================
-kGenerateObjects = True  # True: generate objects representation,
+kGenerateObjectsDefault = True  # True: generate objects representation,
 #                          False: generate point cloud representation
 # ===================================================================
 
@@ -323,6 +323,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             integrate_2d_instance_ids = (
                                 Parameters.kVolumetricSemanticIntegrationUseInstanceIds
                                 and semantic_instances_undistorted is not None
+                                and semantic_instances_undistorted.size > 0
                             )
 
                             # Filter depth
@@ -514,7 +515,10 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                         pc_out = None
                         objects_out = None
 
-                        if kGenerateObjects:
+                        # Only generate objects when instance IDs are available.
+                        # Otherwise fall back to point cloud to preserve semantic variation.
+                        generate_objects = kGenerateObjectsDefault and integrate_2d_instance_ids
+                        if generate_objects:
                             # ================================================================
                             # START OF GENERATE OBJECTS REPRESENTATION
 

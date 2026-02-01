@@ -219,9 +219,11 @@ class SemanticSegmentationSegformer(SemanticSegmentationBase):
         probs = recover_size(probs[0])
 
         if self.semantic_feature_type == SemanticFeatureType.LABEL:
+            # Ensure int32 labels for downstream consumers (e.g., volumetric integration)
             self.semantics = probs.argmax(dim=0).cpu().numpy()
             if self.label_mapping is not None:
                 self.semantics = self.label_mapping[self.semantics]
+            self.semantics = self.semantics.astype(np.int32, copy=False)
 
         elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
 

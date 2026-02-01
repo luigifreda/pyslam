@@ -590,6 +590,9 @@ class Frame(FrameBase):
 
     def set_semantic_instances(self, semantic_instances_img):
         with self._lock_semantics:
+            if semantic_instances_img is None:
+                self.semantic_instances_img = None
+                return
             self.semantic_instances_img = np.ascontiguousarray(
                 semantic_instances_img.copy(), dtype=np.int32
             )

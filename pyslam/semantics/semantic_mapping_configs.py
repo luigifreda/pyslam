@@ -132,23 +132,21 @@ class SemanticMappingConfigs:
         semantic_segmentation_type = get_semantic_segmentation_type_from_str(
             semantic_segmentation_type_str
         )
+
+        default_semantic_segmentation_type = SemanticSegmentationType.DETIC
+
         if slam_dataset_name == DatasetType.KITTI:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    SemanticSegmentationType.SEGFORMER
-                )  # default to SEGFORMER for KITTI
+                semantic_segmentation_type = default_semantic_segmentation_type
             return dict(
                 semantic_mapping_type=SemanticMappingType.DENSE,
-                semantic_segmentation_type=semantic_segmentation_type,
+                semantic_segmentation_type=default_semantic_segmentation_type,
                 semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
                 semantic_feature_type=SemanticFeatureType.LABEL,
             )
         elif slam_dataset_name == DatasetType.TUM:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    # SemanticSegmentationType.SEGFORMER
-                    SemanticSegmentationType.DETIC
-                )  # default to SEGFORMER for TUM
+                semantic_segmentation_type = default_semantic_segmentation_type
                 if semantic_segmentation_type == SemanticSegmentationType.SEGFORMER:
                     Printer.red(
                         f"Semantics in TUM dataset will be bad with current model {semantic_segmentation_type.name}!"
@@ -162,9 +160,7 @@ class SemanticMappingConfigs:
             )
         elif slam_dataset_name == DatasetType.ICL_NUIM:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    SemanticSegmentationType.DETIC
-                )  # default to DETIC for ICL_NUIM
+                semantic_segmentation_type = default_semantic_segmentation_type
             return dict(
                 semantic_mapping_type=SemanticMappingType.DENSE,
                 semantic_segmentation_type=semantic_segmentation_type,
@@ -174,9 +170,7 @@ class SemanticMappingConfigs:
             )
         elif slam_dataset_name == DatasetType.EUROC:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    SemanticSegmentationType.SEGFORMER
-                )  # default to SEGFORMER for EUROC
+                semantic_segmentation_type = default_semantic_segmentation_type
                 if semantic_segmentation_type == SemanticSegmentationType.SEGFORMER:
                     Printer.red(
                         f"Semantics in EUROC dataset will be bad with current model {semantic_segmentation_type.name}!"
@@ -189,9 +183,7 @@ class SemanticMappingConfigs:
             )
         elif slam_dataset_name == DatasetType.REPLICA:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    SemanticSegmentationType.SEGFORMER
-                )  # default to SEGFORMER for REPLICA
+                semantic_segmentation_type = default_semantic_segmentation_type
             return dict(
                 semantic_mapping_type=SemanticMappingType.DENSE,
                 semantic_segmentation_type=semantic_segmentation_type,
@@ -200,9 +192,7 @@ class SemanticMappingConfigs:
             )
         elif slam_dataset_name == DatasetType.TARTANAIR:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    SemanticSegmentationType.SEGFORMER
-                )  # default to SEGFORMER for TARTANAIR
+                semantic_segmentation_type = default_semantic_segmentation_type
             return dict(
                 semantic_mapping_type=SemanticMappingType.DENSE,
                 semantic_segmentation_type=semantic_segmentation_type,
@@ -211,9 +201,7 @@ class SemanticMappingConfigs:
             )
         elif slam_dataset_name == DatasetType.VIDEO:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    SemanticSegmentationType.SEGFORMER
-                )  # default to SEGFORMER for VIDEO
+                semantic_segmentation_type = default_semantic_segmentation_type
             return dict(
                 semantic_mapping_type=SemanticMappingType.DENSE,
                 semantic_segmentation_type=semantic_segmentation_type,
@@ -222,9 +210,7 @@ class SemanticMappingConfigs:
             )
         elif slam_dataset_name == DatasetType.FOLDER:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    SemanticSegmentationType.SEGFORMER
-                )  # default to SEGFORMER for FOLDER
+                semantic_segmentation_type = default_semantic_segmentation_type
             return dict(
                 semantic_mapping_type=SemanticMappingType.DENSE,
                 semantic_segmentation_type=semantic_segmentation_type,
@@ -233,9 +219,7 @@ class SemanticMappingConfigs:
             )
         elif slam_dataset_name == DatasetType.ROS1BAG:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    SemanticSegmentationType.SEGFORMER
-                )  # default to SEGFORMER for ROS1BAG
+                semantic_segmentation_type = default_semantic_segmentation_type
             return dict(
                 semantic_mapping_type=SemanticMappingType.DENSE,
                 semantic_segmentation_type=semantic_segmentation_type,
@@ -244,9 +228,7 @@ class SemanticMappingConfigs:
             )
         elif slam_dataset_name == DatasetType.ROS2BAG:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    SemanticSegmentationType.SEGFORMER
-                )  # default to SEGFORMER for ROS2BAG
+                semantic_segmentation_type = default_semantic_segmentation_type
             return dict(
                 semantic_mapping_type=SemanticMappingType.DENSE,
                 semantic_segmentation_type=semantic_segmentation_type,
@@ -255,9 +237,7 @@ class SemanticMappingConfigs:
             )
         elif slam_dataset_name == DatasetType.MCAP:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    SemanticSegmentationType.SEGFORMER
-                )  # default to SEGFORMER for MCAP
+                semantic_segmentation_type = default_semantic_segmentation_type
             return dict(
                 semantic_mapping_type=SemanticMappingType.DENSE,
                 semantic_segmentation_type=semantic_segmentation_type,
@@ -266,9 +246,7 @@ class SemanticMappingConfigs:
             )
         elif slam_dataset_name == DatasetType.LIVE:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    SemanticSegmentationType.SEGFORMER
-                )  # default to SEGFORMER for LIVE
+                semantic_segmentation_type = default_semantic_segmentation_type
             return dict(
                 semantic_mapping_type=SemanticMappingType.DENSE,
                 semantic_segmentation_type=semantic_segmentation_type,
@@ -277,9 +255,7 @@ class SemanticMappingConfigs:
             )
         elif slam_dataset_name == DatasetType.SCANNET:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    SemanticSegmentationType.SEGFORMER
-                )  # default to SEGFORMER for SCANNET
+                semantic_segmentation_type = default_semantic_segmentation_type
             return dict(
                 semantic_mapping_type=SemanticMappingType.DENSE,
                 semantic_segmentation_type=semantic_segmentation_type,
@@ -288,10 +264,7 @@ class SemanticMappingConfigs:
             )
         else:
             if semantic_segmentation_type is None:
-                semantic_segmentation_type = (
-                    # SemanticSegmentationType.SEGFORMER
-                    SemanticSegmentationType.DETIC
-                )  # default to DETIC for other datasets
+                semantic_segmentation_type = default_semantic_segmentation_type
                 Printer.yellow(
                     f"SemanticMappingConfigs: No configuration found for SLAM dataset '{slam_dataset_name}', using default model DETIC"
                 )
