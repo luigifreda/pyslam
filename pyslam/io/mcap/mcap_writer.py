@@ -26,7 +26,7 @@ from mcap.writer import CompressionType
 from mcap_ros2.writer import Writer as McapROS2Writer
 from mcap.records import Schema
 
-from .ro2_encoder import Ros2Encoder
+from .ros2_encoder import Ros2Encoder
 
 
 class McapWriter:
