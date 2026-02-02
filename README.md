@@ -12,7 +12,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include *DepthPro*, *DepthAnythingV2*, *DepthAnythingV3*, *RAFT-Stereo*, *CREStereo*, etc.  
 - A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as *DeepLabv3*, *Segformer*, *CLIP*, *DETIC*, *EOV-SEG*, *ODISE*, *RFDETR*, *YOLO*, etc.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
-- A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes. The Python and C++ implementations are interoperable: maps saved by one can be loaded by the other. Further details [here](pyslam/slam/cpp/README.md).
+- A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between _high-performance/speed_ and _high-flexibility_ modes. The Python and C++ implementations are interoperable: maps saved by one can be loaded by the other. Further details [here](pyslam/slam/cpp/README.md).
 - A modular pipeline for **end-to-end inference of 3D scenes from multiple images**. Supports models like *DUSt3R*, *Mast3r*, *MV-DUSt3R*, *VGGT*, *Robust VGGT*, *DepthFromAnythingV3*, and *Fast3R*. Further details [here](pyslam/scene_from_views/README.md).
 - Built-in support for over **[10 dataset types](#datasets)**.
   
@@ -21,9 +21,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
 **Enjoy it!**
 
 <p align="center">
-  <img src="./images/STEREO.png" alt="pySLAM - Stereo mapping example" height="160">
-  <img src="./images/RGBD2.png" alt="pySLAM - RGB-D mapping example" height="160">
-  <img src="./images/kitti-stereo.png" alt="pySLAM - KITTI stereo example" height="160">
+  <img src="./images/pyslam.gif" alt="pySLAM - Stereo mapping example" height="320">
 </p>
 
 <p align="center">
@@ -38,7 +36,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
 <p align="center">
   <img src="./images/dense-reconstruction-composition.gif"
        alt="pySLAM - Dense reconstruction - Gaussian Splatting"
-       height="300">
+       height="320">
 </p>
 
 ## Table of contents
@@ -308,6 +306,12 @@ Now, with RGBD datasets, you can also test the **RGBD odometry** with the classe
  
 
 ### Full SLAM
+
+<p align="center">
+  <img src="./images/STEREO.png" alt="pySLAM - Stereo mapping example" height="160">
+  <img src="./images/RGBD2.png" alt="pySLAM - RGB-D mapping example" height="160">
+  <img src="./images/kitti-stereo.png" alt="pySLAM - KITTI stereo example" height="160">
+</p>
 
 Similarly, you can test the **full SLAM** by running `main_slam.py`:
 ```bash
