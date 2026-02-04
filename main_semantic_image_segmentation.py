@@ -190,7 +190,6 @@ if __name__ == "__main__":
     # SemanticSegmentationType: DETIC, RFDETR, SEGFORMER, DEEPLABV3, CLIP, EOV_SEG, ODISE, YOLO
     semantic_segmentation_type = SemanticSegmentationType.DETIC
     semantic_feature_type = SemanticFeatureType.LABEL
-    # semantic_dataset_type = SemanticDatasetType.ADE20K
     semantic_dataset_type = SemanticDatasetType.CITYSCAPES
     image_size = (512, 512)
     device = None  # autodetect
@@ -212,14 +211,20 @@ if __name__ == "__main__":
 
     img_writer = ImgWriter(font_scale=0.7)
 
+    window_camera_name = "Camera"
+    window_semantic_prediction_name = f"Semantic prediction viz - {semantic_segmentation_type.name}"
+    window_semantic_class_map_name = f"Semantic class map - {semantic_segmentation_type.name}"
+    window_semantic_instance_map_name = f"Semantic instance map - {semantic_segmentation_type.name}"
+
     # Create windows before the loop to avoid delay on first display
-    cv2.namedWindow("Camera")
-    cv2.namedWindow("Semantic prediction viz")
-    cv2.namedWindow("Semantic class map")
-    cv2.namedWindow("Semantic instance map")
+    cv2.namedWindow(window_camera_name)
+    cv2.namedWindow(window_semantic_prediction_name)
+    cv2.namedWindow(window_semantic_class_map_name)
+    cv2.namedWindow(window_semantic_instance_map_name)
 
     img_id = 0  # 180, 340, 400   # you can start from a desired frame id if needed
     key = None
+    paused = False
     while True:
 
         timestamp, img = None, None
@@ -274,20 +279,34 @@ if __name__ == "__main__":
 
             img_writer.write(img, f"id: {img_id}", (30, 30))
 
-            cv2.imshow("Camera", img)
+            cv2.imshow(window_camera_name, img)
 
-            cv2.imshow("Semantic prediction viz", semantic_color_img_viz)
+            cv2.imshow(window_semantic_prediction_name, semantic_color_img_viz)
 
-            cv2.imshow("Semantic class map", semantic_color_img)
+            cv2.imshow(window_semantic_class_map_name, semantic_color_img)
 
             if semantic_color_instances_img is not None:
-                cv2.imshow("Semantic instance map", semantic_color_instances_img)
+                cv2.imshow(window_semantic_instance_map_name, semantic_color_instances_img)
 
-            key = cv2.waitKey(1)
+            if paused:
+                key = cv2.waitKey(0)
+            else:
+                key = cv2.waitKey(1)
         else:
-            key = cv2.waitKey(100)
+            if paused:
+                key = cv2.waitKey(0)
+            else:
+                key = cv2.waitKey(100)
 
         if key == ord("q") or key == 27:
             break
 
-        img_id += 1
+        if key == ord("p"):
+            paused = not paused
+            if paused:
+                Printer.yellow("Paused. Press 'p' to resume.")
+            else:
+                Printer.yellow("Resumed.")
+
+        if not paused:
+            img_id += 1

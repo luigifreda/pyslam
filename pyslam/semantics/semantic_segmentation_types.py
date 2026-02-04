@@ -66,7 +66,11 @@ from pyslam.utilities.serialization import SerializableEnum, register_class
 #
 # - Instance segmentation:
 #   * RFDETR: RF-DETR segmentation models (instance masks, COCO classes by default).
+#             It comes with a segmentation model and a detection model. Different variants are available.
+#             Nano, Small, Medium, Large, XLarge, 2XLarge. See pyslam/semantics/semantic_segmentation_rf_detr.py for more details.
 #   * YOLO: Ultralytics YOLO segmentation models (instance masks).
+#             It comes with a segmentation model and a detection model. Different variants are available.
+#             Nano, Small, Medium, Large, XLarge. See pyslam/semantics/semantic_segmentation_yolo.py for more details.
 
 
 @register_class
@@ -80,7 +84,9 @@ class SemanticSegmentationType(SerializableEnum):
     DETIC = 4  # Semantics from Detic (Detecting Twenty-thousand Classes) [Panoptic/instance]
     ODISE = 5  # Semantics from ODISE (Open-vocabulary DIffusion-based panoptic SEgmentation) [Panoptic/instance]
     RFDETR = 6  # Semantics from RF-DETR segmentation models [Instance segmentation]
+    #             Different variants are available. Nano, Small, Medium, Large, XLarge. See pyslam/semantics/semantic_segmentation_rf_detr.py for more details.
     YOLO = 7  # Semantics from Ultralytics YOLO segmentation models [Instance segmentation]
+    #           Different variants are available. Nano, Small, Medium, Large, XLarge. See pyslam/semantics/semantic_segmentation_yolo.py for more details.
 
     @staticmethod
     def from_string(name: str):

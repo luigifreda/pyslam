@@ -41,11 +41,27 @@ kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = os.path.abspath(os.path.join(kScriptFolder, "..", ".."))
 kModelsDir = os.path.join(kRootFolder, "data", "models")
 
+YOLO_RELEASE_TAG = "v8.4.0"
 
-class YoloSegModel(Enum):
-    YOLO26N = ("v8.4.0", "yolo26n-seg.pt")
-    YOLO11N = ("v8.4.0", "yolo11n-seg.pt")
-    YOLOV8N = ("v8.4.0", "yolov8n-seg.pt")
+
+class YoloSegmentationModel(Enum):
+    YOLO26N = ("v8.4.0", "yolo26n-seg.pt")  # Nano
+    YOLO26S = ("v8.4.0", "yolo26s-seg.pt")  # Small
+    YOLO26M = ("v8.4.0", "yolo26m-seg.pt")  # Medium
+    YOLO26L = ("v8.4.0", "yolo26l-seg.pt")  # Large
+    YOLO26X = ("v8.4.0", "yolo26x-seg.pt")  # XLarge
+    #
+    YOLO11N = ("v8.4.0", "yolo11n-seg.pt")  # Nano
+    YOLO11S = ("v8.4.0", "yolo11s-seg.pt")  # Small
+    YOLO11M = ("v8.4.0", "yolo11m-seg.pt")  # Medium
+    YOLO11L = ("v8.4.0", "yolo11l-seg.pt")  # Large
+    YOLO11X = ("v8.4.0", "yolo11x-seg.pt")  # XLarge
+    #
+    YOLOV8N = ("v8.4.0", "yolov8n-seg.pt")  # Nano
+    YOLOV8S = ("v8.4.0", "yolov8s-seg.pt")  # Small
+    YOLOV8M = ("v8.4.0", "yolov8m-seg.pt")  # Medium
+    YOLOV8L = ("v8.4.0", "yolov8l-seg.pt")  # Large
+    YOLOV8X = ("v8.4.0", "yolov8x-seg.pt")  # XLarge
 
     @property
     def release_tag(self) -> str:
@@ -54,6 +70,66 @@ class YoloSegModel(Enum):
     @property
     def filename(self) -> str:
         return self.value[1]
+
+    @classmethod
+    def label_map(cls):
+        return {
+            "YOLO26n-seg": cls.YOLO26N,
+            "YOLO26s-seg": cls.YOLO26S,
+            "YOLO26m-seg": cls.YOLO26M,
+            "YOLO26l-seg": cls.YOLO26L,
+            "YOLO26x-seg": cls.YOLO26X,
+            #
+            "YOLO11n-seg": cls.YOLO11N,
+            "YOLO11s-seg": cls.YOLO11S,
+            "YOLO11m-seg": cls.YOLO11M,
+            "YOLO11l-seg": cls.YOLO11L,
+            "YOLO11x-seg": cls.YOLO11X,
+            #
+            "YOLOv8n-seg": cls.YOLOV8N,
+            "YOLOv8s-seg": cls.YOLOV8S,
+            "YOLOv8m-seg": cls.YOLOV8M,
+            "YOLOv8l-seg": cls.YOLOV8L,
+            "YOLOv8x-seg": cls.YOLOV8X,
+        }
+
+    @classmethod
+    def filename_map(cls):
+        return {label: model.filename for label, model in cls.label_map().items()}
+
+
+class YoloDetectionModel(Enum):
+    YOLO26N = ("v8.4.0", "yolo26n.pt")
+    YOLO26S = ("v8.4.0", "yolo26s.pt")
+    YOLO26M = ("v8.4.0", "yolo26m.pt")
+    YOLO26L = ("v8.4.0", "yolo26l.pt")
+    YOLO26X = ("v8.4.0", "yolo26x.pt")
+
+    @property
+    def release_tag(self) -> str:
+        return self.value[0]
+
+    @property
+    def filename(self) -> str:
+        return self.value[1]
+
+    @classmethod
+    def label_map(cls):
+        return {
+            "YOLO26n": cls.YOLO26N,
+            "YOLO26s": cls.YOLO26S,
+            "YOLO26m": cls.YOLO26M,
+            "YOLO26l": cls.YOLO26L,
+            "YOLO26x": cls.YOLO26X,
+        }
+
+    @classmethod
+    def filename_map(cls):
+        return {label: model.filename for label, model in cls.label_map().items()}
+
+
+# Cache for loaded YOLO models (by weights path)
+_yolo_model_cache = {}
 
 
 class SemanticSegmentationYolo(SemanticSegmentationBase):
@@ -69,7 +145,7 @@ class SemanticSegmentationYolo(SemanticSegmentationBase):
     def __init__(
         self,
         device=None,
-        model_name=YoloSegModel.YOLO26N,
+        model_name=YoloSegmentationModel.YOLO26S,
         weights_path="",
         model_url="",
         semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
@@ -87,7 +163,7 @@ class SemanticSegmentationYolo(SemanticSegmentationBase):
 
         Args:
             device: torch device (cuda/cpu/mps) or None for auto-detection
-            model_name: YOLO segmentation model name (e.g., YoloSegModel.YOLO26N)
+            model_name: YOLO segmentation model name (e.g., YoloSegmentationModel.YOLO26N)
             weights_path: Optional path to model weights (.pt). If empty, uses model_name.
             model_url: Optional URL for downloading weights (overrides default URL).
             semantic_dataset_type: Target dataset type for color mapping
@@ -142,6 +218,39 @@ class SemanticSegmentationYolo(SemanticSegmentationBase):
                 "Ultralytics is required. Install with: pip install ultralytics"
             ) from exc
 
+    def _resolve_model_info(self, model_name, model_url):
+        if isinstance(model_name, (YoloSegmentationModel, YoloDetectionModel)):
+            model_enum = model_name
+            filename = model_enum.filename
+            if not model_url:
+                model_url = (
+                    "https://github.com/ultralytics/assets/releases/"
+                    f"download/{model_enum.release_tag}/{model_enum.filename}"
+                )
+            if isinstance(model_name, YoloDetectionModel):
+                Printer.yellow(f"SemanticSegmentationYolo: Using detection weights '{filename}'")
+            return filename, model_url
+
+        if isinstance(model_name, str):
+            seg_labels = YoloSegmentationModel.filename_map()
+            det_labels = YoloDetectionModel.filename_map()
+            if model_name in seg_labels:
+                filename = seg_labels[model_name]
+            elif model_name in det_labels:
+                filename = det_labels[model_name]
+                Printer.yellow(f"SemanticSegmentationYolo: Using detection weights '{filename}'")
+            else:
+                filename = model_name
+
+            if not model_url and filename.endswith(".pt"):
+                model_url = (
+                    "https://github.com/ultralytics/assets/releases/"
+                    f"download/{YOLO_RELEASE_TAG}/{filename}"
+                )
+            return filename, model_url
+
+        return str(model_name), model_url
+
     def init_model(
         self,
         device,
@@ -153,14 +262,7 @@ class SemanticSegmentationYolo(SemanticSegmentationBase):
         self._ensure_ultralytics()
         from ultralytics import YOLO  # type: ignore[import-not-found]
 
-        if isinstance(model_name, YoloSegModel):
-            model_enum = model_name
-            model_name = model_enum.filename
-            if not model_url:
-                model_url = (
-                    "https://github.com/ultralytics/assets/releases/"
-                    f"download/{model_enum.release_tag}/{model_enum.filename}"
-                )
+        model_name, model_url = self._resolve_model_info(model_name, model_url)
 
         if weights_path:
             weights_path = Path(weights_path)
@@ -184,7 +286,12 @@ class SemanticSegmentationYolo(SemanticSegmentationBase):
                 f"Provide weights_path or enable download_if_missing."
             )
 
-        model = YOLO(str(weights_path))
+        cache_key = str(weights_path)
+        if cache_key in _yolo_model_cache:
+            model = _yolo_model_cache[cache_key]
+        else:
+            model = YOLO(str(weights_path))
+            _yolo_model_cache[cache_key] = model
         return model, None
 
     def init_device(self, device):
@@ -347,8 +454,8 @@ class SemanticSegmentationYolo(SemanticSegmentationBase):
             return self.semantic_color_map_obj.to_rgb(semantics, bgr=bgr)
 
         if bgr:
-            return annotated
-        return cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+            return cv2.cvtColor(annotated, cv2.COLOR_RGB2BGR)
+        return annotated
 
     def sem_img_to_rgb(self, semantic_img, bgr=False):
         return self.semantic_color_map_obj.sem_img_to_rgb(semantic_img, bgr=bgr)

@@ -42,7 +42,7 @@ def _ensure_ultralytics():
         ) from exc
 
 
-class YoloSegModel(Enum):
+class YoloSegmentationModel(Enum):
     YOLO26N = ("v8.4.0", "yolo26n-seg.pt")
     YOLO11N = ("v8.4.0", "yolo11n-seg.pt")
     YOLOV8N = ("v8.4.0", "yolov8n-seg.pt")
@@ -56,7 +56,7 @@ class YoloSegModel(Enum):
         return self.value[1]
 
 
-def _get_model_path(model: YoloSegModel) -> Path:
+def _get_model_path(model: YoloSegmentationModel) -> Path:
     kModelsDir.mkdir(parents=True, exist_ok=True)
     model_path = kModelsDir / model.filename
     if model_path.exists():
@@ -112,9 +112,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     version_map = {
-        26: YoloSegModel.YOLO26N,
-        11: YoloSegModel.YOLO11N,
-        8: YoloSegModel.YOLOV8N,
+        26: YoloSegmentationModel.YOLO26N,
+        11: YoloSegmentationModel.YOLO11N,
+        8: YoloSegmentationModel.YOLOV8N,
     }
 
     config = Config()

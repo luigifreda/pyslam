@@ -19,6 +19,7 @@
 
 import os
 import sys
+from enum import Enum
 from pathlib import Path
 
 import numpy as np
@@ -41,6 +42,64 @@ kRootFolder = os.path.abspath(os.path.join(kScriptFolder, "..", ".."))
 kModelsDir = os.path.join(kRootFolder, "data", "models")
 
 
+class RFDETRSegmentationModel(Enum):
+    SEG_PREVIEW = ("seg-preview", "rf-detr-seg-preview.pt")
+    SEG_NANO = ("seg-nano", "rf-detr-seg-nano.pt")
+    SEG_SMALL = ("seg-small", "rf-detr-seg-small.pt")
+    SEG_MEDIUM = ("seg-medium", "rf-detr-seg-medium.pt")
+    SEG_LARGE = ("seg-large", "rf-detr-seg-large.pt")
+    SEG_XLARGE = ("seg-xlarge", "rf-detr-seg-xlarge.pt")
+    SEG_2XLARGE = ("seg-2xlarge", "rf-detr-seg-xxlarge.pt")
+
+    @property
+    def variant_key(self) -> str:
+        return self.value[0]
+
+    @property
+    def weights_name(self) -> str:
+        return self.value[1]
+
+    @classmethod
+    def label_map(cls):
+        return {
+            "RFDETRSegPreview": cls.SEG_PREVIEW,
+            "RFDETRSegNano": cls.SEG_NANO,
+            "RFDETRSegSmall": cls.SEG_SMALL,
+            "RFDETRSegMedium": cls.SEG_MEDIUM,
+            "RFDETRSegLarge": cls.SEG_LARGE,
+            "RFDETRSegXLarge": cls.SEG_XLARGE,
+            "RFDETRSeg2XLarge": cls.SEG_2XLARGE,
+        }
+
+
+class RFDETRDetectionModel(Enum):
+    NANO = ("nano", "rf-detr-nano.pth")
+    SMALL = ("small", "rf-detr-small.pth")
+    MEDIUM = ("medium", "rf-detr-medium.pth")
+    LARGE = ("large", "rf-detr-large.pth")
+    XLARGE = ("xlarge", "rf-detr-xlarge.pth")
+    XXLARGE = ("2xlarge", "rf-detr-xxlarge.pth")
+
+    @property
+    def variant_key(self) -> str:
+        return self.value[0]
+
+    @property
+    def weights_name(self) -> str:
+        return self.value[1]
+
+    @classmethod
+    def label_map(cls):
+        return {
+            "RFDETRNano": cls.NANO,
+            "RFDETRSmall": cls.SMALL,
+            "RFDETRMedium": cls.MEDIUM,
+            "RFDETRLarge": cls.LARGE,
+            "RFDETRXLarge": cls.XLARGE,
+            "RFDETR2XLarge": cls.XXLARGE,
+        }
+
+
 class SemanticSegmentationRfDetr(SemanticSegmentationBase):
     """
     Semantic segmentation using RF-DETR segmentation models (instance masks).
@@ -54,7 +113,7 @@ class SemanticSegmentationRfDetr(SemanticSegmentationBase):
     def __init__(
         self,
         device=None,
-        model_variant="seg-medium",
+        model_variant=RFDETRSegmentationModel.SEG_SMALL,
         weights_path="",
         weights_name=None,
         semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
@@ -71,7 +130,7 @@ class SemanticSegmentationRfDetr(SemanticSegmentationBase):
 
         Args:
             device: torch device (cuda/cpu/mps) or None for auto-detection
-            model_variant: RF-DETR segmentation variant (e.g. "seg-medium", "seg-small")
+            model_variant: RF-DETR segmentation variant (e.g. "seg-medium", "RFDETRSegMedium")
             weights_path: Optional path to model weights (.pt). If empty, uses weights_name.
             weights_name: Optional hosted weights key (e.g. "rf-detr-seg-medium.pt")
             semantic_dataset_type: Target dataset type for color mapping
@@ -146,6 +205,20 @@ class SemanticSegmentationRfDetr(SemanticSegmentationBase):
         from rfdetr.main import HOSTED_MODELS
         from rfdetr.util.files import download_file
 
+        if isinstance(model_variant, RFDETRSegmentationModel):
+            variant_key = model_variant.variant_key
+            if not weights_name:
+                weights_name = model_variant.weights_name
+        else:
+            label_map = RFDETRSegmentationModel.label_map()
+            if isinstance(model_variant, str) and model_variant in label_map:
+                model_variant = label_map[model_variant]
+                variant_key = model_variant.variant_key
+                if not weights_name:
+                    weights_name = model_variant.weights_name
+            else:
+                variant_key = str(model_variant).lower().strip()
+
         variant_map = {
             "seg-preview": (RFDETRSegPreview, "rf-detr-seg-preview.pt"),
             "seg-nano": (RFDETRSegNano, "rf-detr-seg-nano.pt"),
@@ -156,7 +229,6 @@ class SemanticSegmentationRfDetr(SemanticSegmentationBase):
             "seg-2xlarge": (RFDETRSeg2XLarge, "rf-detr-seg-xxlarge.pt"),
         }
 
-        variant_key = str(model_variant).lower().strip()
         if variant_key not in variant_map:
             raise ValueError(
                 f"Unsupported RF-DETR model_variant '{model_variant}'. "
