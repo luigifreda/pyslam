@@ -977,6 +977,13 @@ support semantic mapping using \textbf{dense semantic segmentation}.
 \item \texttt{YOLO}: built on years of foundational research in computer vision and AI. 
 \end{itemize}
 
+\textbf{Panoptic/instance segmentation notes}:
+\begin{itemize}
+\item \texttt{DETIC}: object detection-based. Each detection yields a distinct instance ID.
+\item \texttt{ODISE}: panoptic segmentation model. Instances are derived from panoptic segments via the \texttt{isthing} flag and can merge multiple objects of the same category.
+\item \texttt{EOV\_SEG}: similar to \texttt{ODISE}, instances are derived from panoptic segments and may group nearby objects of the same category.
+\end{itemize}
+
 \textbf{Semantic features} are assigned to \textbf{keypoints} on the
 image and fused into map points. The semantic features can be:
 \begin{itemize}
@@ -1003,6 +1010,42 @@ Volumetric semantic mapping can be enabled by setting:
 \end{Highlighting}
 \end{Shaded}
 \end{scriptsize}
+
+Two semantic fusion backends are supported:
+\begin{itemize}
+\item \texttt{VOXEL\_SEMANTIC\_GRID}: confidence-counter fusion (majority voting).
+\item \texttt{VOXEL\_SEMANTIC\_PROBABILISTIC\_GRID}: probabilistic fusion, with per-class distributions fused in log-space.
+\end{itemize}
+
+Configuration notes:
+\begin{itemize}
+\item If \texttt{kDoSparseSemanticMappingAndSegmentation=True} and \texttt{kVolumetricIntegrationType="VOXEL\_GRID"}, the factory warns and automatically switches to \texttt{VOXEL\_SEMANTIC\_PROBABILISTIC\_GRID} to enable semantic fusion.
+\item If \texttt{kDoSparseSemanticMappingAndSegmentation=True} with a non-semantic volumetric integrator (e.g., \texttt{TSDF}, \texttt{GAUSSIAN\_SPLATTING}), a warning is emitted and semantic integration is skipped.
+\end{itemize}
+
+If \texttt{kVolumetricSemanticIntegrationUseInstanceIds=True}, the volumetric integrator uses 2D instance IDs (from panoptic/instance segmentation backends) to build \textbf{3D object segments}. Object IDs are assigned via voting across observations and filtered by \texttt{kVolumetricSemanticIntegrationMinVoteRatio} and \texttt{kVolumetricSemanticIntegrationMinVotes}. This enables:
+\begin{itemize}
+\item Consistent 3D object grouping across views.
+\item Per-object colorization of the volumetric map.
+\item Improved object identity stability over time.
+\end{itemize}
+
+When volumetric semantic mapping is enabled, use the following GUI buttons:
+\begin{itemize}
+\item \texttt{Color Semantics}: class/label color maps on both the 3D sparse map and the volumetric map.
+\item \texttt{Objects}: per-object color map on the volumetric map (requires instance IDs).
+\item \texttt{Draw Object BBs}: bounding boxes for detected 3D object segments.
+\end{itemize}
+
+Known limitations in volumetric semantic mapping:
+\begin{itemize}
+\item \textit{Resolution limits}: a fixed voxel size may blur thin structures and small objects.
+\item \textit{Pose drift sensitivity}: accumulated pose errors can smear semantic labels over time.
+\item \textit{Instance ID dependence}: inconsistent or noisy 2D instance IDs may lead to fragmented or unstable 3D objects.
+\item \textit{Class imbalance bias}: frequently observed classes may dominate voting/probabilistic fusion.
+\item \textit{Temporal class inconsistency}: label flickering can fragment voxel labeling over time.
+\item \textit{Occlusions and visibility gaps}: poorly observed regions may remain unlabeled or misclassified.
+\end{itemize}
 
 Further information about the \textbf{volumetric integration models and
 SW architecture} are available \href{https://github.com/luigifreda/pyslam/blob/mastercpp/volumetric/README.md}{here}.

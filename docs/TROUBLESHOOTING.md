@@ -6,6 +6,7 @@
   - [Submitting a git issue](#submitting-a-git-issue)
   - [Clean reset](#clean-reset)
   - [Bad tracking performances](#bad-tracking-performances)
+  - [Non-determinism and run-to-run variability](#non-determinism-and-run-to-run-variability)
   - [Errors](#errors)
     - [*Aborted (core dumped)* or *Segmentation fault (core dumped)*](#aborted-core-dumped-or-segmentation-fault-core-dumped)
       - [Under mac](#under-mac)
@@ -39,9 +40,9 @@ If you work under **Ubuntu** or **MacOS**, check the specific installation proce
 ## Submitting a git issue
 
 For faster support when opening a new git issue, please provide the following information:
-- Git commit (ensure you are on lastest `master` commit).
-- Dataset used (if not a standard one, it is expected the dataset is shared through a link)
-- Code configuration:
+- **Git commit** (ensure you are on lastest `master` commit).
+- **Dataset** used (if not a standard one, it is expected the dataset is shared through a link)
+- **Code configuration**:
   * Modified parameters in `config.yaml`
   * Modified parameters in `pyslam/config_parameters.py`
   * Any other changes made to the codebase. You can easily provide this information by running: 
@@ -49,11 +50,11 @@ For faster support when opening a new git issue, please provide the following in
   git fetch origin
   git diff --name-status origin/master
   ```
-- System configuration: 
+- **System configuration**: 
   * OS, CUDA version, etc.
   * Is your OS native, or are you using it within Windows, VirtualBox, or a similar virtualization tool?
   * Python enviornment: pyenv, conda, pixi?
-- Full console log (including the error messages)
+- Full console log of your test (including the error messages). In the case of missing libraries, a full console log of the install process is paramount. 
 - Pictures of plots and 3D viewer
 
 **Providing this information is crucial for reproducing and debugging the issue efficiently**.
@@ -77,6 +78,23 @@ This is ideal when you pull new updates and need a fresh build and install.
 Due to the multi-threading system (tracking thread + local mapping thread) and the non-super-fast performances of the python implementations (indeed, [python is not actually multithreading](https://www.theserverside.com/blog/Coffee-Talk-Java-News-Stories-and-Opinions/Is-Pythons-GIL-the-software-worlds-biggest-blunder)), bad tracking performances may occur and vary depending on your machine computation capabilities. In a few words, it may happen that the local mapping thread is not fast enough to spawn new map points in time for the tracking thread. In fact, new spawned map points are necessary to let the tracking thread find enough {keypoint}-{map point} correspondences, and hence stably grasp at the map and proceed along its estimated trajectory. Simply put, the local mapping thread continuously builds/unrolls the fundamental 'carpet' of points (the map) on which the tracking thread 'walks': no 'carpet', no party!
 
 If you experience bad tracking performances, go in [config_parameters.py](./config_parameters.py) and try to set `kTrackingWaitForLocalMappingToGetIdle=True`.
+
+
+---
+
+## Non-determinism and run-to-run variability
+
+Some amount of run-to-run variability is expected in SLAM/VO pipelines, and it can be amplified in low-structure outdoor scenes (like soil/weed texture) where small early differences can flip later decisions (keyframe insertion, map point culling, relocalization, etc.).
+
+AFAIK, **main sources of non-determinism** include:
+- Multi-threading / scheduling effects: Several components run concurrently (and OpenCV itself may spawn internal worker threads). Even if you run sequentially, OS scheduling + thread timing can change the order of events (e.g., which measurements make it into a local map update before a decision is taken).
+- Feature extraction/matching “order sensitivity”: Some local feature pipelines can be non-deterministic due to internal parallelism and/or order-dependent steps. ORB-SLAM2-style ORB (“ORB2”) is a known example; I added a deterministic variant you can test and enable here:
+   * test: thirdparty/orbslam2_features/test_orb_determinism.py
+   * enable: [pyslam/local_features/feature_tracker_configs.py](https://github.com/luigifreda/pyslam/blob/master/pyslam/local_features/feature_tracker_configs.py#L156)
+- RANSAC / robust estimation randomness: RANSAC-family methods and several OpenCV routines are inherently stochastic. Setting a single Python seed is generally insufficient for full reproducibility, as randomness may arise from multiple layers (Python, NumPy, OpenCV’s internal C++ RNG, and per-thread execution in parallel code).
+- Floating-point reduction order / parallel math (often overlooked): Even without “explicit randomness”, multi-threaded reductions (OpenMP / BLAS / TBB) can yield tiny numeric differences due to floating-point non-associativity; those small differences can cascade in SLAM.
+
+See the related discussion [here](https://github.com/luigifreda/pyslam/issues/221).
 
 --- 
 
@@ -159,6 +177,7 @@ ModuleNotFoundError: No module named pyslam_utils not found
   │   └── trajectory_tools.cpython-311-<your-arc>-linux-gnu.so
   ```
   If any of these files are missing, the build did not complete successfully.
+- Confirm the custom OpenCV build is installed under `thirdparty/opencv` and that all libraries exist in `<pyslam-working-directory>/thirdparty/opencv/install/lib/`. 
 - Rebuild the C++ pybind11 libraries: Run the following commands from your working copy of `pyslam`:
   ```bash
   cd <pyslam-working-directory>
@@ -348,11 +367,12 @@ in order to get a clean installation of the torch packages.  -->
 
 ## When loading a neural network with CUDA everything gets stuck
 
-I got this issue with a new NVIDIA GPU while loading `SuperPoint` neural network. The NN loading got stuck. This error arises when CUDA code was not compiled to target your GPU architecture. Two solutions: 
-- Easy: turn off CUDA (for instance, with `SuperPointFeature2D()` set the default class option `do_cuda=False`). In this case, the computations will be moved to CPU. 
-- You need to install a pytorch version that is compatible with your CUDA version and GPU architecture. See for instance these two links: 
+I got this issue with a new NVIDIA GPU while loading the `SuperPoint` neural network. The load hangs because the CUDA code was not compiled for your GPU architecture. Two options: 
+- Quick workaround: disable CUDA (for instance, in `SuperPointFeature2D()` set the default class option `do_cuda=False`). The computations will run on CPU. 
+- Proper fix: install a PyTorch build that matches your CUDA toolkit and GPU architecture. See these links: 
 https://stackoverflow.com/questions/75682385/runtimeerror-cuda-error-no-kernel-image-is-available-for-execution-on-the-devi
-https://discuss.pytorch.org/t/failed-to-load-image-python-extension-could-not-find-module/140278   
+https://discuss.pytorch.org/t/failed-to-load-image-python-extension-could-not-find-module/140278
+The install scripts should have taken care of this, though.
 
 
 ---

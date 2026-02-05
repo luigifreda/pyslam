@@ -5,24 +5,25 @@ The `semantics` module in pySLAM provides **sparse semantic mapping** and **imag
 <!-- TOC -->
 
 - [Semantic Mapping and Segmentation](#semantic-mapping-and-segmentation)
-  - [Quick test](#quick-test)
-  - [Sparse Semantic Mapping](#sparse-semantic-mapping)
-    - [Overview](#overview)
-    - [Semantic feature types](#semantic-feature-types)
-    - [Dense vs Object-Based](#dense-vs-object-based)
-  - [Semantic image segmentation](#semantic-image-segmentation)
-    - [Supported models](#supported-models)
-    - [Dataset type support](#dataset-type-support)
-    - [Sparse feature fusion methods](#sparse-feature-fusion-methods)
-  - [Volumetric semantic mapping](#volumetric-semantic-mapping)
-    - [Overview](#overview-1)
-    - [Integration pipeline](#integration-pipeline)
-    - [Configuration](#configuration)
-    - [Object and instance integration](#object-and-instance-integration)
-    - [Practical notes](#practical-notes)
-  - [Semantic Mapping Architecture](#semantic-mapping-architecture)
-  - [Visualizations](#visualizations)
-  - [TODOs](#todos)
+    - [1. Quick test](#1-quick-test)
+    - [2. Sparse Semantic Mapping](#2-sparse-semantic-mapping)
+        - [2.1. Overview](#21-overview)
+        - [2.2. Semantic feature types](#22-semantic-feature-types)
+        - [2.3. Dense vs Object-Based](#23-dense-vs-object-based)
+    - [3. Semantic image segmentation](#3-semantic-image-segmentation)
+        - [3.1. Supported models](#31-supported-models)
+        - [3.2. Dataset type support](#32-dataset-type-support)
+        - [3.3. Sparse feature fusion methods](#33-sparse-feature-fusion-methods)
+    - [4. Volumetric semantic mapping](#4-volumetric-semantic-mapping)
+        - [4.1. Overview](#41-overview)
+        - [4.2. Integration pipeline](#42-integration-pipeline)
+        - [4.3. Configuration](#43-configuration)
+        - [4.4. Object and instance integration](#44-object-and-instance-integration)
+        - [4.5. Known limitations](#45-known-limitations)
+        - [4.6. Practical notes](#46-practical-notes)
+    - [5. Semantic Mapping Architecture](#5-semantic-mapping-architecture)
+    - [6. Visualizations](#6-visualizations)
+    - [7. TODOs](#7-todos)
 
 <!-- /TOC -->
 
@@ -94,7 +95,14 @@ Segmentation models are implemented on the top of a base class `SemanticSegmenta
 
 ### Supported models
 
-The following models are used to run semantic inference:
+Different models are available. See the following **video** for a quick preview. 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=2pJ9iWtQiT8">
+    <img src="https://img.youtube.com/vi/2pJ9iWtQiT8/maxresdefault.jpg"
+         alt="▶ Video: Image segmentation demo"
+         height="300"/>
+  </a>
+</p>
 
 **Panoptic/Instance segmentation:**
   - `DETIC`: from https://github.com/facebookresearch/Detic
@@ -193,6 +201,18 @@ In particular, use the following GUI buttons to toggle:
 - `Colors semantics`: class/label color maps on both the 3D sparse map and the volumetric map.
 - `Objects`: per-object color map on the volumetric map (requires instance IDs).
 - `Draw object BBs`: bounding boxes for detected 3D object segments.
+
+
+
+### Known limitations
+
+The following list summarizes known limitations of volumetric semantic mapping:
+- _Resolution limits_: A fixed voxel size may blur thin structures and small objects.
+- _Pose drift sensitivity_: Accumulated pose errors can smear semantic labels over time.
+- _Instance ID dependence_: Inconsistent or noisy 2D instance IDs may lead to fragmented or unstable 3D objects.
+- _Class imbalance bias_: Frequently observed classes may dominate both voting-based and probabilistic fusion, especially when class priors are implicit or unbalanced in the predictions.
+- _Temporal class inconsistency_: Inconsistent semantic predictions across keyframes (e.g., label flickering or competing classes with similar confidence) may result in fragmented or unstable voxel labeling, even in densely observed areas.
+- _Occlusions and visibility gaps_: Poorly observed regions may remain unlabeled or receive too few votes, increasing the risk of misclassification.
 
 ### Practical notes
 

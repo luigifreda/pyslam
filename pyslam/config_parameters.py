@@ -336,6 +336,7 @@ class Parameters:
     #
     kVolumetricIntegrationMinNumLBATimes = 1  # We integrate only the keyframes that have been processed by LBA at least kVolumetricIntegrationMinNumLBATimes times.
     kVolumetricIntegrationOutputTimeInterval = 1.0  # [s]
+    #
     kVolumetricIntegrationUseDepthEstimator = (
         False  # Use depth estimator for volumetric integration in the back-end.
     )
@@ -350,12 +351,8 @@ class Parameters:
     kVolumetricSemanticProbabilisticIntegrationUseDepth = (
         True  # enable/disable the use of depths for computing semantics confidence
     )
-    kVolumetricSemanticProbabilisticIntegrationDepthThresholdIndoor = (
-        5.0  # [m] depth threshold for updating semantics with depth
-    )
-    kVolumetricSemanticProbabilisticIntegrationDepthThresholdOutdoor = (
-        10.0  # [m] depth threshold for updating semantics with depth
-    )
+    kVolumetricSemanticProbabilisticIntegrationDepthThresholdIndoor = 5.0  # [m] depth threshold for updating semantics with depth, after this threshold the confidence decays exponentially with the depth decay rate
+    kVolumetricSemanticProbabilisticIntegrationDepthThresholdOutdoor = 10.0  # [m] depth threshold for updating semantics with depth, after this threshold the confidence decays exponentially with the depth decay rate
     kVolumetricSemanticProbabilisticIntegrationDepthDecayRateIndoor = (
         0.1  # [1/m] depth decay rate for updating semantics with depth
     )

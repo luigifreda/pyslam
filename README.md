@@ -498,8 +498,15 @@ The sparse semantic mapping pipeline can be enabled by setting `kDoSparseSemanti
   <img src="./images/semantic_image_segmentation.png" alt="3D Sparse Semantic Mapping" height="600"/>
 </p>
 
+Different segmentation methods are available (see [here](./docs/semantics.md) for further details). See the following **video** for a quick preview. 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=2pJ9iWtQiT8" target="_blank">
+    <img src="https://img.youtube.com/vi/2pJ9iWtQiT8/maxresdefault.jpg"
+         alt="▶ Video: Image segmentation demo"
+         height="300"/>
+  </a>
+</p>
 
-Different segmentation methods are available (see [here](./docs/semantics.md) for further details). Currently, we support semantic mapping using **dense semantic segmentation**.
 
 **Panoptic/Instance segmentation:**
   - `DETIC`: from https://github.com/facebookresearch/Detic
@@ -536,7 +543,6 @@ Different segmentation methods are available (see [here](./docs/semantics.md) fo
 
 #### Sparse Semantic Mapping
 
-
 <p align="center">
   <img src="./images/3d_sparse_semantic_mapping.jpeg" alt="3D Sparse Semantic Mapping" height="300"/>
 </p>
@@ -547,7 +553,7 @@ Different segmentation methods are available (see [here](./docs/semantics.md) fo
 - *Probability vectors*: probability vectors for each class.
 - *Feature vectors*: feature vectors obtained from an encoder. This is generally used for open vocabulary mapping.
 
-The simplest way to test the available segmentation models is to run: `test/semantics/test_semantic_segmentation.py`. 
+The simplest way to test the available segmentation models is to run: `main_semantic_image_segmentation.py`. 
 
 Further information about the **semantic module** is available [here](docs/semantics.md).
 
@@ -555,36 +561,47 @@ Further information about the **semantic module** is available [here](docs/seman
 #### Volumetric Semantic mapping
 
 <p align="center">
-  <img src="./images/3d_dense_semantic_mapping.png" alt="3D Sparse Semantic Mapping" height="600"/>
+  <img src="./images/3d_dense_semantic_mapping.png" alt="3D Dense Semantic Mapping" height="600"/>
 </p>
 
-Semantic volumetric mapping fuses per-keyframe semantic predictions into a dense 3D voxel grid, enabling semantic-aware reconstruction and optional object-level segmentation. The semantic volumetric integrators live in `pyslam/dense` and rely on semantic predictions produced by `pyslam/semantics`.
+Semantic volumetric mapping fuses per-keyframe semantic predictions into a dense 3D voxel grid, enabling semantic-aware reconstruction and optional object-level segmentation. The semantic volumetric integrators live in `pyslam/dense`, and they consume semantic predictions produced by `pyslam/semantics`.
 
 Two semantic fusion backends are supported:
-- **Confidence-counter fusion** (`VOXEL_SEMANTIC_GRID`): stores the most frequent class with a confidence counter.
-- **Probabilistic fusion** (`VOXEL_SEMANTIC_PROBABILISTIC_GRID`): maintains class probability distributions with Bayesian fusion (recommended for robustness).
+- **Confidence-counter fusion** (`VOXEL_SEMANTIC_GRID`): Each voxel stores the most frequently observed semantic class together with a confidence counter (majority voting).
+- **Probabilistic fusion** (`VOXEL_SEMANTIC_PROBABILISTIC_GRID`): Each voxel maintains a full class probability distribution, updated using Bayesian fusion in log-space. This backend is recommended for improved robustness against noisy predictions and intermittent misclassifications.
 
-Volumetric semantic mapping can be enabled by setting: 
+Volumetric semantic mapping can be enabled by setting:
 ```python
-kDoSparseSemanticMappingAndSegmentation=True #  enable sparse mapping and segmentation
-kDoVolumetricIntegration = True # enable volumetric integration
-kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" # use semantic volumetric models like
-                                                                 # VOXEL_SEMANTIC_PROBABILISTIC_GRID and VOXEL_SEMANTIC_GRID
+kDoSparseSemanticMappingAndSegmentation = True  # enable sparse mapping and segmentation
+kDoVolumetricIntegration = True  # enable volumetric integration
+kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID"  # or "VOXEL_SEMANTIC_GRID"
 ```
 
-If `kVolumetricSemanticIntegrationUseInstanceIds=True`, the volumetric integrator uses 2D instance IDs (from panoptic/instance segmentation backends) to build **3D object segments**. Object IDs are assigned via a voting scheme across observations, filtered by minimum vote ratio and count. This enables:
-- 3D object grouping and colorization by instance ID.
-- Stable object identities across multiple views.
+Configuration notes:
+- If `kDoSparseSemanticMappingAndSegmentation=True` and `kVolumetricIntegrationType="VOXEL_GRID"`, the factory warns and automatically switches to `VOXEL_SEMANTIC_PROBABILISTIC_GRID` to ensure semantic integration.
+- If `kDoSparseSemanticMappingAndSegmentation=True` with a non-semantic volumetric integrator (e.g., `TSDF`, `GAUSSIAN_SPLATTING`), you will get a warning and semantic integration will be skipped.
 
-In particular, use the following GUI buttons to toggle:
-- `Colors semantics`: class/label color maps on both the 3D sparse map and the volumetric map.
+If `kVolumetricSemanticIntegrationUseInstanceIds=True`, the volumetric integrator uses 2D instance IDs (from panoptic/instance segmentation backends) to build **3D object segments**. Object IDs are assigned via voting across observations and filtered by `kVolumetricSemanticIntegrationMinVoteRatio` and `kVolumetricSemanticIntegrationMinVotes`. This enables:
+- Consistent 3D object grouping across views.
+- Per-object colorization of the volumetric map.
+- Improved object identity stability over time.
+
+In particular, use the following _GUI buttons_ to toggle:
+- `Color Semantics`: class/label color maps on both the 3D sparse map and the volumetric map.
 - `Objects`: per-object color map on the volumetric map (requires instance IDs).
-- `Draw object BBs`: bounding boxes for detected 3D object segments.
+- `Draw Object BBs`: bounding boxes for detected 3D object segments.
 
-Further information about the **volumetric integration models** and its SW architecture is available [here](cpp/volumetric/README.md).
+More information about the **volumetric integration models** and their software architecture is available [here](docs/volumetric_mapping.md), and the **semantic module** is described [here](docs/semantics.md).
+
+Known **limitations** in volumetric semantic mapping:
+- _Resolution limits_: A fixed voxel size may blur thin structures and small objects.
+- _Pose drift sensitivity_: Accumulated pose errors can smear semantic labels over time.
+- _Instance ID dependence_: Inconsistent or noisy 2D instance IDs may lead to fragmented or unstable 3D objects.
+- _Class imbalance bias_: Frequently observed classes may dominate both voting-based and probabilistic fusion, especially when class priors are implicit or unbalanced in the predictions.
+- _Temporal class inconsistency_: Inconsistent semantic predictions across keyframes (e.g., label flickering or competing classes with similar confidence) may result in fragmented or unstable voxel labeling, even in densely observed areas.
+- _Occlusions and visibility gaps_: Poorly observed regions may remain unlabeled or receive too few votes, increasing the risk of misclassification.
 
 ---
-
 ### C++ Core Module
 
 The system provides a modular sparse-SLAM core, implemented in both C++ and Python, allowing users to switch between high-performance/speed and high-flexibility modes.
