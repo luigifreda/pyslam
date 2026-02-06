@@ -158,6 +158,7 @@ void BindGlObjectSet(py::module_ &m, const char *name) {
     py::class_<GlObjectSetT>(m, name)
         .def(py::init<>())
         .def("draw", &GlObjectSetT::Draw, py::call_guard<py::gil_scoped_release>())
+        .def("clear", &GlObjectSetT::Clear, py::call_guard<py::gil_scoped_release>())
         .def(
             "update",
             [](GlObjectSetT &self, volumetric::ObjectDataGroup &object_data_group,

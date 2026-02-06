@@ -675,6 +675,13 @@ class LoopCorrector:
             loop_keyframe.add_loop_edge(current_keyframe)
             current_keyframe.add_loop_edge(loop_keyframe)
 
+            # If GBA is disabled, rebuild volumetric integration right after pose-graph optimization
+            if not Parameters.kUseGBA and self.slam.volumetric_integrator is not None:
+                LoopClosing.print(
+                    "LoopCorrector: rebuilding volumetric integration after pose-graph optimization (GBA disabled)"
+                )
+                self.slam.volumetric_integrator.rebuild(self.slam.map)
+
             # Start global bundle adjustment
             LoopClosing.print(
                 f"LoopCorrector: starting global bundle adjustment with loop_keyframe {loop_keyframe.kid}..."

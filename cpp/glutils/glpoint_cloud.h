@@ -383,6 +383,21 @@ template <typename PointT, typename ColorT = float> class GlPointCloudDirectT {
         }
     }
 
+    void Clear() {
+        point_count_ = 0;
+        has_colors_ = false;
+        positions_capacity_ = 0;
+        colors_capacity_ = 0;
+        if (vbo_positions_) {
+            glDeleteBuffers(1, &vbo_positions_);
+            vbo_positions_ = 0;
+        }
+        if (vbo_colors_) {
+            glDeleteBuffers(1, &vbo_colors_);
+            vbo_colors_ = 0;
+        }
+    }
+
   private:
     void EnsureBuffers(bool need_colors) {
         if (!vbo_positions_)

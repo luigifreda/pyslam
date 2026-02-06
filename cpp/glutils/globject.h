@@ -30,10 +30,13 @@
 #endif
 
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstring>
+#include <memory>
 #include <stdexcept>
 #include <type_traits>
+#include <unordered_map>
 #include <vector>
 
 #include "glutils_bindings_utils.h"
@@ -326,6 +329,8 @@ template <typename PointT, typename ColorT = float> class GlObjectSetT {
     typename GlObjectType::Ptr &operator[](const size_t id) { return objects_[id]; }
 
     void Remove(const size_t id) { objects_.erase(id); }
+
+    void Clear() { objects_.clear(); }
 
     void Draw() {
         for (const auto &object : objects_) {

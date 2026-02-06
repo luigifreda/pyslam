@@ -86,6 +86,7 @@ void BindGlPointCloudDirect(py::module_ &m, const char *name) {
     py::class_<GlPointCloudDirectT>(m, name)
         .def(py::init<>())
         .def("draw", &GlPointCloudDirectT::Draw, py::call_guard<py::gil_scoped_release>())
+        .def("clear", &GlPointCloudDirectT::Clear, py::call_guard<py::gil_scoped_release>())
         .def("update", &GlPointCloudDirectT::Update, py::arg("points"), py::arg("colors"),
              py::arg("point_count"), py::call_guard<py::gil_scoped_release>())
         // Prefer zero-copy views; fall back to force-cast when needed.

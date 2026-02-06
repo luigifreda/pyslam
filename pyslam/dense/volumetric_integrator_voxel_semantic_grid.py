@@ -241,6 +241,9 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                         "VolumetricIntegratorVoxelSemanticGrid: resetting..."
                     )
                     self.volume.reset()
+                    # Clear cached outputs/state to avoid reusing pre-reset data.
+                    self.last_output = None
+                    self.last_integrated_id = -1
 
                 self.last_input_task: VolumetricIntegrationTask = (
                     q_in.get()

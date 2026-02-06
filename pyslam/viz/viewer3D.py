@@ -179,6 +179,7 @@ class Viewer3DDenseInput:
         self.mesh = None
         self.camera_images = []  # list of VizCameraImage objects
         self.objects = None  # list of objects (VolumetricIntegrationObjectList)
+        self.reset_dense = False
 
 
 # Visual odometry input
@@ -816,7 +817,11 @@ class Viewer3D(object):
             self.dense_state = last_dense_state
             self.is_dense_state_updated = True
 
-            if self.dense_state is not None:
+            if self.dense_state is not None and self.dense_state.reset_dense:
+                self.reset_dense_visuals()
+                self.dense_state = None
+                self.is_dense_state_updated = False
+            elif self.dense_state is not None:
                 # Update the dense state with the last received dense state
                 # update the camera images buffer
                 self.camera_images.clear()
@@ -1299,6 +1304,15 @@ class Viewer3D(object):
             return
         dense_map_output: VolumetricIntegrationOutput = slam.get_dense_map()
         if dense_map_output is not None:
+            from pyslam.dense.volumetric_integrator_base import (
+                VolumetricIntegrationTaskType,
+            )
+
+            if dense_map_output.task_type == VolumetricIntegrationTaskType.RESET:
+                dense_state = Viewer3DDenseInput()
+                dense_state.reset_dense = True
+                self.qdense.put(dense_state)
+                return
             self.draw_dense_geometry(
                 point_cloud=dense_map_output.point_cloud,
                 mesh=dense_map_output.mesh,
@@ -1367,6 +1381,39 @@ class Viewer3D(object):
             Printer.orange("WARNING: mesh, point_cloud, and objects are all None")
 
         self.qdense.put(dense_state)
+
+    def reset_dense_visuals(self):
+        # Clear cached dense state and GPU-backed objects
+        self.dense_state = None
+        self.is_dense_state_updated = False
+        self.camera_images.clear()
+        if hasattr(self.gl_point_cloud_direct, "clear"):
+            self.gl_point_cloud_direct.clear()
+        else:
+            self.gl_point_cloud_direct = (
+                glutils.GlPointCloudDirectD()
+                if Parameters.kDenseMappingDtypeVertices == "float64"
+                else glutils.GlPointCloudDirectF()
+            )
+
+        if hasattr(self.gl_mesh_direct, "clear"):
+            self.gl_mesh_direct.clear()
+        else:
+            self.gl_mesh_direct = (
+                glutils.GlMeshDirectD()
+                if Parameters.kDenseMappingDtypeVertices == "float64"
+                else glutils.GlMeshDirectF()
+            )
+
+        if hasattr(self.gl_object_set, "clear"):
+            self.gl_object_set.clear()
+        else:
+            self.gl_object_set = (
+                glutils.GlObjectSetD()
+                if Parameters.kDenseMappingDtypeVertices == "float64"
+                else glutils.GlObjectSetF()
+            )
+        self.gl_object_set.set_bounding_box_line_width(2)
 
     # draw sparse map
     def draw_map(self, map_state: Viewer3DMapInput):

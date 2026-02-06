@@ -1279,6 +1279,23 @@ class VolumetricIntegratorBase:
                     break
                 time.sleep(0.1)
 
+            # Notify the viewer pipeline that dense visuals should be cleared
+            # before re-integration outputs arrive.
+            try:
+                with self.q_out_condition:
+                    empty_queue(self.q_out)
+                    self.q_out.put(
+                        VolumetricIntegrationOutput(VolumetricIntegrationTaskType.RESET)
+                    )
+                    self.q_out_condition.notify_all()
+            except Exception as e:
+                VolumetricIntegratorBase.print(
+                    f"VolumetricIntegratorBase: rebuild: EXCEPTION: q_out.put(RESET): {e} !!!"
+                )
+                if kPrintTrackebackDetails:
+                    traceback_details = traceback.format_exc()
+                    VolumetricIntegratorBase.print(f"\t traceback details: {traceback_details}")
+
             # Add all the map keyframes to the queue for re-integration
             with self.keyframe_queue_lock:
                 self.keyframe_queue.clear()

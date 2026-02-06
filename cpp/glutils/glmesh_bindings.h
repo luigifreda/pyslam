@@ -177,6 +177,7 @@ void BindGlMeshDirect(py::module_ &m, const char *name) {
         .def(py::init<>())
         .def("draw", &GlMeshDirectT::Draw, py::arg("wireframe") = false,
              py::call_guard<py::gil_scoped_release>())
+        .def("clear", &GlMeshDirectT::Clear, py::call_guard<py::gil_scoped_release>())
         .def("update", &GlMeshDirectT::Update, py::arg("vertices"), py::arg("colors"),
              py::arg("triangles"), py::arg("vertex_count"), py::arg("tri_count"),
              py::call_guard<py::gil_scoped_release>())

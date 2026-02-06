@@ -446,6 +446,27 @@ template <typename VertexT, typename ColorT = float> class GlMeshDirectT {
         }
     }
 
+    void Clear() {
+        vertex_count_ = 0;
+        index_count_ = 0;
+        pos_capacity_ = 0;
+        col_capacity_ = 0;
+        idx_capacity_ = 0;
+        has_colors_ = false;
+        if (vbo_pos_) {
+            glDeleteBuffers(1, &vbo_pos_);
+            vbo_pos_ = 0;
+        }
+        if (vbo_col_) {
+            glDeleteBuffers(1, &vbo_col_);
+            vbo_col_ = 0;
+        }
+        if (ebo_) {
+            glDeleteBuffers(1, &ebo_);
+            ebo_ = 0;
+        }
+    }
+
   private:
     void EnsureBuffers(bool need_colors) {
         if (!vbo_pos_)
