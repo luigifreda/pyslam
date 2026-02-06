@@ -267,8 +267,9 @@ if [ "$CUDA_VERSION" != "0" ]; then
     cd thirdparty
     if [ ! -d mast3r ]; then
         git clone --recursive https://github.com/naver/mast3r mast3r
-        git checkout e06b0093ddacfd8267cdafe5387954a650af0d3b
         cd mast3r
+        git checkout e06b0093ddacfd8267cdafe5387954a650af0d3b
+        git submodule update --init --recursive
         git apply ../mast3r.patch
         # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
         cd dust3r 
@@ -301,8 +302,8 @@ if [ "$CUDA_VERSION" != "0" ]; then
     cd thirdparty
     if [ ! -d mvdust3r ]; then
         git clone https://github.com/facebookresearch/mvdust3r.git mvdust3r
-        git checkout 430ca6630b07567cfb2447a4dcee9747b132d5c7
         cd mvdust3r
+        git checkout 430ca6630b07567cfb2447a4dcee9747b132d5c7
         git apply ../mvdust3r.patch
         # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
         cd croco/models/curope/

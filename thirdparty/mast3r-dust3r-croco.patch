@@ -15,24 +15,108 @@ index 14c6863..4aeb4d1 100644
  
  
  class CroCoNet(nn.Module):
+diff --git a/models/curope/kernels.cu b/models/curope/kernels.cu
+index 7156cd1..67cff1e 100644
+--- a/models/curope/kernels.cu
++++ b/models/curope/kernels.cu
+@@ -98,11 +98,11 @@ void rope_2d_cuda( torch::Tensor tokens, const torch::Tensor pos, const float ba
+     const int N_BLOCKS = B * N; // each block takes care of H*D values
+     const int SHARED_MEM = sizeof(float) * (D + D/4);
+ 
+-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(tokens.type(), "rope_2d_cuda", ([&] {
++    AT_DISPATCH_FLOATING_TYPES_AND_HALF(tokens.scalar_type(), "rope_2d_cuda", [&] {
+         rope_2d_cuda_kernel<scalar_t> <<<N_BLOCKS, THREADS_PER_BLOCK, SHARED_MEM>>> (
+             //tokens.data_ptr<scalar_t>(), 
+             tokens.packed_accessor32<scalar_t,4,torch::RestrictPtrTraits>(),
+             pos.data_ptr<int64_t>(), 
+             base, fwd); //, N, H, D );
+-    }));
++    });
+ }
 diff --git a/models/curope/setup.py b/models/curope/setup.py
-index 230632e..3b73274 100644
+index 230632e..d942ffa 100644
 --- a/models/curope/setup.py
 +++ b/models/curope/setup.py
-@@ -4,6 +4,9 @@
+@@ -4,16 +4,137 @@
  from setuptools import setup
  from torch import cuda
  from torch.utils.cpp_extension import BuildExtension, CUDAExtension
++import re
 +import subprocess
 +import os
 +
- 
- # compile for all possible CUDA architectures
- all_cuda_archs = cuda.get_gencode_flags().replace('compute=','arch=').split()
-@@ -15,6 +18,62 @@ all_cuda_archs = cuda.get_gencode_flags().replace('compute=','arch=').split()
-     # '-gencode', 'arch=compute_86,code=sm_86'
- # ]
- 
++
++def _gencode_flags_from_caps(caps, include_ptx=False):
++    flags = []
++    for cap in caps:
++        flags += ['-gencode', f'arch=compute_{cap},code=sm_{cap}']
++        if include_ptx:
++            flags += ['-gencode', f'arch=compute_{cap},code=compute_{cap}']
++    return flags
++
++
++def _device_caps():
++    if not cuda.is_available():
++        return []
++    caps = set()
++    for idx in range(cuda.device_count()):
++        major, minor = cuda.get_device_capability(idx)
++        caps.add(f"{major}{minor}")
++    return sorted(caps)
++
++
++def _arch_items_from_env(env_value):
++    if not env_value:
++        return [], False
++    env_value = env_value.strip()
++    if env_value == "native":
++        return [], True
++    items = []
++    for raw in re.split(r"[;,\s]+", env_value):
++        if not raw:
++            continue
++        ptx = raw.endswith("+PTX")
++        if ptx:
++            raw = raw[:-4]
++        match = re.match(r"^(\d+)(?:\.(\d+))?$", raw)
++        if not match:
++            continue
++        major = match.group(1)
++        minor = match.group(2) or "0"
++        items.append((f"{major}{minor}", ptx))
++    return items, False
++
++
++def _select_cuda_arch_flags():
++    # Prefer explicit TORCH_CUDA_ARCH_LIST, then native GPU caps.
++    env_list = os.environ.get("TORCH_CUDA_ARCH_LIST", "")
++    env_items, use_native = _arch_items_from_env(env_list)
++    if env_items:
++        caps = sorted({cap for cap, _ in env_items})
++        flags = _gencode_flags_from_caps(caps, include_ptx=False)
++        for cap, ptx in env_items:
++            if ptx:
++                flags += ['-gencode', f'arch=compute_{cap},code=compute_{cap}']
++        print(f"Using TORCH_CUDA_ARCH_LIST={env_list} -> {caps}")
++        return flags
++
++    if use_native or cuda.is_available():
++        caps = _device_caps()
++        if caps:
++            print(f"Using native GPU caps -> {caps}")
++            return _gencode_flags_from_caps(caps, include_ptx=False)
++
++    # Fallback to torch's gencode flags if no GPU is present.
++    try:
++        return cuda.get_gencode_flags().replace('compute=','arch=').split()
++    except Exception as e:
++        print(f"Failed to get torch gencode flags: {e}")
++        return []
++
++
++# Choose CUDA architectures safely for the local toolchain.
++all_cuda_archs = _select_cuda_arch_flags()
++
 +
 +# Initialize gcc major version
 +gcc_major_version = 0
@@ -87,12 +171,20 @@ index 230632e..3b73274 100644
 +    
 +print(f"nvcc flags: {nvcc_flags}")
 +print(f"cxx flags: {cxx_compiler_flags}")
-+
-+
+ 
+-# compile for all possible CUDA architectures
+-all_cuda_archs = cuda.get_gencode_flags().replace('compute=','arch=').split()
+-# alternatively, you can list cuda archs that you want, eg:
+-# all_cuda_archs = [
+-    # '-gencode', 'arch=compute_70,code=sm_70',
+-    # '-gencode', 'arch=compute_75,code=sm_75',
+-    # '-gencode', 'arch=compute_80,code=sm_80',
+-    # '-gencode', 'arch=compute_86,code=sm_86'
+-# ]
+ 
  setup(
      name = 'curope',
-     ext_modules = [
-@@ -25,8 +84,8 @@ setup(
+@@ -25,8 +146,8 @@ setup(
                      "kernels.cu",
                  ],
                  extra_compile_args = dict(

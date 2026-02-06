@@ -1,49 +1,3 @@
-diff --git a/checkpoints/download_models.py b/checkpoints/download_models.py
-new file mode 100755
-index 0000000..f276169
---- /dev/null
-+++ b/checkpoints/download_models.py
-@@ -0,0 +1,40 @@
-+#!/usr/bin/env python3
-+import os
-+import requests
-+from concurrent.futures import ThreadPoolExecutor, as_completed
-+from tqdm import tqdm
-+
-+# Define files to download
-+files = {
-+    "DUSt3R_ViTLarge_BaseDecoder_224_linear.pth": "https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth",
-+    "MVD.pth": "https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth",
-+    "MVDp_s1.pth": "https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth",
-+    "MVDp_s2.pth": "https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s2.pth",  # ✅ fixed link
-+}
-+
-+def download_with_progress(filename, url):
-+    if os.path.exists(filename):
-+        return f"[✓] Already exists: {filename}"
-+
-+    try:
-+        with requests.get(url, stream=True, timeout=60) as r:
-+            r.raise_for_status()
-+            total = int(r.headers.get('content-length', 0))
-+            with open(filename, 'wb') as f, tqdm(
-+                total=total, unit='B', unit_scale=True, desc=filename, ncols=80
-+            ) as bar:
-+                for chunk in r.iter_content(chunk_size=8192):
-+                    if chunk:
-+                        f.write(chunk)
-+                        bar.update(len(chunk))
-+        return f"[✓] Finished: {filename}"
-+    except Exception as e:
-+        return f"[✗] Failed: {filename} — {e}"
-+
-+# Parallel download with status
-+if __name__ == "__main__":
-+    print("[INFO] Starting parallel downloads...\n")
-+    with ThreadPoolExecutor(max_workers=4) as executor:
-+        futures = [executor.submit(download_with_progress, fn, url) for fn, url in files.items()]
-+        for future in as_completed(futures):
-+            print(future.result())
 diff --git a/croco/models/croco.py b/croco/models/croco.py
 index 435def1..b60ad04 100644
 --- a/croco/models/croco.py
@@ -62,23 +16,131 @@ index 435def1..b60ad04 100644
  
  class CroCoNet(nn.Module):
 diff --git a/croco/models/curope/setup.py b/croco/models/curope/setup.py
-index 230632e..3b73274 100644
+index 230632e..f690aa9 100644
 --- a/croco/models/curope/setup.py
 +++ b/croco/models/curope/setup.py
-@@ -4,6 +4,9 @@
+@@ -4,16 +4,179 @@
  from setuptools import setup
  from torch import cuda
  from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 +import subprocess
 +import os
++import re
 +
- 
- # compile for all possible CUDA architectures
- all_cuda_archs = cuda.get_gencode_flags().replace('compute=','arch=').split()
-@@ -15,6 +18,62 @@ all_cuda_archs = cuda.get_gencode_flags().replace('compute=','arch=').split()
-     # '-gencode', 'arch=compute_86,code=sm_86'
- # ]
- 
++
++def _gencode_flags_from_caps(caps, include_ptx=False):
++    flags = []
++    for cap in caps:
++        flags += ['-gencode', f'arch=compute_{cap},code=sm_{cap}']
++        if include_ptx:
++            flags += ['-gencode', f'arch=compute_{cap},code=compute_{cap}']
++    return flags
++
++
++def _device_caps():
++    if not cuda.is_available():
++        return []
++    caps = set()
++    for idx in range(cuda.device_count()):
++        major, minor = cuda.get_device_capability(idx)
++        caps.add(f"{major}{minor}")
++    return sorted(caps)
++
++
++def _arch_items_from_env(env_value):
++    if not env_value:
++        return [], False
++    env_value = env_value.strip()
++    if env_value == "native":
++        return [], True
++    items = []
++    for raw in re.split(r"[;,\s]+", env_value):
++        if not raw:
++            continue
++        ptx = raw.endswith("+PTX")
++        if ptx:
++            raw = raw[:-4]
++        match = re.match(r"^(\d+)(?:\.(\d+))?$", raw)
++        if not match:
++            continue
++        major = match.group(1)
++        minor = match.group(2) or "0"
++        items.append((f"{major}{minor}", ptx))
++    return items, False
++
++
++def _nvcc_supported_caps():
++    try:
++        result = subprocess.run(["nvcc", "--list-gpu-arch"], capture_output=True, text=True)
++        if result.returncode != 0:
++            return []
++        caps = set()
++        for line in result.stdout.splitlines():
++            match = re.search(r"sm_(\d+)", line)
++            if match:
++                caps.add(match.group(1))
++        return sorted(caps)
++    except Exception:
++        return []
++
++
++def _filter_caps_with_nvcc(caps, ptx_caps=None):
++    supported = _nvcc_supported_caps()
++    if not supported:
++        return caps, ptx_caps or []
++    filtered_caps = [cap for cap in caps if cap in supported]
++    filtered_ptx = [cap for cap in (ptx_caps or []) if cap in supported]
++    if not filtered_caps:
++        # If nothing matched, prefer nvcc-supported caps.
++        filtered_caps = supported
++    return filtered_caps, filtered_ptx
++
++
++def _select_cuda_arch_flags():
++    # Prefer explicit TORCH_CUDA_ARCH_LIST, then native GPU caps.
++    env_list = os.environ.get("TORCH_CUDA_ARCH_LIST", "")
++    env_items, use_native = _arch_items_from_env(env_list)
++    if env_items:
++        caps = sorted({cap for cap, _ in env_items})
++        ptx_caps = [cap for cap, ptx in env_items if ptx]
++        caps, ptx_caps = _filter_caps_with_nvcc(caps, ptx_caps)
++        flags = _gencode_flags_from_caps(caps, include_ptx=False)
++        for cap in ptx_caps:
++            flags += ['-gencode', f'arch=compute_{cap},code=compute_{cap}']
++        print(f"Using TORCH_CUDA_ARCH_LIST={env_list} -> {caps}")
++        return flags
++
++    if use_native or cuda.is_available():
++        caps = _device_caps()
++        if caps:
++            caps, _ = _filter_caps_with_nvcc(caps, [])
++            print(f"Using native GPU caps -> {caps}")
++            return _gencode_flags_from_caps(caps, include_ptx=False)
++
++    # Fallback to torch's gencode flags if no GPU is present.
++    try:
++        flags = cuda.get_gencode_flags().replace('compute=','arch=').split()
++        supported = _nvcc_supported_caps()
++        if not supported:
++            return flags
++        filtered = []
++        for i in range(0, len(flags), 2):
++            if i + 1 >= len(flags):
++                break
++            flag = flags[i]
++            spec = flags[i + 1]
++            match = re.search(r"sm_(\d+)", spec)
++            if match and match.group(1) in supported:
++                filtered.extend([flag, spec])
++        return filtered or flags
++    except Exception as e:
++        print(f"Failed to get torch gencode flags: {e}")
++        return []
++
++
++# Choose CUDA architectures safely for the local toolchain.
++all_cuda_archs = _select_cuda_arch_flags()
++
 +
 +# Initialize gcc major version
 +gcc_major_version = 0
@@ -133,12 +195,20 @@ index 230632e..3b73274 100644
 +    
 +print(f"nvcc flags: {nvcc_flags}")
 +print(f"cxx flags: {cxx_compiler_flags}")
-+
-+
+ 
+-# compile for all possible CUDA architectures
+-all_cuda_archs = cuda.get_gencode_flags().replace('compute=','arch=').split()
+-# alternatively, you can list cuda archs that you want, eg:
+-# all_cuda_archs = [
+-    # '-gencode', 'arch=compute_70,code=sm_70',
+-    # '-gencode', 'arch=compute_75,code=sm_75',
+-    # '-gencode', 'arch=compute_80,code=sm_80',
+-    # '-gencode', 'arch=compute_86,code=sm_86'
+-# ]
+ 
  setup(
      name = 'curope',
-     ext_modules = [
-@@ -25,8 +84,8 @@ setup(
+@@ -25,8 +188,8 @@ setup(
                      "kernels.cu",
                  ],
                  extra_compile_args = dict(
@@ -2532,7 +2602,7 @@ index 07bb184..f5a1015 100644
  
  def get_patch_embed(patch_embed_cls, img_size, patch_size, enc_embed_dim):
 diff --git a/install.sh b/install.sh
-index 3775ece..16b6b84 100644
+index 3775ece..16b6b84 100755
 --- a/install.sh
 +++ b/install.sh
 @@ -1,8 +1,14 @@
