@@ -9,7 +9,7 @@ set(PYSLAM_CPP_CORE_VERSION_INFO 0.1.0)
 
 set(WITH_MARCH_NATIVE ON  CACHE BOOL   "Build with \"-march native\"")
 set(USE_PYTHON        ON CACHE BOOL    "Use Python")
-
+set(SET_RPATH         ON  CACHE BOOL   "Set RPATH instead of the default RUNPATH") # This is needed for correct linking of the gtsam libraries.
 
 #=======================================
 # Build options and variables
@@ -49,6 +49,11 @@ endif()
 
 if (USE_PYTHON)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_PYTHON=1")
+endif()
+
+# In order to set RPATH (instead of RUNPATH) for gtsam libraries linking issues.
+if(SET_RPATH)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,--disable-new-dtags")
 endif()
 
 #=======================================
@@ -192,6 +197,7 @@ message(STATUS "G2O_LIBRARIES: ${G2O_LIBRARIES}")
 set(GTSAM_ROOT "${PYSLAM_ROOT}/thirdparty/gtsam_local")
 set(CMAKE_PREFIX_PATH ${GTSAM_ROOT}/install/lib/cmake/GTSAM/)
 set(GTSAM_DIR ${GTSAM_ROOT}/install/)
+set(GTSAM_LIB_DIR ${GTSAM_ROOT}/install/lib)
 message(STATUS "set custom gtsam folder: ${GTSAM_DIR}")
 find_package(GTSAM REQUIRED)
 message(STATUS "gtsam include: ${GTSAM_INCLUDE_DIR}")
@@ -220,6 +226,10 @@ set(CPP_CORE_LINK_LIBRARIES
     gtsam  
     ${Boost_LIBRARIES}
     nlohmann_json::nlohmann_json
+)
+
+link_directories( 
+  ${GTSAM_LIB_DIR}
 )
 
 #=======================================

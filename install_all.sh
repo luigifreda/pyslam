@@ -61,6 +61,8 @@ fi
 print_blue '================================================'
 print_blue "Building and installing pyslam C++ core"
 print_blue '================================================'
+# NOTE: activation of pySLAM python environment has been done in one of the sourced scripts: 
+# install_all_conda.sh, install_all_pixi.sh, install_all_venv.sh
 "$ROOT_DIR"/build_cpp_core.sh
 
 cd "$STARTING_DIR"
