@@ -183,6 +183,10 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
         # if centernet_path not in sys.path:
         #     sys.path.insert(0, centernet_path)
 
+        from .detectron2_utils import check_detectron2_import
+
+        check_detectron2_import()
+
         from detectron2.config import get_cfg
         from centernet.config import add_centernet_config
         from detic.config import add_detic_config
@@ -894,6 +898,10 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
         # Prepare panoptic data if available
         panoptic_data = None
         if hasattr(self, "_last_segments_info") and hasattr(self, "_last_panoptic_seg"):
+            from .detectron2_utils import check_detectron2_import
+
+            check_detectron2_import()
+
             from detectron2.utils.visualizer import ColorMode
 
             panoptic_data = {

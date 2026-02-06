@@ -207,6 +207,10 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
 
         config.cfg.set_lib("eov_segmentation", prepend=True)
 
+        from .detectron2_utils import check_detectron2_import
+
+        check_detectron2_import()
+
         from detectron2.config import get_cfg
         from detectron2.projects.deeplab import add_deeplab_config
 
@@ -821,6 +825,10 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
         # Prepare panoptic data if available
         panoptic_data = None
         if hasattr(self, "_last_segments_info") and hasattr(self, "_last_panoptic_seg"):
+            from .detectron2_utils import check_detectron2_import
+
+            check_detectron2_import()
+
             from detectron2.utils.visualizer import ColorMode
 
             # EOV-Seg uses OpenVocabVisualizer

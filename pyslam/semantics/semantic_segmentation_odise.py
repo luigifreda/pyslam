@@ -74,6 +74,10 @@ class OdiseDemoWrapper:
 
         # Preprocessing/augmentation
         preprocess_start = time.time()
+        from .detectron2_utils import check_detectron2_import
+
+        check_detectron2_import()
+
         from detectron2.data import transforms as T
 
         aug_input = T.AugInput(original_image, sem_seg=None)
@@ -345,6 +349,10 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
         config.cfg.set_lib("odise", prepend=True)
 
         # Import ODISE dependencies
+        from .detectron2_utils import check_detectron2_import
+
+        check_detectron2_import()
+
         from detectron2.config import instantiate
         from detectron2.data import transforms as T
         from detectron2.utils.env import seed_all_rng
@@ -664,6 +672,10 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
         Returns:
             (demo_classes, demo_metadata) tuple
         """
+        from .detectron2_utils import check_detectron2_import
+
+        check_detectron2_import()
+
         from detectron2.data import MetadataCatalog
         from detectron2.data.datasets.builtin_meta import COCO_CATEGORIES
         from mask2former.data.datasets.register_ade20k_panoptic import ADE20K_150_CATEGORIES
@@ -713,6 +725,10 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
 
     def _get_coco_classes_and_colors(self, get_openseg_labels):
         """Extract COCO classes and colors."""
+        from .detectron2_utils import check_detectron2_import
+
+        check_detectron2_import()
+
         from detectron2.data.datasets.builtin_meta import COCO_CATEGORIES
 
         coco_labels = get_openseg_labels("coco_panoptic", True)
@@ -1277,6 +1293,10 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
         # Prepare panoptic data if available
         panoptic_data = None
         if hasattr(self, "_last_segments_info") and hasattr(self, "_last_panoptic_seg"):
+            from .detectron2_utils import check_detectron2_import
+
+            check_detectron2_import()
+
             from detectron2.utils.visualizer import ColorMode
 
             panoptic_data = {
