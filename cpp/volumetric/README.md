@@ -5,11 +5,11 @@ This module provides efficient C++ implementations for volumetric data structure
 
 
 <p align="center">
-  <img src="../images/dense-reconstruction2.png" height="300" /> 
+  <img src="../../images/dense-reconstruction2.png" height="300" /> 
 </p>
 
 <p align="center">
-  <img src="../images/dense-reconstruction-composition.gif"
+  <img src="../../images/dense-reconstruction-composition.gif"
        alt="pySLAM - Dense reconstruction - Gaussian Splatting"
        height="300">
 </p>

@@ -6,7 +6,7 @@ SIMD-optimized Hamming distance calculator for uint8 binary descriptors with zer
 
 - **SIMD optimizations**: AVX2 → SSE3/SSE2 → scalar fallback
 - **Zero-copy**: Direct memory access to C-contiguous numpy arrays
-- **Bit-level accuracy**: Counts differing bits, not bytes
+- **Bit-level accuracy**: Counts differing bits
 
 ## API
 

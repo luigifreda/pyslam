@@ -18,6 +18,7 @@ Here you can find the instructions to install `pyslam` under `pixi` and a very c
     - [Add specific platform targets](#add-specific-platform-targets)
     - [Remove the local pixi environment](#remove-the-local-pixi-environment)
     - [Table of commands](#table-of-commands)
+  - [References](#references)
 
 <!-- /TOC -->
 
@@ -154,3 +155,9 @@ This is a recap table:
 | `pixi clean --all`          | Remove the local pixi environment     |   
 
 
+---
+
+## References
+
+- _"Cross-Platform Package Management for Modern C++ Development with Pixi - Ruben Arts - CppCon 2025"_ 
+  https://www.youtube.com/watch?v=SQk0lKv2swk

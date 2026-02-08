@@ -1,11 +1,11 @@
 # Scene From Views
 
 <p align="center">
-  <img src="../images/scene_from_views.png" alt="3D Sparse Semantic Mapping" height="300"/>
+  <img src="../../images/scene_from_views.png" alt="3D Sparse Semantic Mapping" height="300"/>
 </p>
 
 
-This directory contains the implementation of the `scene_from_views` factory, which provides a **unified interface for end-to-end 3D scene reconstruction from multiple views**. The factory follows a modular architecture that allows easy integration of different reconstruction models while maintaining a consistent API. This document is a work in progress.
+This directory contains the implementation of the `scene_from_views` factory, which provides a **unified interface for end-to-end 3D scene reconstruction from multiple views**. The factory follows a modular architecture that allows easy integration of different reconstruction models while maintaining a consistent API, plus optional optimizer post-processing. This document is a work in progress.
 
 
 <!-- TOC -->
@@ -64,12 +64,12 @@ This directory contains the implementation of the `scene_from_views` factory, wh
 
 
 <p align="center">
-<img src="./images/scene_from_views.png" alt="3D Scene From Views" /> 
+<img src="../../docs/images/scene_from_views.png" alt="3D Scene From Views" /> 
 </p>
 
 This diagram illustrates the architecture of the *Scene from Views* module, which provides a unified interface for 3D scene reconstruction from multiple views. At its core, the `scene_from_views_factory` instantiates specific reconstruction models based on the selected `SceneFromViewsType`, such as `DUST3R`, `MAST3R`, `DEPTH_ANYTHING_V3`, `MVDUST3R`, `VGGT`, `VGGT_ROBUST`, and `FAST3R`.
 
-Each type creates a corresponding implementation (e.g., `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsDepthAnythingV3`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`, `SceneFromViewsFast3r`), all inheriting from a common `SceneFromViewsBase`. This base class implements a unified three-step reconstruction pipeline: `preprocess_images()` prepares input images for the specific model, `infer()` runs model inference, and `postprocess_results()` converts raw model output to a standardized `SceneFromViewsResult` format containing merged point clouds, meshes, camera poses, and optional depth maps or intrinsics.
+Each type creates a corresponding implementation (e.g., `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsDepthAnythingV3`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`, `SceneFromViewsFast3r`), all inheriting from a common `SceneFromViewsBase`. This base class implements a unified three-step reconstruction pipeline: `preprocess_images()` prepares input images for the specific model, `infer()` runs model inference, and `postprocess_results()` converts raw model output to a standardized `SceneFromViewsResult` format containing merged point clouds, meshes, camera poses, and optional depth maps or intrinsics, with optional optimizer post-processing.
 
 The module supports both pairwise models (DUSt3R, MASt3R) that process image pairs and perform global alignment, as well as multi-view models (MV-DUSt3R, VGGT, FAST3R) that process multiple views simultaneously in a single forward pass. This modular design enables flexible integration of diverse 3D reconstruction techniques while maintaining a consistent API across different model architectures.
 
@@ -140,7 +140,7 @@ Each derived class extends `SceneFromViewsBase` and implements the three special
 
 3. **`SceneFromViewsDepthAnythingV3`** (`scene_from_views_depth_anything_v3.py`)
    - Wraps Depth Anything 3 (DA3) for monocular depth estimation
-   - Can optionally provide camera poses and intrinsics (when supported by the underlying model)
+   - Can optionally provide camera poses and intrinsics (when supported by the underlying model variant)
    - Supports both standard (relative) and metric depth models
 
 4. **`SceneFromViewsMvdust3r`** (`scene_from_views_mvdust3r.py`)
@@ -171,11 +171,13 @@ Each derived class extends `SceneFromViewsBase` and implements the three special
 
 - **End-to-end multi-view reconstruction** (poses + fused geometry directly from images): `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`, `SceneFromViewsFast3r`.
 - **Large-scale reconstruction** (1000+ images in one pass): `SceneFromViewsFast3r` (designed for processing very large image collections efficiently)
-- **Robust view filtering / outlier rejection**: `SceneFromViewsVggtRobust` (anchor-based attention + cosine scoring that discards low-confidence views before reconstruction)
-- **Single-view depth-first pipeline with optional poses/intrinsics**: `SceneFromViewsDepthAnythingV3`
-- **Global alignment optimization stage for merging views**: `SceneFromViewsDust3r` (dense alignment) and `SceneFromViewsMast3r` (sparse alignment variant)
+- **Robust view filtering / outlier rejection**: `SceneFromViewsVggtRobust` (anchor-based attention + cosine scoring; re-runs inference on the survivor set)
+- **Monocular depth pipeline with optional poses/intrinsics**: `SceneFromViewsDepthAnythingV3`
+- **Global alignment optimization stage for merging views** (defaults): `SceneFromViewsDust3r` (dense alignment) and `SceneFromViewsMast3r` (sparse alignment; configurable)
 
 Note that DUSt3R and MASt3R are **pairwise models**: they take two images at a time. Multi-view end-to-end reconstruction is achieved by running them on many image pairs and performing a global alignment / optimization over all pairwise pointmaps. Fast3R, MV-DUSt3R, and VGGT are **multi-view models** that process all images simultaneously in a single forward pass.
+
+All models return a standardized `SceneFromViewsResult`; optional outputs (meshes, intrinsics, depth maps, confidences) may be `None` depending on the model.
 
 ### Type Enumeration: `SceneFromViewsType`
 

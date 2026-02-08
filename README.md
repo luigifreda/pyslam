@@ -39,6 +39,15 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
        height="320">
 </p>
 
+See the demo **video** for release v2.10.0
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=jzwKByzyqzg" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.youtube.com/vi/jzwKByzyqzg/0.jpg"
+         alt="▶ Video: pySLAM demo v2.10.0"
+         height="300"/>
+  </a>
+</p>
+
 ## Table of contents
 
 <!-- TOC -->
@@ -128,6 +137,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
  
 ```bash
 ├── cpp         # Pybind11 C++ bindings to slam utilities 
+│   ├── hamming     # SIMD-optimized Hamming distance calculator for uint8 binary descriptors with zero-copy Python bindings.
 │   ├── glutils     # OpenGL utilities for drawing points, cameras, etc.
 │   ├── solvers     # PnP and Sim3 solvers for camera pose estimation 
 │   ├── volumetric  # Volumetric mapping with parallel block-based voxel hashing, templates, carving, and semantics support.
@@ -754,16 +764,17 @@ When you click the `Draw Ground Truth` button in the GUI (see [here](#slam-gui))
   <img src="./images/scene_from_views.png" alt="3D Sparse Semantic Mapping" height="300"/>
 </p>
 
-A unified interface for end-to-end 3D scene reconstruction from multiple views, following a modular factory pattern architecture. The pipeline provides a consistent API across different reconstruction models while maintaining model-specific optimizations. See the main script `main_scene_from_views.py`.
+The folder `pyslam/scene_from_views` implements the `scene_from_views` factory: a **unified interface for end-to-end 3D scene reconstruction from multiple views** with a shared `reconstruct()` pipeline (`preprocess_images()` → `infer()` → `postprocess_results()`), plus optional optimizer post-processing. The API is consistent across models while preserving model-specific optimizations. See the main script `main_scene_from_views.py`.
 
-- End-to-end multi-view reconstruction (poses + fused 3D geometry directly from images): `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`.
-- Single-view depth-first pipeline with optional poses/intrinsics: `SceneFromViewsDepthAnythingV3`
-- Global alignment optimization stage for merging views: `SceneFromViewsDust3r` (dense alignment) and `SceneFromViewsMast3r` (sparse alignment variant)
-- Robust view filtering / outlier rejection: `SceneFromViewsVggtRobust` (anchor-based attention + cosine scoring that discards low-confidence views before reconstruction)
+- End-to-end multi-view reconstruction (poses + fused 3D geometry directly from images): `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`, `SceneFromViewsFast3r`.
+- Monocular depth pipeline with optional pose/intrinsic outputs when supported by the model variant: `SceneFromViewsDepthAnythingV3`.
+- Global alignment stage for merging views (defaults): `SceneFromViewsDust3r` uses dense alignment; `SceneFromViewsMast3r` uses sparse alignment (both are configurable).
+- Robust view filtering / outlier rejection: `SceneFromViewsVggtRobust` uses anchor-based attention + cosine scoring to reject low-confidence views, then re-runs inference on the survivors.
+- Large-scale reconstruction (designed for 1000+ images in one forward pass): `SceneFromViewsFast3r`.
 
-Note that `DUSt3R` and `MASt3R` are pairwise models: they take two images at a time. Multi-view end-to-end reconstruction is achieved by running them on many image pairs and performing a global alignment / optimization over all pairwise pointmaps.
+Note that `DUSt3R` and `MASt3R` are pairwise models: they take two images at a time. Multi-view reconstruction is achieved by running them on many image pairs and performing global alignment/optimization over all pairwise pointmaps. `MV-DUSt3R`, `VGGT`, and `Fast3R` are multi-view models that process all images simultaneously in a single forward pass.
 
-All models return standardized `SceneFromViewsResult` output containing point clouds, meshes, camera poses, depth maps, and intrinsics in a consistent format. The factory pattern allows easy switching between models while maintaining the same interface.
+All models return a standardized `SceneFromViewsResult` with consistent field names; optional outputs (meshes, intrinsics, depth maps, confidences) may be `None` depending on the model. The factory pattern allows easy switching between models while maintaining the same interface.
 
 Further details [here](pyslam/scene_from_views/README.md).
 
@@ -1089,6 +1100,7 @@ Suggested books:
 * *[Introduction to Visual SLAM](https://link.springer.com/book/10.1007/978-981-16-4939-4)* by Xiang Gao, Tao Zhang
 * *[Deep Learning](http://www.deeplearningbook.org/lecture_slides.html)*, by Ian Goodfellow, Yoshua Bengio and Aaron Courville
 * *[Neural Networks and Deep Learning](http://neuralnetworksanddeeplearning.com/index.html)*, By Michael Nielsen 
+* *[SLAM Handbook](https://github.com/SLAM-Handbook-contributors/slam-handbook-public-release)*
 
 Suggested material:
 * *[Vision Algorithms for Mobile Robotics](http://rpg.ifi.uzh.ch/teaching.html)* by Davide Scaramuzza 
