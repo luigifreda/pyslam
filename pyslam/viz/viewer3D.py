@@ -1340,9 +1340,73 @@ class Viewer3D(object):
             )
         elif point_cloud is not None:
             points = np.ascontiguousarray(point_cloud.points, dtype=self.dtype_vertices)
+
+            # Normalize points to an (N, 3) array as expected by the GL helpers
+            if points.size == 0:
+                Printer.orange(
+                    "Viewer3D: draw_dense_geometry - received empty point cloud, skipping."
+                )
+                return
+
+            if points.ndim == 1:
+                # Common cases: a single 3D point or a flat multiple of 3
+                if points.shape[0] == 3:
+                    points = points.reshape(1, 3)
+                elif points.shape[0] % 3 == 0:
+                    points = points.reshape(-1, 3)
+                else:
+                    Printer.orange(
+                        f"Viewer3D: draw_dense_geometry - unexpected 1D points shape {points.shape}, skipping."
+                    )
+                    return
+            elif points.ndim == 2 and points.shape[1] != 3:
+                # Try transposing if it looks like 3xN
+                if points.shape[0] == 3 and points.shape[1] != 3:
+                    transposed = points.T
+                    if transposed.shape[1] == 3:
+                        points = transposed
+                    else:
+                        Printer.orange(
+                            f"Viewer3D: draw_dense_geometry - cannot normalize points shape {points.shape} to Nx3, skipping."
+                        )
+                        return
+                else:
+                    Printer.orange(
+                        f"Viewer3D: draw_dense_geometry - cannot normalize points shape {points.shape} to Nx3, skipping."
+                    )
+                    return
+            elif points.ndim != 2:
+                Printer.orange(
+                    f"Viewer3D: draw_dense_geometry - points has unsupported ndim={points.ndim}, skipping."
+                )
+                return
+
             colors = np.ascontiguousarray(point_cloud.colors, dtype=self.dtype_colors)
-            if colors.shape[1] == 4:
+
+            # Handle 1D color arrays (e.g. shape (N,)) by expanding to RGB
+            if colors.ndim == 1:
+                if colors.shape[0] == points.shape[0]:
+                    # Interpret as grayscale and replicate across RGB channels
+                    colors = np.tile(colors.reshape(-1, 1), (1, 3))
+                else:
+                    # Fallback: create default white colors
+                    Printer.orange(
+                        "Viewer3D: draw_dense_geometry - unexpected 1D colors shape, using default white."
+                    )
+                    colors = np.ones((points.shape[0], 3), dtype=self.dtype_colors)
+
+            # Drop alpha channel if present
+            if colors.ndim == 2 and colors.shape[1] == 4:
                 colors = colors[:, 0:3]
+
+            # Ensure we have one color per point; if not, fall back to white
+            if colors.shape[0] != points.shape[0]:
+                Printer.orange(
+                    f"Viewer3D: draw_dense_geometry - colors.shape[0] ({colors.shape[0]}) "
+                    f"!= points.shape[0] ({points.shape[0]}), using default white colors."
+                )
+                colors = np.ones((points.shape[0], 3), dtype=self.dtype_colors)
+
             print(
                 f"Viewer3D: draw_dense_geometry - points.shape: {points.shape}, colors.shape: {colors.shape}"
             )
