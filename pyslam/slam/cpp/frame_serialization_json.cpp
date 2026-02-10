@@ -207,7 +207,19 @@ std::string Frame::to_json() const {
         }
 
         if (!depth_img.empty()) {
-            j["depth_img"] = cv_mat_to_json(depth_img);
+            // Ensure depth is stored as float32 (meters). If depth is not float32,
+            // apply camera depth_factor when available.
+            if (depth_img.depth() == CV_32F) {
+                j["depth_img"] = cv_mat_to_json(depth_img);
+            } else {
+                cv::Mat depth_f32;
+                double scale = 1.0;
+                if (camera && std::abs(camera->depth_factor - 1.0) > 1e-12) {
+                    scale = camera->depth_factor;
+                }
+                depth_img.convertTo(depth_f32, CV_32F, scale);
+                j["depth_img"] = cv_mat_to_json(depth_f32);
+            }
         } else {
             j["depth_img"] = nullptr;
         }

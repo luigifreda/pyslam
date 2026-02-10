@@ -52,8 +52,11 @@ from pyslam.depth_estimation.depth_estimator_factory import (
 )
 
 from pyslam.dense.volumetric_integrator_types import VolumetricIntegratorType
+from pyslam.dense.volumetric_integrator_base import VolumetricIntegrationTaskType
 from pyslam.dense.volumetric_integrator_factory import volumetric_integrator_factory
 
+from pyslam.utilities.logging import Printer, LoggerQueue
+from pyslam.utilities.system import force_kill_all_and_exit
 
 import signal
 
@@ -105,7 +108,13 @@ if __name__ == "__main__":
     print(f"Sensor_type: {slam.sensor_type}")
 
     # Select your volumetric integrator here (see the file volumetric_integrator_factory.py)
-    volumetric_integrator_type = VolumetricIntegratorType.TSDF  # TSDF, GAUSSIAN_SPLATTING
+    # "VOXEL_GRID",
+    # "VOXEL_SEMANTIC_GRID",  (to be used with semantic mapping activated)
+    # "VOXEL_SEMANTIC_PROBABILISTIC_GRID", best for semantic mapping (to be used with semantic mapping activated)
+    # "TSDF", allows mesh extraction as output
+    # "GAUSSIAN_SPLATTING", requires CUDA
+    #  see pyslam/dense/volumetric_integrator_types.py and cpp/volumetric/README.md
+    volumetric_integrator_type = VolumetricIntegratorType.TSDF
     Parameters.kVolumetricIntegrationUseDepthEstimator = (
         slam.sensor_type == SensorType.STEREO
     )  # Use depth estimator for volumetric integration in the back-end in the case of stereo data.
@@ -134,8 +143,9 @@ if __name__ == "__main__":
         )
 
     # wait the viewer3D to be ready
-    while not viewer3D.is_running():
-        time.sleep(0.1)
+    if viewer3D:
+        # wait for the viewer3D to be ready
+        viewer3D.wait_for_ready()
 
     viewer3D.draw_slam_map(slam)
 
@@ -145,6 +155,7 @@ if __name__ == "__main__":
     is_paused = False  # pause/resume on GUI
 
     i = 0
+
     if num_map_keyframes > 0:
 
         for kf in keyframes:
@@ -162,9 +173,12 @@ if __name__ == "__main__":
             if volumetric_integrator.q_out.qsize() > 0:
                 dense_map_output = volumetric_integrator.pop_output()
                 if dense_map_output is not None:
-                    viewer3D.draw_dense_geometry(
-                        dense_map_output.point_cloud, dense_map_output.mesh
-                    )
+                    if dense_map_output.task_type == VolumetricIntegrationTaskType.RESET:
+                        viewer3D.reset_dense_visuals()
+                    else:
+                        viewer3D.draw_dense_geometry(
+                            dense_map_output.point_cloud, dense_map_output.mesh
+                        )
             i += 1
 
     print(f"processing and visualizing dense map...")
@@ -180,7 +194,12 @@ if __name__ == "__main__":
         if volumetric_integrator.q_out.qsize() > 0:
             dense_map_output = volumetric_integrator.pop_output()
             if dense_map_output is not None:
-                viewer3D.draw_dense_geometry(dense_map_output.point_cloud, dense_map_output.mesh)
+                if dense_map_output.task_type == VolumetricIntegrationTaskType.RESET:
+                    viewer3D.reset_dense_visuals()
+                else:
+                    viewer3D.draw_dense_geometry(
+                        dense_map_output.point_cloud, dense_map_output.mesh
+                    )
 
         is_map_save = viewer3D.is_map_save() and is_map_save == False
         if is_map_save:
@@ -190,5 +209,14 @@ if __name__ == "__main__":
 
         i += 1
 
-    slam.quit()
+    if viewer3D:  # NOTE: first quit the viewer3D then the slam
+        viewer3D.quit()
+
     volumetric_integrator.quit()
+    slam.quit()
+
+    # Explicitly stop all LoggerQueue instances to prevent shutdown errors
+    LoggerQueue.stop_all_instances()
+
+    # Give viewers and logger queues time to clean up
+    time.sleep(1.0)

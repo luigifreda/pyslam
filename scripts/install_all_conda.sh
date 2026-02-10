@@ -82,6 +82,6 @@ pip install -U "protobuf>=5,<6" # For solving final issues with contextdesc
 # NOTE: There can be possible issues with delf and protobuf too. To solve them, run the following command:
 # cd <pyslam_root>/thirdparty/tensorflow_models/research/delf
 # protoc -I=. --python_out=. delf/protos/*.proto
-pip install "numpy<2"  
+pip install "numpy<2" --force-reinstall 
 
 cd "$STARTING_DIR"
