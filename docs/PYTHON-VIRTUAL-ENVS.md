@@ -29,9 +29,11 @@ If you are under **macOS**, please check this other [document](./MAC.md).
 
 In order to run `main_slam.py` with venv, get in the root of this repository and run the following command:
 ```bash
-$ ./scripts/install_all_venv.sh  
+$ ./install_all.sh  
 ```
-This will compile all the required thirdparty packages and create a `pyslam` python virtual environment.     
+
+This script will create a dedicated `pyslam` environment, and build the required thirdparty packages. Under the hood, the script `install_all.sh` calls the venv-specific script `scripts/install_all_venv.sh`. 
+
 Please, discard any error like this: `ERROR: pip's dependency resolver does not currently take into account all the packages that are installed....`. See [TROUBLESHOOTING](./TROUBLESHOOTING.md) file for further details.
 
 ## Usage
@@ -51,7 +53,8 @@ If you want to use a new terminal, recall that you need to activate the `pyslam`
 
 ## Create a `pyslam` python virtual environment 
 
-You don't need this if you already launched the main install script `install_all_venvsh` (see above). 
+You don't need this if you already launched the main install script `install_all.sh` (see above). 
+
 In order to create a custom `pyslam` python virtual environment, get in the root of this repository and run the following command: 
 ```bash
 $ . pyenv-create.sh 

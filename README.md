@@ -205,7 +205,7 @@ git clone --recursive https://github.com/luigifreda/pyslam.git
 cd pyslam 
 ```
 
-Then, under **Ubuntu** and **macOS** you can simply run:
+Then, from the repo root, under **Ubuntu** and **macOS** you can simply run:
 ```bash
 # pixi shell      # If you want to use pixi (experimental), run this commented command as a first step to prepare the installation. 
 ./install_all.sh   # Unified install procedure 

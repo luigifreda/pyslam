@@ -26,7 +26,7 @@ In order to use `pyslam` under conda, ensure `conda` is active in your terminal.
 ```bash
 git clone --recursive https://github.com/luigifreda/pyslam.git 
 cd pyslam
-./scripts/install_all.sh    # unified install procedure
+./install_all.sh    # unified install procedure
 ```
 This script will detect your active `conda`, create a dedicated `pyslam` conda environment, and build the required thirdparty packages. Under the hood, the script `install_all.sh` calls the conda-specific script `scripts/install_all_conda.sh`. 
 
