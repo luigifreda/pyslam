@@ -32,7 +32,7 @@ dependencies = [
     "numpy>=1.24.3",
     "ordered-set==4.1.0",
     "pillow==10.4.0",
-    "protobuf==3.20.3",
+    "protobuf==5.29.6",
     "psutil>=5.5.1",
     "pybind11==2.13.1",
     "pygame==2.6.0",
