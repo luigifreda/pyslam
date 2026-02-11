@@ -20,7 +20,22 @@
 #pragma once
 
 #if defined(__APPLE__)
+// On macOS we use the legacy OpenGL headers. VAO functions are exposed only
+// through the APPLE extension (glBindVertexArrayAPPLE, glGenVertexArraysAPPLE, ...),
+// so we include <OpenGL/glext.h> and alias the core-style names to the
+// extension ones to make the rest of the code portable.
+#ifndef GL_SILENCE_DEPRECATION
+#define GL_SILENCE_DEPRECATION
+#endif
 #include <OpenGL/gl.h>
+#include <OpenGL/glext.h>
+
+#ifdef GL_APPLE_vertex_array_object
+#define glGenVertexArrays glGenVertexArraysAPPLE
+#define glDeleteVertexArrays glDeleteVertexArraysAPPLE
+#define glBindVertexArray glBindVertexArrayAPPLE
+#endif
+
 #else
 #ifndef GL_GLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES

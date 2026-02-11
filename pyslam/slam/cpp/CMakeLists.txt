@@ -52,8 +52,12 @@ if (USE_PYTHON)
 endif()
 
 # In order to set RPATH (instead of RUNPATH) for gtsam libraries linking issues.
-if(SET_RPATH)
+# On Linux we can ask the linker to emit DT_RPATH instead of DT_RUNPATH using
+# --disable-new-dtags, but this option is not supported by the macOS linker.
+if(SET_RPATH AND NOT APPLE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,--disable-new-dtags")
+elseif(SET_RPATH AND APPLE)
+  message(STATUS "SET_RPATH is ON but skipping -Wl,--disable-new-dtags on macOS (unsupported by Apple ld)")
 endif()
 
 #=======================================

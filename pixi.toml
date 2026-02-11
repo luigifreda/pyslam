@@ -3,7 +3,7 @@ authors = ["Luigi Freda <luigifreda@gmail.com>"]
 channels = ["conda-forge"]
 name = "pyslam-pixi"
 platforms = ["linux-64"]
-version = "2.10.1"
+version = "2.10.2"
 preview = ["pixi-build"]  
 
 [dependencies]
