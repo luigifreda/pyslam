@@ -1,0 +1,1 @@
+This local `clip` package just forwards to the same `CLIP` implementation we already have via `f3rm`, so behaviour is effectively identical.

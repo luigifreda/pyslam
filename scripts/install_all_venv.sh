@@ -68,6 +68,9 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     # To solve under mac the (crash) issue mentioned in the troubleshoting document
     pip uninstall tensorflow
     pip install "tensorflow==2.15.*" --force-reinstall
+
+    # Install macOS shims for legacy compatibility  
+    $SCRIPTS_DIR/install_mac_shims.sh
 fi 
 
 # 10. same outliers as under conda
