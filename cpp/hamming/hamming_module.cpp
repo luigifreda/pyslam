@@ -400,10 +400,10 @@ PYBIND11_MODULE(hamming, m) {
           "Hamming distances: a (N,B) vs b (N,B) elementwise");
 
     m.def("hamming_distance", &hamming_bits,
-          "Correct bit-level Hamming distance (drop-in for np.count_nonzero(a!=b))");
+          "Bit-level Hamming distance (drop-in for np.count_nonzero(a!=b))");
 
     m.def("hamming_distances", &hamming_bits_many,
-          "Correct bit-level Hamming distances: a (1D or 2D) vs b (2D array or sequence). "
+          "Bit-level Hamming distances: a (1D or 2D) vs b (2D array or sequence). "
           "If a is 1D (B,), computes distances from a to each row of b (N,B). "
           "If a is 2D (N,B), computes pairwise distances with b (N,B). "
           "If b is a Python list/sequence of 1D arrays, efficiently converts to 2D array.");

@@ -52,7 +52,7 @@ See the demo **video** for release v2.10.0
 
 <!-- TOC -->
 
-- [pySLAM v2.10.2](#pyslam-v2101)
+- [pySLAM v2.10.2](#pyslam-v2102)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
@@ -182,7 +182,7 @@ See the demo **video** for release v2.10.0
 
 * `main_semantic_image_segmentation.py` infers and visualize extracted semantic information on each frame of the selected dataset.
 
-* `main_scene_from_views.py` infers 3D scenes from multiple images using models like Mast3r, VGGT, and DepthFromAnythingV3 (see [here](#end-to-end-inference-of-3d-scenes-from-image-views)).  
+* `main_scene_from_views.py` infers 3D scenes from multiple images using models like DUSt3R, Mast3r, MV-DUSt3R, VGGT, Robust VGGT, DepthFromAnythingV3, and Fast3R (see [here](#end-to-end-inference-of-3d-scenes-from-multiple-image-views)).  
 
 Other *test/example scripts* are provided in the `test` folder.
 
@@ -237,7 +237,7 @@ Once you completed the install procedure you can jump the [usage section](#usage
 * Tensorflow >=2.13.1
 * Kornia >=0.7.3
 * Rerun
-* You need **CUDA** in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **cuda toolkit** by running `./cuda_config.sh` 
+* You need **CUDA** in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **CUDA toolkit** by running `./cuda_config.sh` 
 
 The internal pySLAM libraries are imported by using a `Config` instance (from [pyslam/config.py](./pyslam/config.py)) in the main or test scripts. If you encounter any issues or performance problems, please refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
 
