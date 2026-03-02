@@ -4,6 +4,12 @@ import cv2
 import os
 import math
 
+#Choose which files you want to create from Realsense bag.
+GENERATE_IMG   = True
+GENERATE_ASSOC = True
+GENERATE_GT    = True
+
+
 base = "/home/albincederberg/Videos/"
 bag = base+"Bags/LoopTest.bag" #File path for recorded realsense bag
 dir = base+"LoopTest" #Path of the folder that will contain the folders:[RGB], [Depth] and the files: associations.txt, groundtruth.txt
@@ -26,56 +32,69 @@ last_accel_ts = None
 
 rgb_file = open(dir+"/rgb.txt","w")
 depth_file = open(dir+"/depth.txt","w")
-# imu_file = open(out+"/imu.txt","w")
 
 
 #Association params
 assoc_file = dir+"/associations.txt" #associations
-print("Associations will be written to ",assoc_file)
 rgb_files = sorted(os.listdir(rgb_dir))
 depth_files = sorted(os.listdir(depth_dir))
 
 
 #GT-params
 gt_out =  dir + "/groundtruth.txt"
-print("Ground truth will be written to ",gt_out)
 lidar_data=  base + "/LidarData/"+ "LoopTest"
 
 
 ################IMAGES########################
-print("Extracting... this will take the video duration")
 
-while False:
-    try:
-        frames = pipeline.wait_for_frames()
-    except:
-        break
 
-    frames = align.process(frames)
+if GENERATE_IMG:
+    get_first_t = True
+    print("Extracting... this will take the video duration")
+    while True:
+        try:
+            frames = pipeline.wait_for_frames()
+        except:
+            GENERATE_IMG = False #image extraction finished, stop loop
+            break
 
-    depth = frames.get_depth_frame()
-    color = frames.get_color_frame()
+        frames = align.process(frames)
 
-    if depth and color:
+        depth = frames.get_depth_frame()
+        color = frames.get_color_frame()
+
+        if get_first_t:
+            start_t = color.get_timestamp()/1000.0
+            latest_printed_t = 0
+            get_first_t = False
+
+
         t = color.get_timestamp()/1000.0
+        if int(t-start_t)%50 == 0 and int(t-start_t) != latest_printed_t:
+            print(f"{int(t-start_t)} Seconds of video extracted...")
+            latest_printed_t = int(t-start_t)
 
         rgb_img = np.asanyarray(color.get_data())
         depth_img = np.asanyarray(depth.get_data())
 
+        # RealSense returns color frames in RGB order, but OpenCV assumes BGR.
+        bgr_img = rgb_img[..., ::-1] #Convert RGB to BGR for OpenCV
+
         rgb_name = f"rgb/{t:.6f}.png"
         depth_name = f"depth/{t:.6f}.png"
 
-        cv2.imwrite(dir+"/"+rgb_name, rgb_img)
+        cv2.imwrite(dir+"/"+rgb_name, bgr_img)
         cv2.imwrite(dir+"/"+depth_name, depth_img)
 
         rgb_file.write(f"{t:.6f} {rgb_name}\n")
         depth_file.write(f"{t:.6f} {depth_name}\n")
+    print(f"{int(t-start_t)} RGB and Depth images extracted.")
+
 
 pipeline.stop()
 
 rgb_file.close()
 depth_file.close()
-print("RGB and Depth images extracted.")
 
 
 
@@ -86,9 +105,11 @@ depth_files = sorted(os.listdir(depth_dir))
 def timestamp(name):
     return float(os.path.splitext(name)[0])
 
-i = 0
-j = 0
-while False:
+if GENERATE_ASSOC:
+    i = 0
+    j = 0
+
+    print("Associations will be written to ",assoc_file)
     with open(assoc_file, "w") as f:
         while i < len(rgb_files) and j < len(depth_files):
 
@@ -112,21 +133,22 @@ while False:
 
 ################GT########################
 
-#while False:
-f = open(lidar_data, "r", encoding="utf-8")
-data = f.read()
-lines = data.split("\n")
-lines.pop(0)
+if GENERATE_GT:
+    print("Ground truth will be written to ",gt_out)
+    f = open(lidar_data, "r", encoding="utf-8")
+    data = f.read()
+    lines = data.split("\n")
+    lines.pop(0)
 
-states = []
-text = ""
-for line in lines:
-    if "state" in line:
-        vals = line.split(" ")
-        qz = str(math.cos(float(vals[4])/2))                                        
-        qw = str(math.sin(float(vals[4])/2))
-        text += str(vals[1]+" "+ vals[2]+" "+ vals[3]+" 0"+" 0"+" 0" +" "+qz+" "+qw+"\n") #[t,x,y,z,qx,qy,qz,qw]
+    states = []
+    text = ""
+    for line in lines:
+        if "state" in line:
+            vals = line.split(" ")
+            qz = str(math.cos(float(vals[4])/2))                                        
+            qw = str(math.sin(float(vals[4])/2))
+            text += str(vals[1]+" "+ vals[2]+" "+ vals[3]+" 0"+" 0"+" 0" +" "+qz+" "+qw+"\n") #[t,x,y,z,qx,qy,qz,qw]
 
-with open(gt_out, "w") as f:
-    f.write(text)
-    print("Groundtruth file created!")
+    with open(gt_out, "w") as f:
+        f.write(text)
+        print("Groundtruth file created!")
