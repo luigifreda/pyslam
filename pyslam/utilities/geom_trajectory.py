@@ -150,10 +150,11 @@ def find_trajectories_associations(
     filter_associations = []
     gt_associations = []
     timestamps_associations = []
+    offset = 2.5
 
     # First, find associations between timestamps in filter and gt
     for i, timestamp in enumerate(filter_timestamps):
-
+        timestamp = timestamp - offset
         # Find the index in gt_timestamps where gt_timestamps[j] > timestamp
         # j = 0
         # while j < len(gt_timestamps) and gt_timestamps[j] <= timestamp:
@@ -205,7 +206,7 @@ def find_trajectories_associations(
 def find_trajectories_associations_cpp(
     filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, max_align_dt=1e-1, verbose=True
 ):
-    return trajectory_tools.find_trajectories_associations(
+    return find_trajectories_associations(
         filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, max_align_dt, verbose
     )
 
