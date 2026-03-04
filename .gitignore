@@ -20,6 +20,8 @@ config.pyc
 
 private/
 
+config.yaml
+
 thirdparty/opencv-python
 thirdparty/opencv
 thirdparty/open3d
