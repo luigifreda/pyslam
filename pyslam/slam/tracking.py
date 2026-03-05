@@ -938,7 +938,8 @@ class Tracking:
         if self.sensor_type != SensorType.MONOCULAR:
             self.create_and_add_stereo_map_points_on_new_kf(f_cur, kf_new, img)
 
-        self.local_mapping.push_keyframe(kf_new, img, img_right, depth)
+        if Parameters.kEnableLocalMapping:
+            self.local_mapping.push_keyframe(kf_new, img, img_right, depth)
 
         self.local_mapping.set_do_not_stop(False)
 
