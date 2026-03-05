@@ -530,7 +530,7 @@ class SlamPlotDrawerThread:
                             "loop closing",
                             color=mcolors.CSS4_COLORS["darkgoldenrod"],
                         )
-                    if snapshot.time_loop_detection_value:
+                    if snapshot.time_loop_detection_value: #Potentialy add add > 0.1 for cleaner plot
                         time_loop_detection_signal = [
                             img_id,
                             snapshot.time_loop_detection_value,
