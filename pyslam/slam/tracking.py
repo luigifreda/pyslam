@@ -935,10 +935,10 @@ class Tracking:
         )  # add kf_cur to map (moved from local_mapping.py to this point)
         # NOTE: This is done here since a new keyframe-id (kid) is assigned when adding to map
 
-        if self.sensor_type != SensorType.MONOCULAR:
+        if self.sensor_type != SensorType.MONOCULAR and Parameters.kEnableLocalMapping: #The tracking module also creates map poins, this condition can prevent this. If points are made here without local maping running, duplicates will be introduced in the map.
             self.create_and_add_stereo_map_points_on_new_kf(f_cur, kf_new, img)
 
-        if Parameters.kEnableLocalMapping:
+        if Parameters.kEnableLocalMapping: #This condition can prevent the entire local mapping module from running. This requiers a loaded map to work.
             self.local_mapping.push_keyframe(kf_new, img, img_right, depth)
 
         self.local_mapping.set_do_not_stop(False)
