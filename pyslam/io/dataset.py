@@ -334,7 +334,6 @@ class FolderDataset(Dataset):
             return None
         image_file = self.listing[self.i]
         img = cv2.imread(image_file)
-        pattern = re.compile(r"\d+")
         if self.timestamps is not None:
             # read timestamps from timestamps file
             self._timestamp = float(self.timestamps[self.i])
@@ -342,14 +341,15 @@ class FolderDataset(Dataset):
                 self._next_timestamp = float(self.timestamps[self.i + 1])
             else:
                 self._next_timestamp = self._timestamp + self.Ts
-
-        elif pattern.search(image_file.split("/")[-1].split(".")[0]):
-            # read timestamps from image filename
-            self._timestamp = float(image_file.split("/")[-1].split(".")[0])
-            self._next_timestamp = float(self.listing[self.i + 1].split("/")[-1].split(".")[0])
         else:
-            self._timestamp += self.Ts
-            self._next_timestamp = self._timestamp + self.Ts
+            img_name = os.path.splitext(os.path.basename(image_file))[0]
+            if img_name.isdigit():
+                # read timestamps from image filename
+                self._timestamp = float(img_name)
+                self._next_timestamp = float(os.path.splitext(os.path.basename(self.listing[self.i + 1]))[0])
+            else:
+                self._timestamp += self.Ts
+                self._next_timestamp = self._timestamp + self.Ts
         if img is None:
             raise IOError("error reading file: ", image_file)
         # Increment internal counter.

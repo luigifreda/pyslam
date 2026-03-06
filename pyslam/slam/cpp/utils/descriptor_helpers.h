@@ -238,8 +238,10 @@ inline float float_descriptor_distance(const cv::Mat &a, const cv::Mat &b) noexc
     return std::sqrt(acc);
 }
 
-#if defined(__AVX512F__)
+#if defined(__AVX512F__) || defined(__AVX2__)
 #include <immintrin.h>
+#endif
+#if defined(__AVX512F__)
 static inline float hsum512_ps(__m512 v) noexcept {
     // _mm512_reduce_add_ps is available with AVX-512VL/AVX-512DQ on many toolchains,
     // but to be safe use a manual reduction:
@@ -253,8 +255,8 @@ static inline float hsum512_ps(__m512 v) noexcept {
     s = _mm_hadd_ps(s, s);
     return _mm_cvtss_f32(s);
 }
-#elif defined(__AVX2__)
-#include <immintrin.h>
+#endif
+#if defined(__AVX2__)
 static inline float hsum256_ps(__m256 v) noexcept {
     __m128 low = _mm256_castps256_ps128(v);
     __m128 high = _mm256_extractf128_ps(v, 1);
@@ -265,10 +267,10 @@ static inline float hsum256_ps(__m256 v) noexcept {
     sums = _mm_add_ss(sums, shuf);       // s3+s2+s1+s0
     return _mm_cvtss_f32(sums);
 }
-#elif defined(__ARM_NEON)
+#endif
+#if defined(__ARM_NEON)
 #include <arm_neon.h>
 #endif
-
 template <L2Variant variant>
 inline float l2_distance_simd(const cv::Mat &a, const cv::Mat &b) noexcept {
     if (!is_float_vec(a) || !is_float_vec(b) || a.total() != b.total())
