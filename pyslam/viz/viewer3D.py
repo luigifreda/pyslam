@@ -783,6 +783,16 @@ class Viewer3D(object):
         )
         self.gl_object_set.set_bounding_box_line_width(2)
 
+    def camera_to_agv_pose(self, Twc):
+        offset = np.array([0.15, 0.0, -0.06])
+        T = Twc.copy()
+        T[0:3, 3] = Twc[0:3, 3] + Twc[0:3, 0:3] @ offset
+        return T
+    
+    def camera_to_agv_position(self, Twc):
+        offset = np.array([0.15, 0.0, -0.06])
+        return Twc[0:3,3] + Twc[0:3,0:3] @ offset
+
     def viewer_refresh(
         self,
         qmap,
@@ -958,14 +968,20 @@ class Viewer3D(object):
                 cur_pose = cur_frame_data.cur_pose.copy()
                 gl.glColor3f(0.0, 0.0, 1.0)
                 gl.glLineWidth(2)
-                glutils.DrawCamera(cur_pose, self.scale)
+                agv_pose = self.camera_to_agv_pose(cur_pose)
+                glutils.DrawCamera(agv_pose, self.scale)
+                #glutils.DrawCamera(cur_pose, self.scale)
                 gl.glLineWidth(1)
                 self.updateTwc(cur_pose)
 
             if self.draw_predicted and cur_frame_data.predicted_pose is not None:
                 # draw predicted pose in red
                 gl.glColor3f(1.0, 0.0, 0.0)
-                glutils.DrawCamera(cur_frame_data.predicted_pose, self.scale)
+                #glutils.DrawCamera(cur_frame_data.predicted_pose, self.scale)
+                glutils.DrawCamera(
+                    self.camera_to_agv_pose(cur_frame_data.predicted_pose),
+                    self.scale
+                )
 
             if self.draw_fov_centers and len(map_data.fov_centers) > 0:
                 # draw keypoints with their color
@@ -1017,10 +1033,19 @@ class Viewer3D(object):
                             self.thread_last_num_poses_gt_was_aligned = len(map_data.poses)
                             self.thread_last_frame_id_gt_was_aligned = cur_frame_data.cur_frame_id
 
-                            estimated_trajectory = np.asarray(
-                                [pose[0:3, 3] for i, pose in enumerate(map_data.poses)],
-                                dtype=float,
-                            )
+                            estimated_trajectory = np.array([
+                                self.camera_to_agv_pose(p)[0:3,3] for p in map_data.poses
+                            ])
+
+                            # estimated_trajectory = np.asarray(
+                            #     [pose[0:3, 3] for i, pose in enumerate(map_data.poses)],
+                            #     dtype=float,
+                            # )
+
+                            # estimated_trajectory = np.asarray(
+                            #     [pose[0:3, 3] + pose[0:3, 0:3]@np.array([0.15, 0, -0.06]) for i, pose in enumerate(map_data.poses)],
+                            #     dtype=float,
+                            # )
 
                             self.aligner_input_queue.put(
                                 (map_data.pose_timestamps, estimated_trajectory)
@@ -1079,7 +1104,9 @@ class Viewer3D(object):
                 # draw keyframe poses in green
                 if self.is_draw_cameras:
                     gl.glColor3f(0.0, 1.0, 0.0)
-                    glutils.DrawCameras(map_data.poses, self.scale)
+                    #glutils.DrawCameras(map_data.poses, self.scale)
+                    agv_poses = np.array([self.camera_to_agv_pose(p) for p in map_data.poses])
+                    glutils.DrawCameras(agv_poses, self.scale)
 
             if self.is_draw_sparse and len(map_data.points) > 0:
                 # draw keypoints with their color
@@ -1095,7 +1122,11 @@ class Viewer3D(object):
                 # draw predicted pose in purple
                 gl.glColor3f(0.5, 0.0, 0.5)
                 gl.glLineWidth(2)
-                glutils.DrawCamera(cur_frame_data.reference_pose, self.scale)
+                #glutils.DrawCamera(cur_frame_data.reference_pose, self.scale)
+                glutils.DrawCamera(
+                    self.camera_to_agv_pose(cur_frame_data.reference_pose),
+                    self.scale
+                )
                 gl.glLineWidth(1)
 
             if len(map_data.covisibility_graph) > 0:
@@ -1108,7 +1139,15 @@ class Viewer3D(object):
                 if self.is_draw_spanning_tree:
                     gl.glLineWidth(1)
                     gl.glColor3f(0.0, 0.0, 1.0)
-                    glutils.DrawLines(map_data.spanning_tree, 3)
+                    #glutils.DrawLines(map_data.spanning_tree, 3)
+                    if len(map_data.poses) > 1:
+                        agv_positions = np.array([
+                            self.camera_to_agv_position(map_data.poses[i])
+                            for i in range(len(map_data.poses))
+                        ])
+                        gl.glLineWidth(1)
+                        gl.glColor3f(0.0, 0.0, 1.0)
+                        glutils.DrawLine(agv_positions, 3)
 
             if len(map_data.loops) > 0:
                 if self.is_draw_loops:
