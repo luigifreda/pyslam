@@ -6,7 +6,7 @@
 set -e
 
 # --- Input arguments with defaults ---
-ENV_NAME="${1:-dlplay}"
+ENV_NAME="${1:-mypyenv}"
 PY_VERSION="${2:-3.11.9}"
 
 echo "=== pyenv Python Environment Setup ==="
@@ -28,11 +28,8 @@ else
   exit 1
 fi
 
-IS_PYENV_INSTALLED=$(command -v pyenv >/dev/null 2>&1)
-#IS_PYENV_INSTALLED=false # this is for testing
-
 # --- Install pyenv and pyenv-virtualenv if missing ---
-if ! $IS_PYENV_INSTALLED; then
+if ! command -v pyenv >/dev/null 2>&1; then
   echo "🔧 Installing pyenv..."
 
   if $IS_LINUX; then
@@ -115,6 +112,10 @@ fi
 
 # --- Set local version in current directory ---
 pyenv local "$ENV_NAME"
+
+# --- Upgrade packaging tooling inside the selected env ---
+echo "📦 Upgrading pip/setuptools/wheel in '$ENV_NAME'..."
+PYENV_VERSION="$ENV_NAME" python -m pip install --upgrade pip setuptools wheel
 
 echo
 echo "✅ Environment '$ENV_NAME' using Python $PY_VERSION is ready."

@@ -59,7 +59,7 @@ class DepthEstimatorCrestereoPytorch(DepthEstimator):
         dataset_env_type=DatasetEnvironmentType.OUTDOOR,
         n_iter=10,
     ):
-        min_z = camera.b
+        min_z = camera.b if camera.b > 0 else 0.01
         self.min_disparity = camera.bf / max_depth
         self.max_disparity = camera.bf / min_z
         if device is None:

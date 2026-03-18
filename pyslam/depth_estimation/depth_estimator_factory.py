@@ -85,7 +85,7 @@ kRootFolder = kScriptFolder + "/../.."
 
 @register_class
 class DepthEstimatorType(SerializableEnum):
-    DEPTH_SGBM = 0  # Depth SGBM from OpenCV [Stereo, it requires a stereo dataset]
+    DEPTH_SGBM = 0  # Depth SGBM (Semi-Global Block Matching) from OpenCV [Stereo, it requires a stereo dataset]
     DEPTH_ANYTHING_V2 = 1  # "Depth Anything V2" [Monocular]
     DEPTH_PRO = 2  # "Depth Pro: Sharp Monocular Metric Depth in Less Than a Second" [Monocular]
     DEPTH_RAFT_STEREO = 3  # "RAFT-Stereo: Multilevel Recurrent Field Transforms for Stereo Matching" [Stereo, it requires a stereo dataset]
