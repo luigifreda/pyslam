@@ -26,7 +26,7 @@ dependencies = [
     "Keras-Applications==1.0.8",
     "Keras-Preprocessing==1.1.2",
     "kiwisolver>=1.0.1",
-    "Markdown==3.1.1",
+    "Markdown==3.8.1",
     "matplotlib==3.7.5",
     "networkx==3.1",
     "numpy>=1.24.3",
