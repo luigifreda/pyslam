@@ -27,8 +27,17 @@ import platform
 
 import torch
 from PIL import Image
+import packaging
+import pkg_resources
+
 from torchvision import transforms
 from torchvision.transforms import CenterCrop, Compose
+
+# Recent setuptools/pkg_resources builds may no longer expose the vendored
+# `packaging` module that older f3rm releases import from pkg_resources.
+if not hasattr(pkg_resources, "packaging"):
+    pkg_resources.packaging = packaging
+
 from f3rm.features.clip import clip as f3rm_clip
 from f3rm.features.clip import tokenize
 

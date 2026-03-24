@@ -73,9 +73,10 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     $SCRIPTS_DIR/install_mac_shims.sh
 fi 
 
-# 10. same outliers as under conda
+# 10. same outliers 
 pip install "pyarrow<19"  # See https://github.com/luigifreda/pyslam/issues/193
-pip install -U "protobuf>=5,<6" # For solving final issues with contextdesc
+#pip install -U "protobuf>=5,<6" # For solving final issues with contextdesc
+$SCRIPTS_DIR/install_protobuf.sh
 # NOTE: There can be possible issues with delf and protobuf too. To solve them, run the following command:
 # cd <pyslam_root>/thirdparty/tensorflow_models/research/delf
 # protoc -I=. --python_out=. delf/protos/*.proto

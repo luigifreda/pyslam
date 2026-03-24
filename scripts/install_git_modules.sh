@@ -91,6 +91,16 @@ if [ ! -d pretrained/lfnet-norotaug ]; then
 fi 
 cd "$ROOT_DIR"
 
+# download geodesc model pb file
+print_blue '================================================'
+print_blue "Checking and downloading geodesc models ..."
+cd thirdparty/geodesc
+make_dir model
+if [ ! -f model/geodesc.pb ]; then
+    #wget -O model/geodesc.pb https://github.com/lzx551402/geodesc/blob/master/model/geodesc.pb
+    wget -O model/geodesc.pb https://raw.githubusercontent.com/lzx551402/geodesc/master/model/geodesc.pb
+fi
+cd "$ROOT_DIR"
 
 # Updating keynet  
 print_blue '================================================'

@@ -38,7 +38,6 @@ import traceback
 import threading
 from queue import Queue
 
-import wandb
 from gaussian_splatting.scene.gaussian_model import GaussianModel
 from gaussian_splatting.utils.system_utils import mkdir_p
 from gui import gui_utils, slam_gui
@@ -51,6 +50,7 @@ try:
     from utils.eval_utils import eval_ate, eval_rendering, save_gaussians, load_gaussians
     from utils.logging_utils import Log
     from utils.multiprocessing_utils import FakeQueue
+    from utils.wandb_utils import wandb, warn_if_wandb_unavailable
     from utils.gsm_backend import GsmBackEnd
     from utils.gsm_frontend import GsmFrontEnd, GsmLoadRequest
 except:
@@ -59,6 +59,7 @@ except:
     from .utils.eval_utils import eval_ate, eval_rendering, save_gaussians, load_gaussians
     from .utils.logging_utils import Log
     from .utils.multiprocessing_utils import FakeQueue
+    from .utils.wandb_utils import wandb, warn_if_wandb_unavailable
     from .utils.gsm_backend import GsmBackEnd
     from .utils.gsm_frontend import GsmFrontEnd, GsmLoadRequest
 
@@ -79,6 +80,8 @@ class GaussianSplattingManager:
             mp.set_start_method("spawn", force=True)
             
         self.print = print_fun if print_fun is not None else builtins.print
+        if config["Results"].get("save_results", False):
+            warn_if_wandb_unavailable(self.print)
             
         self.save_dir = save_dir            
         if save_results:
