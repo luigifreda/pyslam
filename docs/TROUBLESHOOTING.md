@@ -18,7 +18,7 @@
       - [Under mac](#under-mac)
     - [RED _ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts_](#red-error-pips-dependency-resolver-does-not-currently-take-into-account-all-the-packages-that-are-installed-this-behaviour-is-the-source-of-the-following-dependency-conflicts)
     - [Cannot import DelfFeature2D from pyslam.local\_features.feature\_delf](#cannot-import-delffeature2d-from-pyslamlocal_featuresfeature_delf)
-    - [ModuleNotFoundError: No module named `pyslam_utils`  (`glutils` , `sim3solver`  or `trajectory_tools`) not found](#modulenotfounderror-no-module-named-pyslam_utils--glutils--sim3solver--or-trajectory_tools-not-found)
+    - [ModuleNotFoundError: No module named `hamming` / `color_utils` / `pyslam_utils` / `glutils` / `sim3solver` / `trajectory_tools` /  not found](#modulenotfounderror-no-module-named-hamming--color_utils--pyslam_utils--glutils--sim3solver--trajectory_tools---not-found)
     - [_ImportError: /home/.../anaconda3/envs/pyslam/bin/../lib/libgcc\_s.so.1: version \`GCC\_12.0.0' not found (required by /lib/-linux-gnu/libhwy.so.1)_](#importerror-homeanaconda3envspyslambinliblibgcc_sso1-version-gcc_1200-not-found-required-by-lib-linux-gnulibhwyso1)
     - [_RuntimeError: The detected CUDA version (11.8) mismatches the version that was used to compile_](#runtimeerror-the-detected-cuda-version-118-mismatches-the-version-that-was-used-to-compile)
     - [_Gtk-ERROR \*\*: ... GTK+ 2.x symbols detected. Using GTK+ 2.x and GTK+ 3 in the same process is not supported_](#gtk-error---gtk-2x-symbols-detected-using-gtk-2x-and-gtk-3-in-the-same-process-is-not-supported)
@@ -248,25 +248,33 @@ protoc -I=. --python_out=. delf/protos/*.proto
 
 --- 
 
-### ModuleNotFoundError: No module named `pyslam_utils`  (`glutils` , `sim3solver`  or `trajectory_tools`) not found
+### ModuleNotFoundError: No module named `hamming` / `color_utils` / `pyslam_utils` / `glutils` / `sim3solver` / `trajectory_tools` /  not found
 
-If you encounter an error like:
+If you encounter an error like the following one after installation:
 ```bash
-ModuleNotFoundError: No module named pyslam_utils not found
+ModuleNotFoundError: No module named haming not found
 ```
-(or for `glutils`, `sim3solver`, or `trajectory_tools`) after installation, follow these steps.
+or, similarly, one of the following modules `haming`, `glutils`, `sim3solver`, `trajectory_tools`, etc that are built inside the `cpp` folder is missing, follow these steps.
 - Verify the C++ build outputs: Check that the compiled .so libraries exist under `<pyslam>/cpp/lib`:
   ```bash
   cpp
   ├── lib
+  │   ├── color_utils.cpython-311-<your-arc>-linux-gnu.so
   │   ├── glutils.cpython-311-<your-arc>-linux-gnu.so
+  │   ├── hamming.cpython-311-<your-arc>-linux-gnu.so
   │   ├── pnpsolver.cpython-311-<your-arc>-linux-gnu.so
   │   ├── pyslam_utils.cpython-311-<your-arc>-linux-gnu.so        
   │   ├── sim3solver.cpython-311-<your-arc>-linux-gnu.so
   │   └── trajectory_tools.cpython-311-<your-arc>-linux-gnu.so
+  │   └── volumetric.cpython-311-x86_64-linux-gnu.so
   ```
   If any of these files are missing, the build did not complete successfully.
-- Confirm the custom OpenCV build is installed under `thirdparty/opencv` and that all libraries exist in `<pyslam-working-directory>/thirdparty/opencv/install/lib/`. 
+- Confirm the custom OpenCV build is installed under `thirdparty/opencv` and that all libraries exist in `<pyslam-working-directory>/thirdparty/opencv/install/lib/`. You can also run:
+  ```bash
+  cd <pyslam-working-directory>
+  . pyenv-activate.sh     # activate the Python environment
+  ./scripts/opencv_check.py
+  ```
 - Rebuild the C++ pybind11 libraries: Run the following commands from your working copy of `pyslam`:
   ```bash
   cd <pyslam-working-directory>
