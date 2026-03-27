@@ -46,10 +46,14 @@ int main() {
         // Create test images
         cv::Mat img, img_right, depth_img, semantic_img;
         create_test_images(img, img_right, depth_img, semantic_img);
+        cv::Mat mask = cv::Mat::zeros(480, 640, CV_8UC1);
+        cv::Mat mask_right = cv::Mat::zeros(480, 640, CV_8UC1);
+        fill_test_mat(mask);
+        fill_test_mat(mask_right);
 
         // Create Frame with comprehensive data
         FramePtr frame = std::make_shared<Frame>(camera, img, img_right, depth_img, pose, 123,
-                                                 456.789, 789, semantic_img);
+                                                 456.789, 789, semantic_img, mask, mask_right);
 
         // Set frame properties
         frame->is_keyframe = true;
@@ -361,6 +365,12 @@ int main() {
         }
         if (!mats_equal_exact(frame->semantic_img, frame2->semantic_img)) {
             throw std::runtime_error("semantic_img mismatch");
+        }
+        if (!mats_equal_exact(frame->mask, frame2->mask)) {
+            throw std::runtime_error("mask mismatch");
+        }
+        if (!mats_equal_exact(frame->mask_right, frame2->mask_right)) {
+            throw std::runtime_error("mask_right mismatch");
         }
         std::cout << "Images verified" << std::endl;
 

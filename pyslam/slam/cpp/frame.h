@@ -247,6 +247,9 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
     cv::Mat semantic_img;           // semantics (copy of semantic_img if available)
     cv::Mat semantic_instances_img; // semantic instances, type CV_32S (int32)
 
+    cv::Mat mask;       // mask (copy of mask if available)
+    cv::Mat mask_right; // right mask (copy of mask_right if available)
+
     // Statistics
     bool is_blurry = false;
     float laplacian_var = 0.0f;
@@ -264,8 +267,8 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
     Frame(const CameraPtr &camera, const cv::Mat &img = cv::Mat(),
           const cv::Mat &img_right = cv::Mat(), const cv::Mat &depth = cv::Mat(),
           const CameraPose &pose = CameraPose(), int id = -1, double timestamp = 0.0,
-          int img_id = -1, const cv::Mat &semantic_img = cv::Mat(),
-          const pyslam::FrameDataDict &frame_data_dict = {});
+          int img_id = -1, const cv::Mat &semantic_img = cv::Mat(), const cv::Mat &mask = cv::Mat(),
+          const cv::Mat &mask_right = cv::Mat(), const pyslam::FrameDataDict &frame_data_dict = {});
 
     explicit Frame(int id) : FrameBase(id) {}
 
@@ -370,11 +373,13 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
 
   public:
     // Methods to perform feature detection
-    void manage_features(const cv::Mat &img, const cv::Mat &img_right);
+    void manage_features(const cv::Mat &img, const cv::Mat &img_right, const cv::Mat &mask,
+                         const cv::Mat &mask_right);
 
   protected:
     std::pair<FeatureDetectAndComputeOutput, FeatureDetectAndComputeOutput>
-    detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &img_right);
+    detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &img_right,
+                                         const cv::Mat &mask, const cv::Mat &mask_right);
 
     template <typename T>
     void extract_depth_values(const cv::Mat_<T> &depth, std::vector<bool> &valid_depth_mask,

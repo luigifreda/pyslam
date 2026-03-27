@@ -80,4 +80,9 @@ PYBIND11_MODULE(pyslam_utils, m) {
 
     m.def("extract_mean_colors", &utils::extractMeanColors, py::arg("img"), py::arg("img_coords"),
           py::arg("delta"), py::arg("default_color"), "Extract mean colors from image");
+
+    m.def("filter_2d_keypoints_by_mask", &utils::filter2dKeypointsByMask, py::arg("kps_np"),
+          py::arg("mask_np"), "Filter 2D keypoints array by mask");
+    m.def("filter_cv2_keypoints_by_mask", &utils::filterCv2KeypointsByMask, py::arg("kps"),
+          py::arg("mask_np"), "Filter cv2.KeyPoint objects by mask without re-encoding them");
 }

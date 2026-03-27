@@ -365,6 +365,7 @@ void bind_frame(py::module &m) {
         .def(py::init([](py::object camera_obj, py::object img_obj, py::object img_right_obj,
                          py::object depth_obj, pyslam::CameraPose pose, int id,
                          py::object timestamp_obj, int img_id, py::object semantic_img_obj,
+                         py::object mask_obj, py::object mask_right_obj,
                          const pyslam::FrameDataDict &frame_data_dict) {
                  // Camera: simple cast with default nullptr
                  pyslam::CameraPtr camera_shared_ptr =
@@ -382,10 +383,14 @@ void bind_frame(py::module &m) {
                  cv::Mat semantic_img =
                      semantic_img_obj.is_none() ? cv::Mat() : py::cast<cv::Mat>(semantic_img_obj);
 
+                 cv::Mat mask = mask_obj.is_none() ? cv::Mat() : py::cast<cv::Mat>(mask_obj);
+                 cv::Mat mask_right =
+                     mask_right_obj.is_none() ? cv::Mat() : py::cast<cv::Mat>(mask_right_obj);
+
                  py::gil_scoped_release release;
                  return std::make_shared<pyslam::Frame>(camera_shared_ptr, img, img_right, depth,
                                                         pose, id, timestamp, img_id, semantic_img,
-                                                        frame_data_dict);
+                                                        mask, mask_right, frame_data_dict);
              }),
              py::arg("camera"),                                    // 1
              py::arg("img") = py::none(),                          // 2
@@ -396,14 +401,18 @@ void bind_frame(py::module &m) {
              py::arg("timestamp") = py::none(),                    // 7
              py::arg("img_id") = -1,                               // 8
              py::arg("semantic_img") = py::none(),                 // 9
-             py::arg("frame_data_dict") = pyslam::FrameDataDict{}, // 10
+             py::arg("mask") = py::none(),                         // 10
+             py::arg("mask_right") = py::none(),                   // 11
+             py::arg("frame_data_dict") = pyslam::FrameDataDict{}, // 12
              py::keep_alive<0, 1>(),                               // camera
              py::keep_alive<0, 2>(),                               // img
              py::keep_alive<0, 3>(),                               // img_right
              py::keep_alive<0, 4>(),                               // depth
              py::keep_alive<0, 5>(),                               // pose
              py::keep_alive<0, 9>(),                               // semantic_img
-             py::keep_alive<0, 10>()                               // frame_data_dict (optional)
+             py::keep_alive<0, 10>(),                              // mask
+             py::keep_alive<0, 11>(),                              // mask_right
+             py::keep_alive<0, 12>()                               // frame_data_dict (optional)
              )
         .def("__del__",
              [](pyslam::Frame &self) {
@@ -490,6 +499,8 @@ void bind_frame(py::module &m) {
         .def_readwrite("depth_img", &pyslam::Frame::depth_img)
         .def_readwrite("semantic_img", &pyslam::Frame::semantic_img)
         .def_readwrite("semantic_instances_img", &pyslam::Frame::semantic_instances_img)
+        .def_readwrite("mask", &pyslam::Frame::mask)
+        .def_readwrite("mask_right", &pyslam::Frame::mask_right)
         .def_readwrite("is_blurry", &pyslam::Frame::is_blurry)
         .def_readwrite("laplacian_var", &pyslam::Frame::laplacian_var)
         .def_readwrite("fov_center_c", &pyslam::Frame::fov_center_c)

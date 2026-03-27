@@ -47,6 +47,7 @@ from pyslam.utilities.descriptor_distances import (
     l2_distances,
 )
 from pyslam.utilities.pyramid import Pyramid, PyramidType
+from pyslam_utils import filter_cv2_keypoints_by_mask
 
 from .feature_manager_adaptors import BlockAdaptor, PyramidAdaptor
 from .feature_root_sift import RootSIFTFeature2D
@@ -193,6 +194,7 @@ class FeatureManager:
         self.do_keypoints_size_rescaling = (
             False  # automatically managed below depending on selected features
         )
+        self.keypoint_size_rescale_factor = 1
         self.need_color_image = False  # automatically managed below depending on selected features
 
         self.keypoint_filter_type = KeyPointFilterTypes.SAT  # default keypoint-filter type
@@ -200,6 +202,9 @@ class FeatureManager:
         self.keypoint_nms_filter_type = (
             KeyPointFilterTypes.KDT_NMS
         )  # default keypoint-filter type if NMS is needed
+        self.need_mask_management = FeatureInfo.need_mask_management.get(
+            self.detector_type, False
+        )  # need or not mask management for keypoints (some extractors already include it)
 
         # initialize sigmas for keypoint levels (used for SLAM)
         self.init_sigma_levels()
@@ -1166,6 +1171,9 @@ class FeatureManager:
         filter_name = "NONE"
         if filter:
             kps, _, filter_name = self.filter_keypoints(self.keypoint_filter_type, frame, kps)
+        if self.need_mask_management and (mask is not None and mask.size > 0):
+            filtered_kps, _ = filter_cv2_keypoints_by_mask(kps, mask)
+            kps = filtered_kps
         # if keypoints are FAST, etc. give them a decent size in order to properly compute the descriptors
         if self.do_keypoints_size_rescaling:
             self.rescale_keypoint_size(kps)
@@ -1281,6 +1289,10 @@ class FeatureManager:
             or self.detector_type == FeatureDetectorTypes.CONTEXTDESC
         ):
             unpackSiftOctaveKps(kps, method=UnpackOctaveMethod.INTRAL_LAYERS)
+        if self.need_mask_management and (mask is not None and mask.size > 0):
+            filtered_kps, filtered_idxs = filter_cv2_keypoints_by_mask(kps, mask)
+            kps = filtered_kps
+            des = des[filtered_idxs]
         if kVerbose:
             print(
                 "detector:",

@@ -26,10 +26,11 @@ NOTES:
 In order to add a new DETECTOR:
 - add a new enum in FeatureDetectorTypes
 - manage its 'case' in the detector inialization in feature_manager.py 
+- add the related information (need_mask_management) in the class FeatureInfo below
 
 In order to add a new DESCRIPTOR:
 - add a new enum in FeatureDescriptorTypes
-- add the related information in the class FeatureInfo below
+- add the related information (norm_type, max_descriptor_distance) in the class FeatureInfo below
 - manage its 'case' in the descriptor inialization in feature_manager.py 
 """
 
@@ -111,17 +112,45 @@ class FeatureDescriptorTypes(SerializableEnum):
     # NOTE: The extraction of independent descriptors from a single image does not make sense for the MASt3R/DUST3R model. The model ground the image matching in a 3D context defined by two images of the same place.
 
 
+# FeatureInfo class
+# This class contains the information about the features and descriptors.
 class FeatureInfo(object):
-    norm_type = dict()
-    max_descriptor_distance = (
-        dict()
-    )  # Reference max descriptor distances used by SLAM for locally searching matches around frame keypoints.
+
+    need_mask_management = dict()  # detector type -> need mask management
+
+    norm_type = dict()  #  descriptor type -> norm type
+
+    # Reference max descriptor distances used by SLAM for locally searching matches around frame keypoints.
+    max_descriptor_distance = dict()  # descriptor type -> max descriptor distance
+
+    # DETECTOR INFOS
+    custom_detector_types = (
+        FeatureDetectorTypes.SHI_TOMASI,
+        FeatureDetectorTypes.ORB2,
+        FeatureDetectorTypes.SUPERPOINT,
+        FeatureDetectorTypes.XFEAT,
+        FeatureDetectorTypes.D2NET,
+        FeatureDetectorTypes.DELF,
+        FeatureDetectorTypes.CONTEXTDESC,
+        FeatureDetectorTypes.LFNET,
+        FeatureDetectorTypes.R2D2,
+        FeatureDetectorTypes.KEYNET,
+        FeatureDetectorTypes.DISK,
+        FeatureDetectorTypes.ALIKED,
+        FeatureDetectorTypes.LIGHTGLUESIFT,
+        FeatureDetectorTypes.KEYNETAFFNETHARDNET,
+    )
+    for detector_type in custom_detector_types:
+        need_mask_management[detector_type] = True
+
+    # DESCRIPTOR INFOS
     # These reference distances are used as initial values at init time and are then online updated by using standard deviation robust estimation (MAD) and exponential smoothing.
     # N.B.: These reference distances can be easily estimated by using the script main_feature_matching.py:
     #       Use as reference max descriptor distance the computed value: 3 * sigma_mad (see main_feature_matching.py code, this value is dumped out).
     #
     norm_type[FeatureDescriptorTypes.NONE] = cv2.NORM_L2
     max_descriptor_distance[FeatureDescriptorTypes.NONE] = float("inf")
+    need_mask_management[FeatureDescriptorTypes.NONE] = False
     #
     norm_type[FeatureDescriptorTypes.SIFT] = cv2.NORM_L2
     max_descriptor_distance[FeatureDescriptorTypes.SIFT] = 450  # SIFT

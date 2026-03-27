@@ -26,11 +26,17 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <cstdint>
 #include <cstring>
 #include <exception>
 #include <opencv2/core.hpp>
 
+#ifndef PYSLAM_CV_MAT_IMPORT_ALWAYS_COPY
+// Import policy for Python ndarray -> cv::Mat.
+// 0 enables the fast path where cv::Mat directly views NumPy-owned memory.
+// 1 forces a defensive deep copy for every import.
 #define PYSLAM_CV_MAT_IMPORT_ALWAYS_COPY 0 // 1: always copy, 0: zero-copy view
+#endif
 
 namespace py = pybind11;
 using namespace pybind11::literals;
@@ -117,6 +123,179 @@ inline py::dtype cv_depth_to_numpy_dtype(int depth) {
     }
 }
 
+struct cv_mat_buffer_view {
+    // The Python array object that ultimately owns the memory. We keep this around so the
+    // zero-copy path can transfer ownership into cv::Mat via UMatData::userdata.
+    py::array array;
+    py::buffer_info info;
+    int rows = 0;
+    int cols = 0;
+    int channels = 1;
+    int type = 0;
+    size_t step = 0;
+    size_t row_bytes = 0;
+};
+
+class py_owned_mat_allocator final : public cv::MatAllocator {
+  public:
+    // This allocator never creates fresh buffers. It only exists so cv::Mat can release a
+    // borrowed NumPy buffer using OpenCV's normal reference-counted lifetime hooks.
+    cv::UMatData *allocate(int, const int *, int, void *, size_t *, cv::AccessFlag,
+                           cv::UMatUsageFlags) const override {
+        throw std::runtime_error("py_owned_mat_allocator does not allocate fresh buffers");
+    }
+
+    bool allocate(cv::UMatData *, cv::AccessFlag, cv::UMatUsageFlags) const override {
+        return false;
+    }
+
+    void deallocate(cv::UMatData *u) const override {
+        if (!u)
+            return;
+
+        // userdata stores the borrowed NumPy owner with an extra INCREF. Dropping that reference
+        // here is what keeps the aliased buffer valid after the pybind11 type_caster temporary
+        // has already gone out of scope.
+        auto *owner = reinterpret_cast<PyObject *>(u->userdata);
+        if (owner) {
+            if (Py_IsInitialized()) {
+                py::gil_scoped_acquire acquire;
+                Py_DECREF(owner);
+            }
+            u->userdata = nullptr;
+        }
+
+        delete u;
+    }
+};
+
+inline const cv::MatAllocator *get_py_owned_mat_allocator() {
+    static py_owned_mat_allocator allocator;
+    return &allocator;
+}
+
+inline size_t cv_mat_total_bytes(const cv_mat_buffer_view &view) {
+    if (view.rows <= 0)
+        return 0;
+    // For strided views the live byte span is not rows * row_bytes.
+    // OpenCV expects the allocation size to cover the full last row reachable through step[0].
+    return view.step * static_cast<size_t>(view.rows - 1) + view.row_bytes;
+}
+
+inline cv::Mat make_py_owned_cv_mat(const cv_mat_buffer_view &view) {
+    // Build a Mat header that aliases NumPy memory.
+    cv::Mat mat(view.rows, view.cols, view.type, view.info.ptr, view.step);
+
+    // Attach an OpenCV-owned lifetime record so every Mat clone/header copy participates in
+    // reference counting, while the underlying bytes remain owned by Python.
+    auto *u = new cv::UMatData(get_py_owned_mat_allocator());
+    u->data = u->origdata = static_cast<uchar *>(view.info.ptr);
+    u->size = cv_mat_total_bytes(view);
+    u->flags |= cv::UMatData::USER_ALLOCATED;
+    PyObject *owner = view.array.ptr();
+    Py_INCREF(owner);
+    u->userdata = owner;
+    u->refcount = 1;
+    u->urefcount = 0;
+
+    mat.u = u;
+    mat.allocator = const_cast<cv::MatAllocator *>(get_py_owned_mat_allocator());
+    return mat;
+}
+
+inline void normalize_cv_mat_array_dtype(py::array &arr) {
+    const py::dtype dt = arr.dtype();
+    if (dt.is(py::dtype::of<std::int64_t>()) || dt.is(py::dtype::of<std::uint64_t>())) {
+        // OpenCV has no CV_64S/CV_64U depth. Converting to float64 preserves range better than
+        // truncating down to 32-bit integer types.
+        py::object converted_obj = arr.attr("astype")(py::dtype::of<double>());
+        py::array converted = py::array::ensure(converted_obj);
+        if (!converted)
+            throw py::value_error("Failed to convert int64/uint64 array to float64 for cv::Mat");
+        arr = std::move(converted);
+    }
+}
+
+inline void parse_cv_mat_shape(const py::buffer_info &info, int &rows, int &cols, int &channels) {
+    if (info.ndim < 1 || info.ndim > 3)
+        throw py::value_error("cv::Mat expects 1D, 2D, or 3D array shaped (N,), (H,W), or (H,W,C)");
+
+    if (info.ndim == 1) {
+        rows = static_cast<int>(info.shape[0]);
+        cols = 1;
+        channels = 1;
+    } else if (info.ndim == 2) {
+        rows = static_cast<int>(info.shape[0]);
+        cols = static_cast<int>(info.shape[1]);
+        channels = 1;
+    } else {
+        rows = static_cast<int>(info.shape[0]);
+        cols = static_cast<int>(info.shape[1]);
+        channels = static_cast<int>(info.shape[2]);
+        if (channels <= 0)
+            channels = 1;
+    }
+
+    if (channels > CV_CN_MAX)
+        throw py::value_error("cv::Mat import has too many channels");
+}
+
+inline bool is_cv_mat_stride_layout_compatible(const py::buffer_info &info) {
+    if (info.itemsize <= 0)
+        return false;
+    for (ssize_t d = 0; d < info.ndim; ++d) {
+        // Negative strides imply reversed views. cv::Mat can represent positive row steps, but not
+        // arbitrary Python slicing semantics, so those inputs must be normalized first.
+        if (info.strides[d] < 0)
+            return false;
+    }
+    if (info.ndim == 1) {
+        return info.shape[0] <= 1 || info.strides[0] >= info.itemsize;
+    }
+    if (info.ndim == 2) {
+        return info.strides[1] == info.itemsize &&
+               (info.shape[0] <= 1 || info.strides[0] >= info.shape[1] * info.itemsize);
+    }
+    return info.strides[2] == info.itemsize && info.strides[1] == info.shape[2] * info.itemsize &&
+           (info.shape[0] <= 1 || info.strides[0] >= info.shape[1] * info.shape[2] * info.itemsize);
+}
+
+inline cv_mat_buffer_view make_cv_mat_buffer_view(handle src) {
+    py::array source_arr = py::array::ensure(src);
+    if (!source_arr)
+        throw py::type_error("cv::Mat expects an array-like input");
+
+    py::array arr = source_arr;
+    normalize_cv_mat_array_dtype(arr);
+
+    cv_mat_buffer_view view;
+    view.array = arr;
+    view.info = view.array.request();
+    parse_cv_mat_shape(view.info, view.rows, view.cols, view.channels);
+
+    if (view.info.size == 0 || view.rows == 0 || view.cols == 0) {
+        return view;
+    }
+
+    if (!is_cv_mat_stride_layout_compatible(view.info)) {
+        // Normalize exotic views once so the rest of the importer can treat the buffer as a
+        // conventional HxW or HxWxC matrix. The normalized array is still NumPy-owned, so the
+        // same lifetime-managed zero-copy path can alias it safely.
+        view.array = py::array::ensure(view.array, py::array::c_style);
+        if (!view.array)
+            throw py::value_error("Failed to convert array to C-contiguous layout for cv::Mat");
+        view.info = view.array.request();
+        parse_cv_mat_shape(view.info, view.rows, view.cols, view.channels);
+    }
+
+    const int depth = numpy_to_cv_depth(view.array.dtype());
+    view.type = CV_MAKETYPE(depth, view.channels);
+    view.step = static_cast<size_t>(view.info.strides[0]);
+    view.row_bytes = static_cast<size_t>(view.cols) * static_cast<size_t>(view.channels) *
+                     static_cast<size_t>(view.info.itemsize);
+    return view;
+}
+
 // -----------------------------
 // cv::Mat <-> numpy.ndarray
 // -----------------------------
@@ -125,83 +304,57 @@ template <> struct type_caster<cv::Mat> {
     PYBIND11_TYPE_CASTER(cv::Mat, _("numpy.ndarray"));
 
     bool load(handle src, bool) {
-        py::array arr = py::array::ensure(src, py::array::c_style | py::array::forcecast);
-        if (!arr)
-            return false;
-
-        // OpenCV cv::Mat does not support 64-bit integer depths (no CV_64S/CV_64U).
-        // If the input is int64/uint64, convert to float64 to preserve range.
-        // This ensures correctness especially in zero-copy configurations.
         try {
-            const py::dtype dt = arr.dtype();
-            if (dt.is(py::dtype::of<std::int64_t>()) || dt.is(py::dtype::of<std::uint64_t>())) {
-                py::dtype target = py::dtype::of<double>();
-                py::object converted_obj = arr.attr("astype")(target);
-                py::array converted = py::array::ensure(converted_obj);
-                if (!converted)
-                    throw py::value_error(
-                        "Failed to convert int64/uint64 array to float64 for cv::Mat");
-                arr = std::move(converted);
+            cv_mat_buffer_view view = make_cv_mat_buffer_view(src);
+            if (view.info.size == 0 || view.rows == 0 || view.cols == 0) {
+                // Match OpenCV conventions: zero-sized inputs become empty Mats instead of
+                // degenerate 0xN headers.
+                value = cv::Mat();
+                return true;
             }
-        } catch (const std::exception &e) {
-            throw;
-        }
 
-        py::buffer_info info = arr.request();
-        if (info.ndim < 1 || info.ndim > 3)
-            throw py::value_error(
-                "cv::Mat expects 1D, 2D, or 3D array shaped (N,), (H,W), or (H,W,C)");
+            const size_t expected =
+                static_cast<size_t>(view.rows) * static_cast<size_t>(view.row_bytes);
+            const size_t actual =
+                static_cast<size_t>(view.info.size) * static_cast<size_t>(view.info.itemsize);
+            if (expected != actual)
+                throw py::value_error("Unexpected buffer size for cv::Mat import");
 
-        int H = 0, W = 0, C = 1;
-        if (info.ndim == 1) {
-            H = static_cast<int>(info.shape[0]);
-            W = 1;
-            C = 1;
-        } else if (info.ndim == 2) {
-            H = static_cast<int>(info.shape[0]);
-            W = static_cast<int>(info.shape[1]);
-            C = 1;
-        } else {
-            H = static_cast<int>(info.shape[0]);
-            W = static_cast<int>(info.shape[1]);
-            C = static_cast<int>(info.shape[2]);
-            if (C <= 0)
-                C = 1;
-        }
-
-        const int depth = numpy_to_cv_depth(arr.dtype());
-        const int type = CV_MAKETYPE(depth, C);
-
-        if (info.size == 0 || H == 0 || W == 0) {
-            value = cv::Mat();
 #if PYSLAM_CV_MAT_IMPORT_ALWAYS_COPY
-            keep_alive_ = py::none();
+            // Fully detached import mode for debugging or call sites that prefer simpler lifetime
+            // behavior over aliasing performance.
+            cv::Mat tmp(view.rows, view.cols, view.type);
+            const auto *src_ptr = static_cast<const std::uint8_t *>(view.info.ptr);
+            if (view.step == view.row_bytes) {
+                std::memcpy(tmp.data, src_ptr, expected);
+            } else {
+                for (int r = 0; r < view.rows; ++r) {
+                    std::memcpy(tmp.ptr(r), src_ptr + static_cast<size_t>(r) * view.step,
+                                view.row_bytes);
+                }
+            }
+            value = std::move(tmp);
+#else
+            // Alias NumPy memory and transfer the owning Python reference into the Mat's
+            // UMatData record so the view stays valid after the caster returns.
+            value = make_py_owned_cv_mat(view);
 #endif
             return true;
+        } catch (const py::error_already_set &) {
+            throw;
+        } catch (const py::builtin_exception &) {
+            throw;
+        } catch (...) {
+            return false;
         }
-
-        const size_t elem_sz = static_cast<size_t>(arr.itemsize());
-        const size_t expected =
-            static_cast<size_t>(H) * static_cast<size_t>(W) * static_cast<size_t>(C) * elem_sz;
-        const size_t actual = static_cast<size_t>(info.size) * static_cast<size_t>(info.itemsize);
-        if (expected != actual)
-            throw py::value_error("Unexpected buffer size for cv::Mat import");
-
-#ifdef PYSLAM_CV_MAT_IMPORT_ALWAYS_COPY
-        cv::Mat tmp(H, W, type);
-        std::memcpy(tmp.data, info.ptr, expected);
-        value = std::move(tmp);
-#else
-        value = cv::Mat(H, W, type, info.ptr); // zero-copy view
-        keep_alive_ = std::move(arr);          // keep buffer alive during call
-#endif
-        return true;
     }
 
     static handle cast(const cv::Mat &mat, return_value_policy, handle) {
         if (mat.empty())
             return py::array(py::dtype::of<uint8_t>(), {0, 0}).release();
 
+        // Python expects a standard ndarray view. If the source Mat is not continuous we clone so
+        // the exported array has a simple ownership story and valid contiguous strides.
         cv::Mat contiguous = mat.isContinuous() ? mat : mat.clone();
         const int depth = contiguous.depth();
         const int channels = contiguous.channels();
@@ -219,15 +372,12 @@ template <> struct type_caster<cv::Mat> {
                        static_cast<ssize_t>(channels) * elem, elem};
         }
 
+        // The capsule owns a heap-allocated cv::Mat header, which in turn owns the underlying
+        // buffer through OpenCV's reference counting. This makes C++ -> Python zero-copy as well.
         auto *owner = new cv::Mat(std::move(contiguous));
         auto capsule = py::capsule(owner, [](void *p) { delete reinterpret_cast<cv::Mat *>(p); });
         return py::array(dt, shape, strides, owner->data, capsule).release();
     }
-
-  private:
-#if PYSLAM_CV_MAT_IMPORT_ALWAYS_COPY
-    py::object keep_alive_;
-#endif
 };
 
 // -----------------------------
@@ -265,7 +415,6 @@ template <typename T, int N> struct type_caster<cv::Vec<T, N>> {
 // -----------------------------
 // std::vector<cv::Mat> <-> Python list
 // -----------------------------
-#if PYSLAM_CV_MAT_IMPORT_ALWAYS_COPY
 template <> struct type_caster<std::vector<cv::Mat>> {
     PYBIND11_TYPE_CASTER(std::vector<cv::Mat>, _("List[numpy.ndarray]"));
 
@@ -276,53 +425,40 @@ template <> struct type_caster<std::vector<cv::Mat>> {
 
         value.clear();
         value.reserve(py::len(seq));
-        keep_alive_.clear();
-        keep_alive_.reserve(py::len(seq));
 
         for (auto item : seq) {
-            py::array arr = py::array::ensure(item, py::array::c_style | py::array::forcecast);
-            if (!arr)
-                return false;
-
-            py::buffer_info info = arr.request();
-            if (info.ndim < 1 || info.ndim > 3)
-                throw py::value_error(
-                    "cv::Mat expects 1D, 2D, or 3D array shaped (N,), (H,W), or (H,W,C)");
-
-            int H = 0, W = 0, C = 1;
-            if (info.ndim == 1) {
-                H = (int)info.shape[0];
-                W = 1;
-                C = 1;
-            } else if (info.ndim == 2) {
-                H = (int)info.shape[0];
-                W = (int)info.shape[1];
-                C = 1;
-            } else {
-                H = (int)info.shape[0];
-                W = (int)info.shape[1];
-                C = (int)info.shape[2];
-                if (C <= 0)
-                    C = 1;
-            }
-
-            const int depth = numpy_to_cv_depth(arr.dtype());
-            const int type = CV_MAKETYPE(depth, C);
-
-            if (info.size == 0 || H == 0 || W == 0) {
+            // Reuse the exact same import policy as the single-Mat caster so list inputs behave
+            // consistently with standalone ndarray inputs.
+            cv_mat_buffer_view view = make_cv_mat_buffer_view(item);
+            if (view.info.size == 0 || view.rows == 0 || view.cols == 0) {
                 value.emplace_back(); // empty Mat
-                keep_alive_.emplace_back(py::none());
                 continue;
             }
 
-            const size_t elem_sz = (size_t)arr.itemsize();
-            const size_t expected = (size_t)H * (size_t)W * (size_t)C * elem_sz;
-            const size_t actual = (size_t)info.size * (size_t)info.itemsize;
+            const size_t expected = static_cast<size_t>(view.rows) * view.row_bytes;
+            const size_t actual =
+                static_cast<size_t>(view.info.size) * static_cast<size_t>(view.info.itemsize);
             if (expected != actual)
                 throw py::value_error("Unexpected buffer size for cv::Mat in list");
 
-            value.emplace_back(H, W, type, info.ptr); // zero-copy view
-            keep_alive_.emplace_back(std::move(arr)); // keep alive during call
+#if PYSLAM_CV_MAT_IMPORT_ALWAYS_COPY
+            cv::Mat tmp(view.rows, view.cols, view.type);
+            const auto *src_ptr = static_cast<const std::uint8_t *>(view.info.ptr);
+            if (view.step == view.row_bytes) {
+                std::memcpy(tmp.data, src_ptr, expected);
+            } else {
+                for (int r = 0; r < view.rows; ++r) {
+                    std::memcpy(tmp.ptr(r), src_ptr + static_cast<size_t>(r) * view.step,
+                                view.row_bytes);
+                }
+            }
+            value.emplace_back(std::move(tmp));
+#else
+            // Each element gets its own UMatData owner so the vector can outlive the pybind11
+            // argument conversion frame safely, even when the source item had to be normalized
+            // into a temporary contiguous NumPy array first.
+            value.emplace_back(make_py_owned_cv_mat(view));
+#endif
         }
         return true;
     }
@@ -333,11 +469,7 @@ template <> struct type_caster<std::vector<cv::Mat>> {
             out.append(type_caster<cv::Mat>::cast(m, p, parent));
         return out.release();
     }
-
-  private:
-    std::vector<py::object> keep_alive_;
 };
-#endif
 
 // -----------------------------
 // cv::Point (int) <-> tuple(x, y)

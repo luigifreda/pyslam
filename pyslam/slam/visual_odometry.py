@@ -119,8 +119,12 @@ class VisualOdometryEducational(VisualOdometryBase):
     def estimatePose(self, kps_ref, kps_cur):
         kp_ref_u = self.cam.undistort_points(kps_ref)
         kp_cur_u = self.cam.undistort_points(kps_cur)
-        self.kpn_ref = self.cam.unproject_points(kp_ref_u)
-        self.kpn_cur = self.cam.unproject_points(kp_cur_u)
+        self.kpn_ref = np.ascontiguousarray(np.asarray(self.cam.unproject_points(kp_ref_u))).reshape(
+            -1, 2
+        )
+        self.kpn_cur = np.ascontiguousarray(np.asarray(self.cam.unproject_points(kp_cur_u))).reshape(
+            -1, 2
+        )
         if kUseEssentialMatrixEstimation:
             ransac_method = None
             try:
@@ -144,8 +148,12 @@ class VisualOdometryEducational(VisualOdometryBase):
             F, self.mask_match = self.computeFundamentalMatrix(kp_cur_u, kp_ref_u)
             E = self.cam.K.T @ F @ self.cam.K  # E = K.T * F * K
         # self.removeOutliersFromMask(self.mask)  # do not remove outliers, the last unmatched/outlier features can be matched and recognized as inliers in subsequent frames
+        E_arr = None if E is None else np.asarray(E)
+        if E_arr is None or E_arr.size < 9:
+            raise ValueError("findEssentialMat failed to produce a valid essential matrix")
+        E_cv = np.ascontiguousarray(E_arr)
         self.pose_estimation_inliers, R, t, mask = cv2.recoverPose(
-            E, self.kpn_cur, self.kpn_ref, focal=1, pp=(0.0, 0.0)
+            E_cv, self.kpn_cur, self.kpn_ref, focal=1, pp=(0.0, 0.0)
         )
         print(f"num inliers in pose estimation: {self.pose_estimation_inliers}")
         return R, t  # Rrc, trc (with respect to 'ref' frame)

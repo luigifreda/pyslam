@@ -199,5 +199,5 @@ if [ $HARD_CLEAN -eq 1 ]; then
     print_blue "Resetting git submodules"
     git submodule foreach 'git reset --hard; git clean -xfd'
     print_blue "Cleaning repo itself"
-    git clean -xfd
+    git clean -xfd -e 'private/' -i # -i for interactive mode
 fi

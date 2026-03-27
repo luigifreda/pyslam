@@ -303,8 +303,22 @@ class Slam(object):
             Printer.green(f"SLAM: VolumetricIntegrator initialized and ready.")
 
     # @ main track method @
-    def track(self, img, img_right, depth, img_id, timestamp=None):
-        return self.tracking.track(img, img_right, depth, img_id, timestamp)
+    def track(self, img, img_right, depth, img_id, timestamp=None, mask=None, mask_right=None):
+        """
+        Track a frame.
+        The mask is used to mask the image for feature tracking.
+        Args:
+            img: The image to track.
+            img_right: The right image to track.
+            depth: The depth image to track.
+            img_id: The id of the image.
+            timestamp: The timestamp of the image.
+            mask: The mask of the image.
+            mask_right: The mask of the right image.
+        Returns:
+            None
+        """
+        return self.tracking.track(img, img_right, depth, img_id, timestamp, mask, mask_right)
 
     def set_tracking_state(self, state: SlamState):
         self.tracking.state = state

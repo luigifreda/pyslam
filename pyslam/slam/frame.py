@@ -80,12 +80,13 @@ kDrawOctaveColor = np.linspace(0, 255, 12)
 
 
 # for parallel stereo processing
-def detect_and_compute(img, left=True):
+def detect_and_compute(img, left=True, mask=None):
     if left:
-        return FeatureTrackerShared.feature_tracker.detectAndCompute(img)
+        return FeatureTrackerShared.feature_tracker.detectAndCompute(img, mask)
     else:
-        assert FeatureTrackerShared.feature_tracker_right is not None
-        return FeatureTrackerShared.feature_tracker_right.detectAndCompute(img)
+        if FeatureTrackerShared.feature_tracker_right is None:
+            raise ValueError("FeatureTrackerShared.feature_tracker_right is None")
+        return FeatureTrackerShared.feature_tracker_right.detectAndCompute(img, mask)
 
 
 # Base object class for frame info management;
@@ -365,6 +366,8 @@ class Frame(FrameBase):
         timestamp=None,
         img_id=None,
         semantic_img=None,
+        mask=None,
+        mask_right=None,
         frame_data_dict=None,
     ):
         super().__init__(camera, pose=pose, id=id, timestamp=timestamp, img_id=img_id)
@@ -407,6 +410,9 @@ class Frame(FrameBase):
         self.semantic_img = None  # semantics (copy of semantic_img if available)
         self.semantic_instances_img = None  # semantic instances
 
+        self.mask = None
+        self.mask_right = None
+
         self.is_blurry = False
         self.laplacian_var = None
 
@@ -428,6 +434,14 @@ class Frame(FrameBase):
         if semantic_img is not None:
             if Frame.is_store_imgs:
                 self.semantic_img = semantic_img.copy()
+
+        if mask is not None:
+            if Frame.is_store_imgs:
+                self.mask = mask.copy()
+
+        if mask_right is not None:
+            if Frame.is_store_imgs:
+                self.mask_right = mask_right.copy()
 
         if frame_data_dict is not None:
             self.is_keyframe = frame_data_dict["is_keyframe"]
@@ -470,6 +484,12 @@ class Frame(FrameBase):
             if self.semantic_instances_img is None:
                 self.semantic_instances_img = frame_data_dict["semantic_instances_img"]
 
+            if self.mask is None:
+                self.mask = frame_data_dict["mask"]
+
+            if self.mask_right is None:
+                self.mask_right = frame_data_dict["mask_right"]
+
             self.ensure_contiguous_arrays()
             return
 
@@ -478,18 +498,26 @@ class Frame(FrameBase):
                 do_parallel = True
                 if do_parallel:
                     with ThreadPoolExecutor() as executor:
-                        future_l = executor.submit(detect_and_compute, img)
-                        future_r = executor.submit(detect_and_compute, img_right, left=False)
+                        future_l = executor.submit(detect_and_compute, img, left=True, mask=mask)
+                        future_r = executor.submit(
+                            detect_and_compute, img_right, left=False, mask=mask_right
+                        )
                         self.kps, self.des = future_l.result()
                         self.kps_r, self.des_r = future_r.result()
                 else:
-                    self.kps, self.des = FeatureTrackerShared.feature_tracker.detectAndCompute(img)
-                    self.kps_r, self.des_r = FeatureTrackerShared.feature_tracker.detectAndCompute(
-                        img_right
+                    self.kps, self.des = FeatureTrackerShared.feature_tracker.detectAndCompute(
+                        img, mask=mask
+                    )
+                    self.kps_r, self.des_r = (
+                        FeatureTrackerShared.feature_tracker_right.detectAndCompute(
+                            img_right, mask=mask_right
+                        )
                     )
                 # print(f'kps: {len(self.kps)}, des: {self.des.shape}, kps_r: {len(self.kps_r)}, des_r: {self.des_r.shape}')
             else:
-                self.kps, self.des = FeatureTrackerShared.feature_tracker.detectAndCompute(img)
+                self.kps, self.des = FeatureTrackerShared.feature_tracker.detectAndCompute(
+                    img, mask=mask
+                )
 
             # convert from a list of keypoints to arrays of points, octaves, sizes
             if self.kps is not None and len(self.kps) > 0:
@@ -554,6 +582,8 @@ class Frame(FrameBase):
             "depth_img",
             "semantic_img",
             "semantic_instances_img",
+            "mask",
+            "mask_right",
         ]:
             val = getattr(self, attr, None)
             if isinstance(val, np.ndarray) and not val.flags["C_CONTIGUOUS"]:
@@ -689,6 +719,10 @@ class Frame(FrameBase):
                 if self.semantic_instances_img is not None
                 else None
             ),
+            "mask": (NumpyB64Json.numpy_to_json(self.mask) if self.mask is not None else None),
+            "mask_right": (
+                NumpyB64Json.numpy_to_json(self.mask_right) if self.mask_right is not None else None
+            ),
         }
         return ret
 
@@ -782,6 +816,14 @@ class Frame(FrameBase):
             NumpyB64Json.json_to_numpy(json_str["semantic_instances_img"])
             if json_str["semantic_instances_img"] is not None
             else None
+        )
+        mask_json = json_str.get("mask", None)
+        frame_data_dict["mask"] = (
+            NumpyB64Json.json_to_numpy(mask_json) if mask_json is not None else None
+        )
+        mask_right_json = json_str.get("mask_right", None)
+        frame_data_dict["mask_right"] = (
+            NumpyB64Json.json_to_numpy(mask_right_json) if mask_right_json is not None else None
         )
 
         if "kps" in frame_data_dict and "points" in frame_data_dict:

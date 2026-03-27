@@ -225,8 +225,13 @@ class EssentialMatrixPoseEstimator2d2d(PoseEstimator):
         # Recover pose from E
         best_num_inliers = 0
         ret = R, t, 0
+        kpts1_cv = np.ascontiguousarray(np.asarray(kpts1)).reshape(-1, 1, 2)
+        kpts2_cv = np.ascontiguousarray(np.asarray(kpts2)).reshape(-1, 1, 2)
         for _E in np.split(E, len(E) / 3):
-            num_inliers, R, t, _ = cv2.recoverPose(_E, kpts1, kpts2, np.eye(3), 1e9, mask=mask)
+            E_cv = np.ascontiguousarray(np.asarray(_E))
+            num_inliers, R, t, _ = cv2.recoverPose(
+                E_cv, kpts1_cv, kpts2_cv, np.eye(3), 1e9, mask=mask
+            )
             if num_inliers > best_num_inliers:
                 best_num_inliers = num_inliers
                 ret = (R, t[:, 0], num_inliers)

@@ -28,11 +28,23 @@ import time
 import traceback
 
 import pyslam.config as config
-from pyslam.slam.cpp import cpp_module, CPP_AVAILABLE
+from pyslam.config_parameters import Parameters
+
+
+# if not CPP_AVAILABLE:
+#     print("❌ cpp_module not available")
+#     sys.exit(1)
+
+USE_CPP = True
+Parameters.USE_CPP_CORE = USE_CPP
+
+from pyslam.slam.cpp import cpp_module, python_module, CPP_AVAILABLE
 
 if not CPP_AVAILABLE:
-    print("❌ cpp_module not available")
+    print("❌ cpp_module imported successfully but C++ core is not available")
     sys.exit(1)
+else:
+    print("✅ cpp_module imported successfully")
 
 # Import Python version for comparison
 from pyslam.slam.rotation_histogram import RotationHistogram as PythonRotationHistogram

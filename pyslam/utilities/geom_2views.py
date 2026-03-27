@@ -99,9 +99,15 @@ def check_dist_epipolar_line(kp1, kp2, F12, sigma2_kp2):
 # N.B.4: as reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return a correct rotation matrix.
 # N.B.5: the OpenCV findEssentialMat function uses the five-point algorithm solver by D. Nister => hence it should work well in the degenerate planar cases
 def estimate_pose_ess_mat(kpn_ref, kpn_cur, method=cv2.RANSAC, prob=0.999, threshold=0.0003):
+    kpn_ref = np.ascontiguousarray(np.asarray(kpn_ref)).reshape(-1, 2)
+    kpn_cur = np.ascontiguousarray(np.asarray(kpn_cur)).reshape(-1, 2)
     # here, the essential matrix algorithm uses the five-point algorithm solver by D. Nister (see the notes and paper above )
     E, mask_match = cv2.findEssentialMat(
         kpn_cur, kpn_ref, focal=1, pp=(0.0, 0.0), method=method, prob=prob, threshold=threshold
     )
-    _, R, t, mask = cv2.recoverPose(E, kpn_cur, kpn_ref, focal=1, pp=(0.0, 0.0))
+    E_arr = None if E is None else np.asarray(E)
+    if E_arr is None or E_arr.size < 9:
+        raise ValueError("findEssentialMat failed to produce a valid essential matrix")
+    E_cv = np.ascontiguousarray(E_arr)
+    _, R, t, mask = cv2.recoverPose(E_cv, kpn_cur, kpn_ref, focal=1, pp=(0.0, 0.0))
     return poseRt(R, t.T), mask_match  # Trc, mask_mat

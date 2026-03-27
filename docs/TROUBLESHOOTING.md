@@ -117,6 +117,7 @@ The pipeline performs reasonably well on KITTI mainly because:
 - the camera undergoes **dominant forward motion** (non-zero baseline)  
 - **parallax is sufficient** between consecutive frames  
 - **pure rotations are rare** 
+- the scene contains a **good range of depths**
 
 These conditions make the **essential matrix estimation decently/well-constrained**, allowing a sufficiently stable recovery of both rotation and translation direction. On datasets like EuRoC or TUM, several fundamental limitations of this minimal approach become evident:
 
