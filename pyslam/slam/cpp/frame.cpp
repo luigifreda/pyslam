@@ -480,6 +480,9 @@ void Frame::copy_from(const Frame &other) {
     semantic_img = other.semantic_img;
     semantic_instances_img = other.semantic_instances_img;
 
+    mask = other.mask;
+    mask_right = other.mask_right;
+
     kf_ref = other.kf_ref;
 
     kps = other.kps;
@@ -525,6 +528,9 @@ void Frame::reset() {
     semantic_img = cv::Mat();
     semantic_instances_img = cv::Mat();
 
+    mask = cv::Mat();
+    mask_right = cv::Mat();
+
     kps.resize(0, 2);
     kps_r.resize(0, 2);
     kpsu.resize(0, 2);
@@ -553,7 +559,8 @@ void Frame::reset() {
 // Frame Implementation
 Frame::Frame(const CameraPtr &camera, const cv::Mat &img, const cv::Mat &img_right,
              const cv::Mat &depth, const CameraPose &pose, int id, double timestamp, int img_id,
-             const cv::Mat &semantic_img, const pyslam::FrameDataDict &frame_data_dict)
+             const cv::Mat &semantic_img, const cv::Mat &mask, const cv::Mat &mask_right,
+             const pyslam::FrameDataDict &frame_data_dict)
     : FrameBase(camera, pose, id, timestamp, img_id) {
 
     // Initialize other members
@@ -606,8 +613,15 @@ Frame::Frame(const CameraPtr &camera, const cv::Mat &img, const cv::Mat &img_rig
         this->semantic_img = semantic_img.clone();
     }
 
+    if (!mask.empty() && Frame::is_store_imgs) {
+        this->mask = mask.clone();
+    }
+    if (!mask_right.empty() && Frame::is_store_imgs) {
+        this->mask_right = mask_right.clone();
+    }
+
     if (!img.empty()) {
-        this->manage_features(img, img_right);
+        this->manage_features(img, img_right, mask, mask_right);
     }
 
     const int N = kps.rows();
@@ -1692,7 +1706,8 @@ cv::Mat Frame::draw_all_feature_trails(const cv::Mat &img, const bool with_level
     return draw_feature_trails(img, all_idxs, with_level_radius, trail_max_length);
 }
 
-void Frame::manage_features(const cv::Mat &img, const cv::Mat &img_right) {
+void Frame::manage_features(const cv::Mat &img, const cv::Mat &img_right, const cv::Mat &mask,
+                            const cv::Mat &mask_right) {
     constexpr bool kVerbose = false;
     if (FeatureSharedResources::feature_detect_and_compute_callback) {
         if constexpr (kVerbose) {
@@ -1701,11 +1716,13 @@ void Frame::manage_features(const cv::Mat &img, const cv::Mat &img_right) {
 
         // Call Python feature detection for left and right images
         const auto &[result_left, result_right] =
-            detect_and_compute_features_parallel(img, img_right);
+            detect_and_compute_features_parallel(img, img_right, mask, mask_right);
 
         const auto &[keypoints_, des_] = result_left;
 
-        // With the new opencv caster for cv::Mat, we can avoid copying the descriptor matrix
+        // With the new opencv caster for cv::Mat, we can avoid copying the descriptor matrix.
+        // The cv::Mat caster now keeps NumPy-backed buffers alive through OpenCV reference
+        // counting, so we can retain the zero-copy descriptor import path here.
 #define COPY_DESCRIPTOR 0
 #if COPY_DESCRIPTOR
         des = des_.empty() ? cv::Mat()
@@ -1731,12 +1748,12 @@ void Frame::manage_features(const cv::Mat &img, const cv::Mat &img_right) {
                 std::cout << std::endl;
             }
 
-            // Ensure the descriptor matrix is properly allocated and copied
+            // Ensure the descriptor matrix is properly attached
             if (!des_.empty()) {
-                std::cout << "Cloned descriptor matrix size: " << des.rows << "x" << des.cols
+                std::cout << "Attached descriptor matrix size: " << des.rows << "x" << des.cols
                           << ", type: " << des.type() << std::endl;
                 if (des.rows > 0 && des.cols > 0) {
-                    std::cout << "Cloned first descriptor: ";
+                    std::cout << "Attached first descriptor: ";
                     for (int i = 0; i < std::min(5, des.cols); ++i) {
                         std::cout << (int)des.at<uchar>(0, i) << " ";
                     }
@@ -1829,7 +1846,8 @@ void Frame::manage_features(const cv::Mat &img, const cv::Mat &img_right) {
 }
 
 std::pair<FeatureDetectAndComputeOutput, FeatureDetectAndComputeOutput>
-Frame::detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &img_right) {
+Frame::detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &img_right,
+                                            const cv::Mat &mask, const cv::Mat &mask_right) {
     constexpr bool kVerbose = false; // Fix: reduce logging
     const bool both_callbacks_set =
         FeatureSharedResources::feature_detect_and_compute_callback &&
@@ -1858,19 +1876,20 @@ Frame::detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &i
             }
 #endif
 
-            auto left_future =
-                std::async(std::launch::async, [this, &img]() -> FeatureDetectAndComputeOutput {
+            auto left_future = std::async(
+                std::launch::async, [this, &img, &mask]() -> FeatureDetectAndComputeOutput {
                     if (img.empty()) {
                         return FeatureDetectAndComputeOutput();
                     }
 #ifdef USE_PYTHON
                     pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
 #endif
-                    return FeatureSharedResources::feature_detect_and_compute_callback(img);
+                    return FeatureSharedResources::feature_detect_and_compute_callback(img, mask);
                 });
 
             auto right_future = std::async(
-                std::launch::async, [this, &img_right]() -> FeatureDetectAndComputeOutput {
+                std::launch::async,
+                [this, &img_right, &mask_right]() -> FeatureDetectAndComputeOutput {
                     if (img_right.empty()) {
                         return FeatureDetectAndComputeOutput();
                     }
@@ -1878,7 +1897,7 @@ Frame::detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &i
                     pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
 #endif
                     return FeatureSharedResources::feature_detect_and_compute_right_callback(
-                        img_right);
+                        img_right, mask_right);
                 });
 
             // Wait for both to complete (GIL is still released here)
@@ -1902,7 +1921,7 @@ Frame::detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &i
 #ifdef USE_PYTHON
             pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
 #endif
-            return {FeatureSharedResources::feature_detect_and_compute_callback(img),
+            return {FeatureSharedResources::feature_detect_and_compute_callback(img, mask),
                     FeatureDetectAndComputeOutput()};
         }
     } else {

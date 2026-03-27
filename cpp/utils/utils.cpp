@@ -19,6 +19,9 @@
 
 #include "utils.h"
 
+#include <cmath>
+#include <cstring>
+
 namespace utils {
 
 void extractPatch(const cv::Mat &image, const cv::KeyPoint &kp, const int &patch_size,
@@ -369,6 +372,194 @@ extractMeanColors(py::array_t<uint8_t, py::array::c_style | py::array::forcecast
     }
 
     return result;
+}
+
+// Filter keypoints by a 1D selection mask.
+// out: tuple(filtered keypoints array, filtered keypoint indices array)
+// in:
+// - keypoints array with shape (N, M), where columns 0 and 1 are x and y
+// - mask as 1D array with shape (N,) or 2D array with shape (H, W)
+py::tuple
+filter2dKeypointsByMask(py::array_t<float, py::array::c_style | py::array::forcecast> kps_np,
+                        py::array_t<int, py::array::c_style | py::array::forcecast> mask_np) {
+    auto buf_kps = kps_np.unchecked<2>();
+
+    const py::ssize_t num_keypoints = buf_kps.shape(0);
+    const py::ssize_t num_columns = buf_kps.shape(1);
+    const py::ssize_t mask_ndim = mask_np.ndim();
+
+    if (num_columns < 2) {
+        throw py::value_error("filterKeypointsByMask expects kps_np to have shape (N, >=2)");
+    }
+    if (mask_ndim != 1 && mask_ndim != 2) {
+        throw py::value_error("filterKeypointsByMask expects mask_np to have shape (N,) or (H, W)");
+    }
+
+    const float *kps_data = kps_np.data();
+    const size_t row_bytes = static_cast<size_t>(num_columns) * sizeof(float);
+    py::array_t<int> idxs_out(num_keypoints);
+    py::array_t<float> kps_out({num_keypoints, num_columns});
+    int *idxs_out_data = idxs_out.mutable_data();
+    float *kps_out_data = kps_out.mutable_data();
+
+    // A 1D mask is interpreted as a per-keypoint selector.
+    if (mask_ndim == 1) {
+        auto buf_mask = mask_np.unchecked<1>();
+        if (buf_mask.shape(0) != num_keypoints) {
+            throw py::value_error("filterKeypointsByMask expects a 1D mask_np with shape (N,)");
+        }
+
+        {
+            py::gil_scoped_release release;
+            py::ssize_t out_idx = 0;
+            for (py::ssize_t i = 0; i < num_keypoints; ++i) {
+                if (buf_mask(i) == 0) {
+                    continue;
+                }
+
+                idxs_out_data[out_idx] = static_cast<int>(i);
+                std::memcpy(kps_out_data + out_idx * num_columns, kps_data + i * num_columns,
+                            row_bytes);
+                ++out_idx;
+            }
+            idxs_out.resize({out_idx});
+            kps_out.resize({out_idx, num_columns});
+        }
+
+        return py::make_tuple(kps_out, idxs_out);
+    }
+
+    // A 2D mask is interpreted as an image mask addressed with keypoint (x, y) coordinates.
+    auto buf_mask = mask_np.unchecked<2>();
+    const py::ssize_t mask_height = buf_mask.shape(0);
+    const py::ssize_t mask_width = buf_mask.shape(1);
+
+    {
+        py::gil_scoped_release release;
+        py::ssize_t out_idx = 0;
+        for (py::ssize_t i = 0; i < num_keypoints; ++i) {
+            const py::ssize_t x = static_cast<py::ssize_t>(std::floor(buf_kps(i, 0)));
+            const py::ssize_t y = static_cast<py::ssize_t>(std::floor(buf_kps(i, 1)));
+            if (x < 0 || x >= mask_width || y < 0 || y >= mask_height || buf_mask(y, x) == 0) {
+                continue;
+            }
+
+            idxs_out_data[out_idx] = static_cast<int>(i);
+            std::memcpy(kps_out_data + out_idx * num_columns, kps_data + i * num_columns,
+                        row_bytes);
+            ++out_idx;
+        }
+        idxs_out.resize({out_idx});
+        kps_out.resize({out_idx, num_columns});
+    }
+
+    return py::make_tuple(kps_out, idxs_out);
+}
+
+// out: tuple(filtered keypoint objects, filtered keypoint indices array)
+// in:
+// - keypoints as a Python sequence of cv2.KeyPoint-like objects or tuples
+// - mask as 1D array with shape (N,) or 2D array with shape (H, W)
+py::tuple
+filterCv2KeypointsByMask(py::sequence kps,
+                         py::array_t<int, py::array::c_style | py::array::forcecast> mask_np) {
+    const py::ssize_t num_keypoints = py::len(kps);
+    const py::ssize_t mask_ndim = mask_np.ndim();
+
+    if (mask_ndim != 1 && mask_ndim != 2) {
+        throw py::value_error(
+            "filterKeypointObjectsByMask expects mask_np to have shape (N,) or (H, W)");
+    }
+
+    py::list kps_out;
+    py::array_t<int> idxs_out(num_keypoints);
+    int *idxs_out_data = idxs_out.mutable_data();
+
+    // A 1D mask is interpreted as a per-keypoint selector.
+    if (mask_ndim == 1) {
+        auto buf_mask = mask_np.unchecked<1>();
+        if (buf_mask.shape(0) != num_keypoints) {
+            throw py::value_error(
+                "filterKeypointObjectsByMask expects a 1D mask_np with shape (N,)");
+        }
+
+        py::ssize_t out_idx = 0;
+        for (py::ssize_t i = 0; i < num_keypoints; ++i) {
+            if (buf_mask(i) == 0) {
+                continue;
+            }
+
+            py::handle kp = kps[i];
+            idxs_out_data[out_idx] = static_cast<int>(i);
+            kps_out.append(py::reinterpret_borrow<py::object>(kp));
+            ++out_idx;
+        }
+
+        idxs_out.resize({out_idx});
+        return py::make_tuple(kps_out, idxs_out);
+    }
+
+    // A 2D mask is interpreted as an image mask addressed with keypoint (x, y) coordinates.
+    auto buf_mask = mask_np.unchecked<2>();
+    const py::ssize_t mask_height = buf_mask.shape(0);
+    const py::ssize_t mask_width = buf_mask.shape(1);
+
+    if (num_keypoints == 0) {
+        idxs_out.resize({0});
+        return py::make_tuple(kps_out, idxs_out);
+    }
+
+    const py::handle first_kp = kps[0];
+    const bool use_pt_attr = py::hasattr(first_kp, "pt");
+    const bool use_sequence = !use_pt_attr && py::isinstance<py::sequence>(first_kp);
+    if (!use_pt_attr && !use_sequence) {
+        throw py::value_error("filterKeypointObjectsByMask expects keypoints to be "
+                              "cv2.KeyPoint-like objects or tuples");
+    }
+
+    py::ssize_t out_idx = 0;
+    if (use_pt_attr) {
+        for (py::ssize_t i = 0; i < num_keypoints; ++i) {
+            py::handle kp = kps[i];
+            py::tuple pt = py::cast<py::tuple>(py::getattr(kp, "pt"));
+            if (py::len(pt) != 2) {
+                throw py::value_error(
+                    "filterKeypointObjectsByMask expects kp.pt to contain exactly 2 values");
+            }
+
+            const py::ssize_t x = static_cast<py::ssize_t>(std::floor(pt[0].cast<float>()));
+            const py::ssize_t y = static_cast<py::ssize_t>(std::floor(pt[1].cast<float>()));
+            if (x < 0 || x >= mask_width || y < 0 || y >= mask_height || buf_mask(y, x) == 0) {
+                continue;
+            }
+
+            idxs_out_data[out_idx] = static_cast<int>(i);
+            kps_out.append(py::reinterpret_borrow<py::object>(kp));
+            ++out_idx;
+        }
+    } else {
+        for (py::ssize_t i = 0; i < num_keypoints; ++i) {
+            py::handle kp = kps[i];
+            py::sequence seq = py::reinterpret_borrow<py::sequence>(kp);
+            if (py::len(seq) < 2) {
+                throw py::value_error("filterKeypointObjectsByMask expects tuple-like keypoints "
+                                      "with at least 2 values");
+            }
+
+            const py::ssize_t x = static_cast<py::ssize_t>(std::floor(seq[0].cast<float>()));
+            const py::ssize_t y = static_cast<py::ssize_t>(std::floor(seq[1].cast<float>()));
+            if (x < 0 || x >= mask_width || y < 0 || y >= mask_height || buf_mask(y, x) == 0) {
+                continue;
+            }
+
+            idxs_out_data[out_idx] = static_cast<int>(i);
+            kps_out.append(py::reinterpret_borrow<py::object>(kp));
+            ++out_idx;
+        }
+    }
+
+    idxs_out.resize({out_idx});
+    return py::make_tuple(kps_out, idxs_out);
 }
 
 } // namespace utils

@@ -241,6 +241,16 @@ std::string Frame::to_json() const {
             j["semantic_instances_img"] = nullptr;
         }
 
+        if (!mask.empty()) {
+            j["mask"] = cv_mat_to_json(mask);
+        } else {
+            j["mask"] = nullptr;
+        }
+        if (!mask_right.empty()) {
+            j["mask_right"] = cv_mat_to_json(mask_right);
+        } else {
+            j["mask_right"] = nullptr;
+        }
     } catch (const std::exception &e) {
         throw std::runtime_error("Error in Frame::to_json(): " + std::string(e.what()));
     }
@@ -400,6 +410,21 @@ FramePtr Frame::from_json(const std::string &json_str) {
             frame->semantic_instances_img = safe_parse_cv_mat_flexible(j, "semantic_instances_img");
         } catch (const std::exception &e) {
             frame->semantic_instances_img = cv::Mat();
+        }
+    }
+
+    if (j.contains("mask") && !j["mask"].is_null()) {
+        try {
+            frame->mask = safe_parse_cv_mat_flexible(j, "mask");
+        } catch (const std::exception &e) {
+            frame->mask = cv::Mat();
+        }
+    }
+    if (j.contains("mask_right") && !j["mask_right"].is_null()) {
+        try {
+            frame->mask_right = safe_parse_cv_mat_flexible(j, "mask_right");
+        } catch (const std::exception &e) {
+            frame->mask_right = cv::Mat();
         }
     }
 

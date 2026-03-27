@@ -35,9 +35,9 @@ using KeyPointTuple = std::tuple<float, float, float, float, float, int>;
 // (kps, des)
 using FeatureDetectAndComputeOutput = std::pair<std::vector<KeyPointTuple>, cv::Mat>;
 
-// (img) -> (kps, des)
+// (img, mask) -> (kps, des)
 using FeatureDetectAndComputeCallback =
-    std::function<FeatureDetectAndComputeOutput(const cv::Mat &)>;
+    std::function<FeatureDetectAndComputeOutput(const cv::Mat &, const cv::Mat &)>;
 
 // (idxs1, idxs2)
 using FeatureMatchingOutput = std::pair<std::vector<int>, std::vector<int>>;

@@ -48,7 +48,7 @@ class Parameters:
 
     # SLAM tracking-mapping threads
     kLocalMappingOnSeparateThread = True  # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread
-    kTrackingWaitForLocalMappingToGetIdle = False  # True: wait for local mapping to get idle before starting tracking, False: tracking and then local mapping in a single thread
+    kTrackingWaitForLocalMappingToGetIdle = False  # True: wait for local mapping to get idle before starting tracking, False: tracking and then local mapping in a single thread in a standard way
     kWaitForLocalMappingTimeout = (
         0.5 if not USE_CPP_CORE else 0.05
     )  # [s]  # Timeout for waiting local mapping to be idle (if kTrackingWaitForLocalMappingToGetIdle is True)   (was previously 1.5)

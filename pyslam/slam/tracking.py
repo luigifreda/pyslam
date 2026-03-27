@@ -1079,7 +1079,21 @@ class Tracking:
             self.pose_timestamps.append(f_cur.timestamp)
 
     # @ main track method @
-    def track(self, img, img_right, depth, img_id, timestamp=None):
+    def track(self, img, img_right, depth, img_id, timestamp=None, mask=None, mask_right=None):
+        """
+        Track a frame.
+        The mask is used to mask the image for feature tracking.
+        Args:
+            img: The image to track.
+            img_right: The right image to track.
+            depth: The depth image to track.
+            img_id: The id of the image.
+            timestamp: The timestamp of the image.
+            mask: The mask of the image.
+            mask_right: The mask of the right image.
+        Returns:
+            None
+        """
         Printer.cyan(
             f"@tracking {self.sensor_type.name}, img id: {img_id}, frame id: {Frame.next_id()}, state: {self.state.name}"
         )
@@ -1116,7 +1130,14 @@ class Tracking:
         # build current frame
         self.timer_frame.start()
         f_cur = Frame(
-            self.camera, img, img_right=img_right, depth=depth, timestamp=timestamp, img_id=img_id
+            self.camera,
+            img,
+            img_right=img_right,
+            depth=depth,
+            timestamp=timestamp,
+            img_id=img_id,
+            mask=mask,
+            mask_right=mask_right,
         )
         self.f_cur = f_cur
         if f_cur_is_blurry:

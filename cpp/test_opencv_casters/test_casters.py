@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import gc
 
 import sys
 import os
@@ -49,6 +50,18 @@ def test_mat_non_contiguous_copy_in():
     out = C.identity_mat(a)
     # Should still equal values
     np.testing.assert_array_equal(out, a)
+
+
+def test_mat_non_contiguous_normalized_lifetime():
+    def make_output():
+        base = np.arange(100, dtype=np.uint8).reshape(10, 10)
+        view = base[::2, ::2]  # non-contiguous 5x5 view
+        return C.identity_mat(view)
+
+    out = make_output()
+    gc.collect()
+    expected = np.arange(100, dtype=np.uint8).reshape(10, 10)[::2, ::2]
+    np.testing.assert_array_equal(out, expected)
 
 
 def test_mat_int64_converts_to_float64():

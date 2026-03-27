@@ -1,6 +1,6 @@
 <p align="center"><img src="./images/pyslam-logo.png" height="160"></p>
 
-# pySLAM v2.10.4
+# pySLAM v2.10.5
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -52,7 +52,7 @@ See the demo **video** for release v2.10.0
 
 <!-- TOC -->
 
-- [pySLAM v2.10.4](#pyslam-v2104)
+- [pySLAM v2.10.5](#pyslam-v2105)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
@@ -1210,6 +1210,7 @@ Many improvements and additional features are currently under development:
 - [x] GTSAM integration [WIP]
 - [ ] IMU integration
 - [ ] LIDAR integration
+- [ ] Integration of direct methods in the tracker
 - [x] XSt3r-based methods integration [WIP]
 - [x] Evaluation scripts 
 - [ ] More camera models
