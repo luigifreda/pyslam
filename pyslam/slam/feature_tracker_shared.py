@@ -193,8 +193,8 @@ class FeatureTrackerShared:
         # FeatureTrackerShared.clear_cpp_module_callbacks()
 
         # match pyslam::FeatureDetectAndComputeCallback signature
-        def detect_and_compute_cb(image):
-            kps, des = FeatureTrackerShared.feature_tracker.detectAndCompute(image)
+        def detect_and_compute_cb(image, mask=None):
+            kps, des = FeatureTrackerShared.feature_tracker.detectAndCompute(image, mask)
             # Ensure the descriptor array is properly formatted for pybind11
             if des is not None and len(des) > 0:
                 # Make sure it's contiguous, uint8, and has the right shape
@@ -213,8 +213,8 @@ class FeatureTrackerShared:
             return convert_keypoints_to_tuples(kps), des
 
         # match pyslam::FeatureDetectAndComputeCallback signature
-        def detect_and_compute_right_cb(image):
-            kps, des = FeatureTrackerShared.feature_tracker_right.detectAndCompute(image)
+        def detect_and_compute_right_cb(image, mask=None):
+            kps, des = FeatureTrackerShared.feature_tracker_right.detectAndCompute(image, mask)
             # Ensure the descriptor array is properly formatted for pybind11
             if des is not None and len(des) > 0:
                 if des.dtype == np.float32:

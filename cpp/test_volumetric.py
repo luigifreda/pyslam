@@ -501,13 +501,15 @@ def test_voxel_grid_classes(volumetric):
                 grid.remove_low_confidence_segments(min_confidence=1)
                 print(f"  ✓ remove_low_confidence_segments() succeeded")
 
-                # Test get_object_segments
+                # Test get_object_segments (returns ObjectDataGroup with object_vector)
                 object_segments = grid.get_object_segments()
-                print(f"  ✓ get_object_segments() returned {len(object_segments)} segments")
+                num_obj_segments = len(object_segments.object_vector)
+                print(f"  ✓ get_object_segments() returned {num_obj_segments} segments")
 
-                # Test get_class_segments
+                # Test get_class_segments (returns ClassDataGroup with class_vector)
                 class_segments = grid.get_class_segments()
-                print(f"  ✓ get_class_segments() returned {len(class_segments)} segments")
+                num_class_segments = len(class_segments.class_vector)
+                print(f"  ✓ get_class_segments() returned {num_class_segments} segments")
 
                 # Test get_ids
                 class_ids_ret, instance_ids_ret = grid.get_ids()

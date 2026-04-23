@@ -61,7 +61,6 @@ except ImportError:
                     "or install lpips with: pip install lpips"
                 )
 
-import wandb
 from gaussian_splatting.gaussian_renderer import render
 from gaussian_splatting.utils.image_utils import psnr
 from gaussian_splatting.utils.loss_utils import ssim
@@ -69,10 +68,12 @@ from gaussian_splatting.utils.system_utils import mkdir_p
 
 try:
     from utils.logging_utils import Log
+    from utils.wandb_utils import wandb
 except:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     sys.path.append(os.path.join(script_dir, "."))
     from .logging_utils import Log
+    from .wandb_utils import wandb
 
 
 def evaluate_evo(poses_gt, poses_est, plot_dir, label, monocular=False):

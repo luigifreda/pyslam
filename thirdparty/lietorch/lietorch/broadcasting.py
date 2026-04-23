@@ -18,7 +18,7 @@ def broadcast_inputs(x, y):
     ys, yd = y.shape[:-1], y.shape[-1]
     out_shape = [max(n,m) for (n,m) in zip(xs,ys)]
 
-    if x.shape[:-1] == y.shape[-1]:
+    if x.shape[:-1] == y.shape[:-1]:
         x1 = x.view(-1, xd)
         y1 = y.view(-1, yd)
 

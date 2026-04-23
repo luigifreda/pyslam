@@ -87,7 +87,7 @@ class DepthEstimatorSgbm(DepthEstimator):
             precision=None,
         )
         # Stereo SGBM Parameters
-        min_z = self.camera.b
+        min_z = self.camera.b if self.camera.b > 0 else 0.01
         self.min_disparity = 0  # camera.bf / max_depth
         self.max_disparity = camera.bf / min_z
         self.num_disparities = 16 * 8  # Must be divisible by 16

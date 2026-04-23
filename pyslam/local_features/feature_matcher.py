@@ -481,9 +481,14 @@ class FeatureMatcher:
     ):
         result = FeatureMatchingResult()
 
-        # Early validation: return empty result if descriptors are empty
-        # This avoids expensive operations for invalid inputs
-        if des1 is None or des2 is None:
+        detector_free_matcher = self.matcher_type in (
+            FeatureMatcherTypes.LOFTR,
+            FeatureMatcherTypes.MAST3R,
+        )
+
+        # Early validation: return empty result if descriptors are empty.
+        # NOTE: Detector-free matchers (e.g. LoFTR/MASt3R) do not use descriptors.
+        if not detector_free_matcher and (des1 is None or des2 is None):
             result.des1 = des1
             result.des2 = des2
             result.kps1 = kps1
@@ -492,29 +497,30 @@ class FeatureMatcher:
             result.idxs2 = np.array([], dtype=np.int32)
             return result
 
-        # Check if descriptors are empty arrays (optimized: use shape[0] for numpy arrays)
-        # This is faster than len() for numpy arrays and handles edge cases
-        try:
-            des1_len = des1.shape[0] if hasattr(des1, "shape") else len(des1)
-            des2_len = des2.shape[0] if hasattr(des2, "shape") else len(des2)
-            if des1_len == 0 or des2_len == 0:
-                result.des1 = des1
-                result.des2 = des2
-                result.kps1 = kps1
-                result.kps2 = kps2
-                result.idxs1 = np.array([], dtype=np.int32)
-                result.idxs2 = np.array([], dtype=np.int32)
-                return result
-        except (AttributeError, TypeError, IndexError):
-            # Fallback for non-standard descriptor types
-            if len(des1) == 0 or len(des2) == 0:
-                result.des1 = des1
-                result.des2 = des2
-                result.kps1 = kps1
-                result.kps2 = kps2
-                result.idxs1 = np.array([], dtype=np.int32)
-                result.idxs2 = np.array([], dtype=np.int32)
-                return result
+        if not detector_free_matcher:
+            # Check if descriptors are empty arrays (optimized: use shape[0] for numpy arrays)
+            # This is faster than len() for numpy arrays and handles edge cases
+            try:
+                des1_len = des1.shape[0] if hasattr(des1, "shape") else len(des1)
+                des2_len = des2.shape[0] if hasattr(des2, "shape") else len(des2)
+                if des1_len == 0 or des2_len == 0:
+                    result.des1 = des1
+                    result.des2 = des2
+                    result.kps1 = kps1
+                    result.kps2 = kps2
+                    result.idxs1 = np.array([], dtype=np.int32)
+                    result.idxs2 = np.array([], dtype=np.int32)
+                    return result
+            except (AttributeError, TypeError, IndexError):
+                # Fallback for non-standard descriptor types
+                if len(des1) == 0 or len(des2) == 0:
+                    result.des1 = des1
+                    result.des2 = des2
+                    result.kps1 = kps1
+                    result.kps2 = kps2
+                    result.idxs1 = np.array([], dtype=np.int32)
+                    result.idxs2 = np.array([], dtype=np.int32)
+                    return result
 
         result.des1 = des1
         result.des2 = des2

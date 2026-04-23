@@ -1,6 +1,6 @@
 <p align="center"><img src="./images/pyslam-logo.png" height="160"></p>
 
-# pySLAM v2.10.1
+# pySLAM v2.10.5
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -52,7 +52,7 @@ See the demo **video** for release v2.10.0
 
 <!-- TOC -->
 
-- [pySLAM v2.10.1](#pyslam-v2101)
+- [pySLAM v2.10.5](#pyslam-v2105)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
@@ -166,7 +166,7 @@ See the demo **video** for release v2.10.0
 
 ### Main Scripts
 
-* `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
+* `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ relative to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this basic, "educational" approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing, dense mapping and depth inference in order to estimate the camera trajectory and build both a sparse and dense map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline.
 
@@ -182,7 +182,7 @@ See the demo **video** for release v2.10.0
 
 * `main_semantic_image_segmentation.py` infers and visualize extracted semantic information on each frame of the selected dataset.
 
-* `main_scene_from_views.py` infers 3D scenes from multiple images using models like Mast3r, VGGT, and DepthFromAnythingV3 (see [here](#end-to-end-inference-of-3d-scenes-from-image-views)).  
+* `main_scene_from_views.py` infers 3D scenes from multiple images using models like DUSt3R, Mast3r, MV-DUSt3R, VGGT, Robust VGGT, DepthFromAnythingV3, and Fast3R (see [here](#end-to-end-inference-of-3d-scenes-from-multiple-image-views)).  
 
 Other *test/example scripts* are provided in the `test` folder.
 
@@ -205,7 +205,7 @@ git clone --recursive https://github.com/luigifreda/pyslam.git
 cd pyslam 
 ```
 
-Then, under **Ubuntu** and **macOS** you can simply run:
+Then, from the repo root, under **Ubuntu** and **macOS** you can simply run:
 ```bash
 # pixi shell      # If you want to use pixi (experimental), run this commented command as a first step to prepare the installation. 
 ./install_all.sh   # Unified install procedure 
@@ -237,7 +237,7 @@ Once you completed the install procedure you can jump the [usage section](#usage
 * Tensorflow >=2.13.1
 * Kornia >=0.7.3
 * Rerun
-* You need **CUDA** in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **cuda toolkit** by running `./cuda_config.sh` 
+* You need **CUDA** in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **CUDA toolkit** by running `./cuda_config.sh` 
 
 The internal pySLAM libraries are imported by using a `Config` instance (from [pyslam/config.py](./pyslam/config.py)) in the main or test scripts. If you encounter any issues or performance problems, please refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
 
@@ -312,7 +312,11 @@ The basic **Visual Odometry** (VO) can be run with the following commands:
 ./main_vo.py
 ```
 By default, the script processes a [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `data/videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by clicking on one of them and pressing the key 'Q'. As explained above, this very *basic* script `main_vo.py` **strictly requires a ground truth**. 
-Now, with RGBD datasets, you can also test the **RGBD odometry** with the classes `VisualOdometryRgbd` or `VisualOdometryRgbdTensor` (ground truth is not required here). 
+
+With RGBD datasets, you can also test the **RGBD odometry** with the classes `VisualOdometryRgbd` or `VisualOdometryRgbdTensor` (ground truth is not required here). 
+
+**Important**: Refer to the [related notes](./docs/TROUBLESHOOTING.md#limitations-of-main_vopy-on-general-datasets) on the limitations of the basic monocular visual odometry approach implemented in `main_vo.py`. 
+
  
 
 ### Full SLAM
@@ -1206,6 +1210,7 @@ Many improvements and additional features are currently under development:
 - [x] GTSAM integration [WIP]
 - [ ] IMU integration
 - [ ] LIDAR integration
+- [ ] Integration of direct methods in the tracker
 - [x] XSt3r-based methods integration [WIP]
 - [x] Evaluation scripts 
 - [ ] More camera models

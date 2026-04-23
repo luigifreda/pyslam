@@ -7,12 +7,18 @@
   - [Clean reset](#clean-reset)
   - [Bad tracking performances](#bad-tracking-performances)
   - [Non-determinism and run-to-run variability](#non-determinism-and-run-to-run-variability)
-  - [Errors](#errors)
+  - [Limitations of `main_vo.py` on General Datasets](#limitations-of-main_vopy-on-general-datasets)
+      - [1. Degeneracy under pure or near-pure rotation](#1-degeneracy-under-pure-or-near-pure-rotation)
+      - [2. Small baseline / low parallax](#2-small-baseline--low-parallax)
+      - [3. Lack of temporal consistency (no BA)](#3-lack-of-temporal-consistency-no-ba)
+      - [4. No map / no re-observation of points](#4-no-map--no-re-observation-of-points)
+      - [5. No additional sensing (e.g., IMU or depth)](#5-no-additional-sensing-eg-imu-or-depth)
+  - [Terminal Errors message](#terminal-errors-message)
     - [*Aborted (core dumped)* or *Segmentation fault (core dumped)*](#aborted-core-dumped-or-segmentation-fault-core-dumped)
       - [Under mac](#under-mac)
     - [RED _ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts_](#red-error-pips-dependency-resolver-does-not-currently-take-into-account-all-the-packages-that-are-installed-this-behaviour-is-the-source-of-the-following-dependency-conflicts)
     - [Cannot import DelfFeature2D from pyslam.local\_features.feature\_delf](#cannot-import-delffeature2d-from-pyslamlocal_featuresfeature_delf)
-    - [ModuleNotFoundError: No module named `pyslam_utils`  (`glutils` , `sim3solver`  or `trajectory_tools`) not found](#modulenotfounderror-no-module-named-pyslam_utils--glutils--sim3solver--or-trajectory_tools-not-found)
+    - [ModuleNotFoundError: No module named `hamming` / `color_utils` / `pyslam_utils` / `glutils` / `sim3solver` / `trajectory_tools` /  not found](#modulenotfounderror-no-module-named-hamming--color_utils--pyslam_utils--glutils--sim3solver--trajectory_tools---not-found)
     - [_ImportError: /home/.../anaconda3/envs/pyslam/bin/../lib/libgcc\_s.so.1: version \`GCC\_12.0.0' not found (required by /lib/-linux-gnu/libhwy.so.1)_](#importerror-homeanaconda3envspyslambinliblibgcc_sso1-version-gcc_1200-not-found-required-by-lib-linux-gnulibhwyso1)
     - [_RuntimeError: The detected CUDA version (11.8) mismatches the version that was used to compile_](#runtimeerror-the-detected-cuda-version-118-mismatches-the-version-that-was-used-to-compile)
     - [_Gtk-ERROR \*\*: ... GTK+ 2.x symbols detected. Using GTK+ 2.x and GTK+ 3 in the same process is not supported_](#gtk-error---gtk-2x-symbols-detected-using-gtk-2x-and-gtk-3-in-the-same-process-is-not-supported)
@@ -98,7 +104,91 @@ See the related discussion [here](https://github.com/luigifreda/pyslam/issues/22
 
 --- 
 
-## Errors
+## Limitations of `main_vo.py` on General Datasets
+
+As explained in the main [README](../README.md), `main_vo.py` implements a **minimal monocular visual odometry (VO) pipeline**, focusing on the core geometric building blocks rather than a full SLAM system. In particular, it does **not** include:
+- point triangulation and persistent map management  
+- multi-view optimization (e.g., local bundle adjustment)  
+- motion priors (e.g., IMU)  
+
+At each time step $k$, the pipeline estimates the **relative pose** between two consecutive frames by computing the essential matrix and recovering $[R_{k-1,k}, t_{k-1,k}]$, where the translation is **normalized** $\|t_{k-1,k}\| = 1$. This implies that the system operates **up to an unknown scale**, and a ground-truth scale factor \(s\) is required to obtain a metrically consistent trajectory. The global pose is then obtained by incremental composition $C_k = C_{k-1} \cdot [R_{k-1,k}, s t_{k-1,k}]$
+
+The pipeline performs reasonably well on KITTI mainly because:
+- the camera undergoes **dominant forward motion** (non-zero baseline)  
+- **parallax is sufficient** between consecutive frames  
+- **pure rotations are rare** 
+- the scene contains a **good range of depths**
+
+These conditions make the **essential matrix estimation decently/well-constrained**, allowing a sufficiently stable recovery of both rotation and translation direction. On datasets like EuRoC or TUM, several fundamental limitations of this minimal approach become evident:
+
+#### 1. Degeneracy under pure or near-pure rotation
+The essential matrix constraint $\mathbf{x}_2^\top E \mathbf{x}_1 = 0$ becomes **ill-conditioned** when the translation is small or zero.
+
+- In the case of **pure rotation**, translation is **not observable at all**
+- The decomposition of $E$ yields an **arbitrary translation direction**
+- This leads to **scale drift and trajectory instability**
+
+#### 2. Small baseline / low parallax
+When inter-frame motion is small:
+- triangulation angles are very narrow  
+- depth becomes highly uncertain  
+- translation direction is poorly constrained  
+
+As a result:
+- even small noise in feature matching leads to **large pose errors**
+- scale estimation (even if injected externally) becomes inconsistent
+
+#### 3. Lack of temporal consistency (no BA)
+Since the system:
+- only uses **two-view geometry**
+- does **not refine poses jointly over a window**
+
+it cannot:
+- correct drift over time  
+- enforce multi-view geometric consistency  
+
+This makes it very sensitive to:
+- noisy matches  
+- outliers  
+- local degeneracies  
+
+#### 4. No map / no re-observation of points
+Without persistent 3D points:
+- there is **no re-use of past structure**
+- each frame pair is treated independently  
+
+This prevents:
+- stabilizing pose estimates using long-term constraints  
+- filtering inconsistent geometry over time  
+
+#### 5. No additional sensing (e.g., IMU or depth)
+Datasets like EuRoC are specifically designed for **visual-inertial and stereo odometry**:
+- **IMU measurements** and/or **stereo vision provide metric scale observability** and enable robust motion estimation, even under **low-parallax or rotational motion**
+- without these additional sources of information, **pure monocular VO becomes ill-posed or poorly conditioned** in many segments (e.g., pure rotation, very small baseline, or low-texture scenes)
+
+Similarly, TUM RGB-D provides depth, which:
+- removes scale ambiguity  
+- avoids degeneracy in translation estimation  
+
+In summary, `main_vo.py` is intentionally a **minimal and educational implementation** of monocular VO.  
+It works under **favorable motion conditions** (e.g., KITTI), but it is expected to fail when:
+
+- motion lacks sufficient translation  
+- parallax is small  
+- rotations dominate  
+- no multi-view optimization is available  
+
+For more challenging datasets (EuRoC, TUM) with degenerate or near-degenerate motions, a minimal two-view VO approach is insufficient. More complete methods are required, such as:
+- visual-inertial odometry (VIO)
+- stereo or RGB-D odometry
+- or SLAM systems with multi-view optimization (e.g., local bundle adjustment)
+
+These approaches provide additional constraints that make motion and scale estimation well-conditioned.
+
+
+--- 
+
+## Terminal Errors message
 
 ### *Aborted (core dumped)* or *Segmentation fault (core dumped)*
 
@@ -159,25 +249,33 @@ protoc -I=. --python_out=. delf/protos/*.proto
 
 --- 
 
-### ModuleNotFoundError: No module named `pyslam_utils`  (`glutils` , `sim3solver`  or `trajectory_tools`) not found
+### ModuleNotFoundError: No module named `hamming` / `color_utils` / `pyslam_utils` / `glutils` / `sim3solver` / `trajectory_tools` /  not found
 
-If you encounter an error like:
+If you encounter an error like the following one after installation:
 ```bash
-ModuleNotFoundError: No module named pyslam_utils not found
+ModuleNotFoundError: No module named haming not found
 ```
-(or for `glutils`, `sim3solver`, or `trajectory_tools`) after installation, follow these steps.
+or, similarly, one of the following modules `haming`, `glutils`, `sim3solver`, `trajectory_tools`, etc that are built inside the `cpp` folder is missing, follow these steps.
 - Verify the C++ build outputs: Check that the compiled .so libraries exist under `<pyslam>/cpp/lib`:
   ```bash
   cpp
   ├── lib
+  │   ├── color_utils.cpython-311-<your-arc>-linux-gnu.so
   │   ├── glutils.cpython-311-<your-arc>-linux-gnu.so
+  │   ├── hamming.cpython-311-<your-arc>-linux-gnu.so
   │   ├── pnpsolver.cpython-311-<your-arc>-linux-gnu.so
   │   ├── pyslam_utils.cpython-311-<your-arc>-linux-gnu.so        
   │   ├── sim3solver.cpython-311-<your-arc>-linux-gnu.so
   │   └── trajectory_tools.cpython-311-<your-arc>-linux-gnu.so
+  │   └── volumetric.cpython-311-x86_64-linux-gnu.so
   ```
   If any of these files are missing, the build did not complete successfully.
-- Confirm the custom OpenCV build is installed under `thirdparty/opencv` and that all libraries exist in `<pyslam-working-directory>/thirdparty/opencv/install/lib/`. 
+- Confirm the custom OpenCV build is installed under `thirdparty/opencv` and that all libraries exist in `<pyslam-working-directory>/thirdparty/opencv/install/lib/`. You can also run:
+  ```bash
+  cd <pyslam-working-directory>
+  . pyenv-activate.sh     # activate the Python environment
+  ./scripts/opencv_check.py
+  ```
 - Rebuild the C++ pybind11 libraries: Run the following commands from your working copy of `pyslam`:
   ```bash
   cd <pyslam-working-directory>

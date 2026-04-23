@@ -116,6 +116,8 @@ class Initializer(object):
     # N.B.4: as reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return the rotation
     # N.B.5: the OpenCV findEssentialMat function uses the five-point algorithm solver by D. Nister => hence it should work well in the degenerate planar cases
     def estimatePose(self, kpn_ref, kpn_cur):
+        kpn_ref = np.ascontiguousarray(np.asarray(kpn_ref)).reshape(-1, 2)
+        kpn_cur = np.ascontiguousarray(np.asarray(kpn_cur)).reshape(-1, 2)
         ransac_method = None
         try:
             ransac_method = cv2.USAC_MAGSAC
@@ -131,7 +133,12 @@ class Initializer(object):
             prob=kRansacProb,
             threshold=kRansacThresholdNormalized,
         )
-        _, R, t, mask = cv2.recoverPose(E, kpn_cur, kpn_ref, focal=1, pp=(0.0, 0.0))
+        E_arr = None if E is None else np.asarray(E)
+        if E_arr is None or E_arr.size < 9:
+            Printer.yellow("Initializer: ko - could not estimate a valid essential-matrix pose!")
+            return None
+        E_cv = np.ascontiguousarray(E_arr)
+        _, R, t, mask = cv2.recoverPose(E_cv, kpn_cur, kpn_ref, focal=1, pp=(0.0, 0.0))
         return poseRt(
             R, t.T
         )  # Trc  homogeneous transformation matrix with respect to 'ref' frame,  pr_= Trc * pc_
@@ -227,8 +234,13 @@ class Initializer(object):
                 self.num_failures += 1
                 return out, is_ok
 
+        # Some detectors can legitimately return no keypoints/descriptors.
+        # Treat missing arrays as zero features so initialization fails cleanly.
+        num_kps_ref = len(f_ref.kps) if f_ref.kps is not None else 0
+        num_kps_cur = len(f_cur.kps) if f_cur.kps is not None else 0
+
         # if the current frames do no have enough features exit
-        if len(f_ref.kps) < self.num_min_features or len(f_cur.kps) < self.num_min_features:
+        if num_kps_ref < self.num_min_features or num_kps_cur < self.num_min_features:
             Printer.yellow("Initializer: ko - not enough features!")
             self.num_failures += 1
             return out, is_ok
@@ -292,6 +304,10 @@ class Initializer(object):
             return out, is_ok
 
         Trc = self.estimatePose(kpsn_ref, kpsn_cur)
+        if Trc is None:
+            Printer.yellow("Initializer: ko - could not estimate a valid essential-matrix pose!")
+            self.num_failures += 1
+            return out, is_ok
         Tcr = inv_T(Trc)  # Tcr w.r.t. ref frame
         f_ref.update_pose(np.eye(4))
         f_cur.update_pose(Tcr)

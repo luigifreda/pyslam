@@ -129,5 +129,6 @@
     "--completion-style=detailed",
     "--header-insertion=iwyu",
     "--header-insertion-decorators"
-  ]
+  ],
+  "cmake.sourceDirectory": "${workspaceFolder}/thirdparty/pyibow"
 }

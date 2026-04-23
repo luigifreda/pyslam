@@ -247,8 +247,8 @@ Camera::Camera(const ConfigDict &config)
     // (images are rectified, so no distortion)
     if (sensor_type == SensorType::STEREO) {
         D = {0.0, 0.0, 0.0, 0.0, 0.0};
-        MSG_RED_WARN("Using stereo camera, images are automatically rectified, "
-                     "and DistCoef is set to [0,0,0,0,0]");
+        MSG_WARN("Using stereo camera, images are automatically rectified, "
+                 "and DistCoef is set to [0,0,0,0,0]");
     }
 
     // Check if distorted
@@ -558,7 +558,9 @@ void PinholeCamera::update_distortion_flag() {
 // Explicit template instantiations for CameraUtils methods used in Python bindings
 //===============================================================================================
 
-template MatNx2<float> pyslam::CameraUtils::unproject_points<float>(MatNx2Ref<float> uvs, Mat3Ref<float> Kinv);
-template MatNx2<double> pyslam::CameraUtils::unproject_points<double>(MatNx2Ref<double> uvs, Mat3Ref<double> Kinv);
+template MatNx2<float> pyslam::CameraUtils::unproject_points<float>(MatNx2Ref<float> uvs,
+                                                                    Mat3Ref<float> Kinv);
+template MatNx2<double> pyslam::CameraUtils::unproject_points<double>(MatNx2Ref<double> uvs,
+                                                                      Mat3Ref<double> Kinv);
 
 } // namespace pyslam

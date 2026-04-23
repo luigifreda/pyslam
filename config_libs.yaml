@@ -46,7 +46,7 @@ LIB_PATHS:
   crestereo_pytorch: thirdparty/crestereo_pytorch 
   gaussian_splatting: thirdparty/monogs
   mvdust3r: thirdparty/mvdust3r
-  mast3r: thirdparty/mast3r
+  mast3r: thirdparty/mast3r, thirdparty/mast3r/dust3r/croco
   vggt: thirdparty/vggt
   vggt_robust: thirdparty/vggt_robust
   eov_segmentation: thirdparty/eov_segmentation

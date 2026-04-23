@@ -9,7 +9,6 @@ import torch.multiprocessing as mp
 import yaml
 from munch import munchify
 
-import wandb
 from gaussian_splatting.scene.gaussian_model import GaussianModel
 from gaussian_splatting.utils.system_utils import mkdir_p
 from gui import gui_utils, slam_gui
@@ -20,6 +19,7 @@ from utils.logging_utils import Log
 from utils.multiprocessing_utils import FakeQueue
 from utils.slam_backend import BackEnd
 from utils.slam_frontend import FrontEnd
+from utils.wandb_utils import wandb, warn_if_wandb_unavailable
 
 
 class SLAM:
@@ -227,6 +227,7 @@ if __name__ == "__main__":
         config["Results"]["use_wandb"] = True
 
     if config["Results"]["save_results"]:
+        warn_if_wandb_unavailable(Log)
         mkdir_p(config["Results"]["save_dir"])
         current_datetime = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         path = config["Dataset"]["dataset_path"].split("/")

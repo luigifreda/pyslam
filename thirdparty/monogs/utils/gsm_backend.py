@@ -124,11 +124,22 @@ class GsmBackEnd(mp.Process):
     def initialize_map(self, cur_frame_idx, viewpoint):
         self.print("GsmBackEnd: Initializing map...")
         iterator = tqdm(range(1, self.init_itr_num + 1), desc="GsmBackEnd: Initializing map") if self.init_itr_num >= 100 else range(self.init_itr_num)
+        render_success = False
+        n_touched = None
+        render_pkg = None
         for mapping_iteration in iterator:
             self.iteration_count += 1
             render_pkg = render(
                 viewpoint, self.gaussians, self.pipeline_params, self.background
             )
+
+            # Safeguard: render may fail and return None depending on GPU/state
+            if render_pkg is None:
+                self.print(
+                    "GsmBackEnd: initialize_map - render returned None, aborting initialization."
+                )
+                # Abort initialization cleanly; nothing to record for this frame
+                return None
             (
                 image,
                 viewspace_point_tensor,
@@ -146,6 +157,7 @@ class GsmBackEnd(mp.Process):
                 render_pkg["opacity"],
                 render_pkg["n_touched"],
             )
+            render_success = True
             loss_init = get_loss_mapping(
                 self.config, image, depth, viewpoint, opacity, initialization=True
             )
@@ -174,6 +186,13 @@ class GsmBackEnd(mp.Process):
 
                 self.gaussians.optimizer.step()
                 self.gaussians.optimizer.zero_grad(set_to_none=True)
+
+        if not render_success or n_touched is None:
+            # No valid render iterations completed; nothing to record
+            self.print(
+                "GsmBackEnd: initialize_map - no successful render iterations, skipping occ_aware_visibility update."
+            )
+            return render_pkg
 
         self.occ_aware_visibility[cur_frame_idx] = (n_touched > 0).long()
         self.print(f"GsmBackEnd: Initialized map")

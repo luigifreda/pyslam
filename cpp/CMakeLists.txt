@@ -87,6 +87,16 @@ if(TBB_FOUND)
             endif()
         endif()
     endif()
+    # If TBB_INCLUDE_DIRS is empty but we have a modern target, query its
+    # interface include directories so that headers like <tbb/blocked_range.h>
+    # are visible to the compiler (this is important on macOS/Homebrew).
+    if(TARGET TBB::tbb AND NOT TBB_INCLUDE_DIRS)
+        get_target_property(_tbb_includes TBB::tbb INTERFACE_INCLUDE_DIRECTORIES)
+        if(_tbb_includes)
+            set(TBB_INCLUDE_DIRS ${_tbb_includes})
+            message(STATUS "Resolved TBB_INCLUDE_DIRS from TBB::tbb target: ${TBB_INCLUDE_DIRS}")
+        endif()
+    endif()
 else()
     message(WARNING "TBB not found. Parallelization will be disabled.")
     set(TBB_LINK_LIBS "")

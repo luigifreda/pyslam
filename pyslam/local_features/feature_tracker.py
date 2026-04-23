@@ -187,11 +187,11 @@ class FeatureTracker(object):
         self.feature_manager.set_normal_num_features()
 
     # out: keypoints and descriptors
-    def detectAndCompute(self, frame, mask):
+    def detectAndCompute(self, frame, mask=None):
         return None, None
 
     # out: FeatureTrackingResult()
-    def track(self, image_ref, image_cur, kps_ref, des_ref):
+    def track(self, image_ref, image_cur, kps_ref, des_ref, mask_ref=None, mask_cur=None):
         return FeatureTrackingResult()
 
 
@@ -248,7 +248,7 @@ class LkFeatureTracker(FeatureTracker):
         return self.feature_manager.detect(frame, mask), None
 
     # out: FeatureTrackingResult()
-    def track(self, image_ref, image_cur, kps_ref, des_ref=None):
+    def track(self, image_ref, image_cur, kps_ref, des_ref=None, mask_ref=None, mask_cur=None):
         kps_cur, st, err = cv2.calcOpticalFlowPyrLK(
             image_ref, image_cur, kps_ref, None, **self.lk_params
         )  # shape: [k,2] [k,1] [k,1]
@@ -331,8 +331,8 @@ class DescriptorFeatureTracker(FeatureTracker):
         return self.feature_manager.detectAndCompute(frame, mask)
 
     # out: FeatureTrackingResult()
-    def track(self, image_ref, image_cur, kps_ref, des_ref):
-        kps_cur, des_cur = self.detectAndCompute(image_cur)
+    def track(self, image_ref, image_cur, kps_ref, des_ref, mask_ref=None, mask_cur=None):
+        kps_cur, des_cur = self.detectAndCompute(image_cur, mask=mask_cur)
         # convert from list of keypoints to an array of points
         kps_cur = np.array([x.pt for x in kps_cur], dtype=np.float32)
         # Printer.orange(des_ref.shape)
@@ -412,7 +412,7 @@ class LoftrFeatureTracker(FeatureTracker):
         return None, None
 
     # out: FeatureTrackingResult()
-    def track(self, image_ref, image_cur, kps_ref=None, des_ref=None):
+    def track(self, image_ref, image_cur, kps_ref=None, des_ref=None, mask_ref=None, mask_cur=None):
         # Printer.orange(des_ref.shape)
         matching_result = self.matcher.match(
             image_ref, image_cur, des1=None, des2=None, kps1=None, kps2=None
@@ -503,7 +503,7 @@ class Mast3rFeatureTracker(FeatureTracker):
         return None, None
 
     # out: FeatureTrackingResult()
-    def track(self, image_ref, image_cur, kps_ref=None, des_ref=None):
+    def track(self, image_ref, image_cur, kps_ref=None, des_ref=None, mask_ref=None, mask_cur=None):
         # Printer.orange(des_ref.shape)
         matching_result = self.matcher.match(
             image_ref, image_cur, des1=None, des2=None, kps1=None, kps2=None

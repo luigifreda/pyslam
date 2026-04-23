@@ -87,7 +87,8 @@ py::tuple Frame::state_tuple(bool need_lock) const {
 
         // ---- images ----
         cvmat_to_numpy(img), cvmat_to_numpy(img_right), cvmat_to_numpy(depth_img),
-        cvmat_to_numpy(semantic_img), cvmat_to_numpy(semantic_instances_img),
+        cvmat_to_numpy(semantic_img), cvmat_to_numpy(semantic_instances_img), cvmat_to_numpy(mask),
+        cvmat_to_numpy(mask_right),
 
         // ---- misc stats ----
         is_keyframe, is_blurry, laplacian_var);
@@ -159,6 +160,25 @@ void Frame::restore_from_state(const py::tuple &t, bool need_lock) {
     int semantic_img_dtype = semantic_img_array.dtype().num() == NPY_INT32 ? CV_32S : CV_8U;
     semantic_img = numpy_to_cvmat(semantic_img_array, semantic_img_dtype);
     semantic_instances_img = numpy_to_cvmat(t[idx++].cast<py::array>(), CV_32S);
+    
+    auto mask_array = t[idx++].cast<py::array>();
+    if (mask_array && mask_array.ndim() != 0 && mask_array.request().size > 0) {
+        const int mask_dtype = mask_array.dtype().num();
+        if (mask_dtype != NPY_UINT8 && mask_dtype != NPY_BOOL) {
+            throw std::runtime_error("Frame::restore_from_state: mask must be numpy uint8 or bool");
+        }
+    }
+    mask = numpy_to_cvmat(mask_array, CV_8U);
+
+    auto mask_right_array = t[idx++].cast<py::array>();
+    if (mask_right_array && mask_right_array.ndim() != 0 && mask_right_array.request().size > 0) {
+        const int mask_right_dtype = mask_right_array.dtype().num();
+        if (mask_right_dtype != NPY_UINT8 && mask_right_dtype != NPY_BOOL) {
+            throw std::runtime_error("Frame::restore_from_state: mask_right must be numpy uint8 or "
+                                     "bool");
+        }
+    }
+    mask_right = numpy_to_cvmat(mask_right_array, CV_8U);
 
     // ---- misc stats ----
     is_keyframe = t[idx++].cast<bool>();

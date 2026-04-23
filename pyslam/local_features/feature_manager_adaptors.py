@@ -236,12 +236,31 @@ class PyramidAdaptor:
             self.inv_scale_factors[i] = 1.0 / self.scale_factors[i]
         # print('self.inv_scale_factors: ', self.inv_scale_factors)
 
+    # Build a pyramid of masks.
+    def _build_mask_pyramid(self, mask):
+        if mask is None:
+            return [None] * self.num_levels
+        mask_levels = [None] * self.num_levels
+        mask_shape = mask.shape[:2]
+        for i in range(self.num_levels):
+            pyr_shape = self.pyramid.imgs[i].shape[:2]
+            # Fast path: avoid interpolation when target shape already matches
+            # (commonly true at level 0 and with repeated shapes in small pyramids).
+            if pyr_shape == mask_shape:
+                mask_levels[i] = mask
+            else:
+                mask_levels[i] = cv2.resize(
+                    mask,
+                    (pyr_shape[1], pyr_shape[0]),
+                    interpolation=cv2.INTER_NEAREST,
+                )
+        return mask_levels
+
     # detect on 'unfiltered' pyramid images ('unfiltered' meanining depends on the selected pyramid type)
     def detect(self, frame, mask=None):
         if self.num_levels == 1:
             return self.detector.detect(frame, mask)
         else:
-            # TODO: manage mask
             if kVerbose:
                 print(
                     "PyramidAdaptor #levels:",
@@ -256,14 +275,15 @@ class PyramidAdaptor:
                     self.pyramid_type.name,
                 )
             self.pyramid.compute(frame)
+            mask_pyramid = self._build_mask_pyramid(mask)
             kps_all = []  # list are thread-safe
 
-            def detect_level(scale, pyr_cur, i):
+            def detect_level(scale, pyr_cur, pyr_mask, i):
                 kps = []
                 if self.block_adaptor is None:
-                    kps = self.detector.detect(pyr_cur)
+                    kps = self.detector.detect(pyr_cur, mask=pyr_mask)
                 else:
-                    kps = self.block_adaptor.detect(pyr_cur)
+                    kps = self.block_adaptor.detect(pyr_cur, mask=pyr_mask)
                 if kVerbose and False:
                     print("PyramidAdaptor - level", i, ", shape: ", pyr_cur.shape)
                 for kp in kps:
@@ -284,7 +304,8 @@ class PyramidAdaptor:
                 for i in range(0, self.num_levels):
                     scale = self.scale_factors[i]
                     pyr_cur = self.pyramid.imgs[i]
-                    detect_level(scale, pyr_cur, i)
+                    pyr_mask = mask_pyramid[i]
+                    detect_level(scale, pyr_cur, pyr_mask, i)
             else:
                 # print('parallel computations')
                 futures = []
@@ -292,7 +313,8 @@ class PyramidAdaptor:
                     for i in range(0, self.num_levels):
                         scale = self.scale_factors[i]
                         pyr_cur = self.pyramid.imgs[i]
-                        futures.append(executor.submit(detect_level, scale, pyr_cur, i))
+                        pyr_mask = mask_pyramid[i]
+                        futures.append(executor.submit(detect_level, scale, pyr_cur, pyr_mask, i))
                     wait(futures)  # wait all the task are completed
 
             return np.array(kps_all)
@@ -317,22 +339,23 @@ class PyramidAdaptor:
                     self.pyramid_type.name,
                 )
             self.pyramid.compute(frame)
+            mask_pyramid = self._build_mask_pyramid(mask)
             kps_all = []
             des_all = []
             kps_des_map = {}  # i -> (kps,des)
 
-            def detect_and_compute_level(scale, pyr_cur, pyr_cur_filtered, N, i):
+            def detect_and_compute_level(scale, pyr_cur, pyr_cur_filtered, pyr_mask, N, i):
                 kps = []
                 if self.block_adaptor is None:
                     # kps, des = self.detector.detectAndCompute(pyr_cur)
                     if self.is_detector_equal_to_descriptor:
-                        kps, des = self.detector.detectAndCompute(pyr_cur)
+                        kps, des = self.detector.detectAndCompute(pyr_cur, mask=pyr_mask)
                     else:
-                        kps = self.detector.detect(pyr_cur)
+                        kps = self.detector.detect(pyr_cur, mask=pyr_mask)
                         # print('description of filtered')
                         kps, des = self.descriptor.compute(pyr_cur_filtered, kps)
                 else:
-                    kps, des = self.block_adaptor.detectAndCompute(pyr_cur)
+                    kps, des = self.block_adaptor.detectAndCompute(pyr_cur, mask=pyr_mask)
                 if kVerbose and False:
                     print("PyramidAdaptor - level", i, ", shape: ", pyr_cur.shape)
                 for kp in kps:
@@ -352,8 +375,14 @@ class PyramidAdaptor:
                     scale = self.scale_factors[i]
                     pyr_cur = self.pyramid.imgs[i]
                     pyr_cur_filtered = self.pyramid.imgs_filtered[i]
+                    pyr_mask = mask_pyramid[i]
                     detect_and_compute_level(
-                        scale, pyr_cur, pyr_cur_filtered, self.num_features_per_level[i], i
+                        scale,
+                        pyr_cur,
+                        pyr_cur_filtered,
+                        pyr_mask,
+                        self.num_features_per_level[i],
+                        i,
                     )
             else:
                 # print('parallel computations')
@@ -363,12 +392,14 @@ class PyramidAdaptor:
                         scale = self.scale_factors[i]
                         pyr_cur = self.pyramid.imgs[i]
                         pyr_cur_filtered = self.pyramid.imgs_filtered[i]
+                        pyr_mask = mask_pyramid[i]
                         futures.append(
                             executor.submit(
                                 detect_and_compute_level,
                                 scale,
                                 pyr_cur,
                                 pyr_cur_filtered,
+                                pyr_mask,
                                 self.num_features_per_level[i],
                                 i,
                             )

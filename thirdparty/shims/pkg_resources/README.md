@@ -1,0 +1,1 @@
+This `pkg_resources` shim only handles `from pkg_resources import packaging` and is never on the critical path once imports succeed.

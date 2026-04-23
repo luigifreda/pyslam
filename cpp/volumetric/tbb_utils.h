@@ -21,11 +21,7 @@
 #include <memory>
 
 #ifdef TBB_FOUND
-#include <tbb/blocked_range.h>
-#include <tbb/concurrent_unordered_map.h>
 #include <tbb/global_control.h>
-#include <tbb/parallel_for.h>
-#include <tbb/parallel_for_each.h>
 #endif
 
 namespace volumetric {

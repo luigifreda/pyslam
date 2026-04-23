@@ -9,7 +9,7 @@ This package contains a custom **pybind11** module for **pySLAM**, wrapping addi
 
 First build and install gtsam along with its Python bindings:
 ```
-<pyslam_root>/install_gtsam.h
+<pyslam_root>/scripts/install_gtsam.h
 ```
 
 Then, open a terminal in the folder containing this document and run 

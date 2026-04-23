@@ -169,25 +169,39 @@ class Sim3 {
       Adjoint const Xi = adj(tau_phi_sigma);
       Adjoint const Xi2 = Xi * Xi;
       Adjoint const Xi4 = Xi2 * Xi2;
+      Adjoint const Xi6 = Xi2 * Xi4;
+      Adjoint const Xi7 = Xi * Xi6;
+      Adjoint const Xi8 = Xi4 * Xi4;
 
       return Adjoint::Identity() 
         + Scalar(1.0/2.0)*Xi
         + Scalar(1.0/6.0)*Xi2
         + Scalar(1.0/24.0)*Xi*Xi2
-        + Scalar(1.0/120.0)*Xi4;
-        + Scalar(1.0/720.0)*Xi*Xi4;
+        + Scalar(1.0/120.0)*Xi4
+        + Scalar(1.0/720.0)*Xi*Xi4
+        + Scalar(1.0/5040.0)*Xi6
+        + Scalar(1.0/40320.0)*Xi7
+        + Scalar(1.0/362880.0)*Xi8;
     }
 
     EIGEN_DEVICE_FUNC static Adjoint left_jacobian_inverse(Tangent const& tau_phi_sigma) {
       // left jacobian inverse
+      // Bernoulli-series approximation of J_l^{-1}:
+      //   J_l^{-1}(Xi) = I - 1/2 Xi + 1/12 Xi^2 - 1/720 Xi^4 + 1/30240 Xi^6 - ...
+      // This avoids explicit matrix inversion while improving large-motion behavior
+      // relative to the low-order truncation.
       Adjoint const Xi = adj(tau_phi_sigma);
       Adjoint const Xi2 = Xi * Xi;
       Adjoint const Xi4 = Xi2 * Xi2;
+      Adjoint const Xi6 = Xi2 * Xi4;
+      Adjoint const Xi8 = Xi4 * Xi4;
 
-      return Adjoint::Identity() 
-        - Scalar(1.0/2.0)*Xi
-        + Scalar(1.0/12.0)*Xi2
-        - Scalar(1.0/720.0)*Xi4;
+      return Adjoint::Identity()
+        - Scalar(1.0/2.0) * Xi
+        + Scalar(1.0/12.0) * Xi2
+        - Scalar(1.0/720.0) * Xi4
+        + Scalar(1.0/30240.0) * Xi6
+        - Scalar(1.0/1209600.0) * Xi8;
     }
 
     EIGEN_DEVICE_FUNC static Eigen::Matrix<Scalar,3,7> act_jacobian(Point const& p) {

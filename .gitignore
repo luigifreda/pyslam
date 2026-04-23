@@ -19,6 +19,8 @@ map.json
 config.pyc 
 
 private/
+test/private
+data/videos/private
 
 thirdparty/opencv-python
 thirdparty/opencv

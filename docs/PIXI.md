@@ -42,15 +42,18 @@ Reference: https://pixi.sh/latest/#installation
 ### Activate pixi shell 
 
 From the root folder of this repository, run
-```
+```bash
 pixi shell 
 ```
 
 ### Launch the `pyslam` install script 
-Then run
+
+Then, from the root folder, run
+```bash
+./install_all.sh
 ```
-./scripts/install_all_pixi.sh
-```
+
+This script will prepare the pixi-dedicated `pyslam` environment, and build the required thirdparty packages. Under the hood, the script `install_all.sh` calls the pixi-specific script `scripts/install_all_pixi.sh`. 
 
 ### Launch a main `pyslam` script
 
