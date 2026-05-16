@@ -69,11 +69,11 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 # 5. install pip packages: some unresolved dep conflicts found in requirement-pip3.txt may be managed by the following command: 
 . $SCRIPTS_DIR/install_pip3_packages.sh $EXTERNAL_OPTIONS
 
-# 6. build and install cpp stuff 
-. $SCRIPTS_DIR/install_cpp.sh $EXTERNAL_OPTIONS                    # use . in order to inherit python env configuration and other environment vars 
-
-# 7. build and install thirdparty 
+# 6. build and install thirdparty 
 . $SCRIPTS_DIR/install_thirdparty.sh  $EXTERNAL_OPTIONS            # use . in order to inherit python env configuration and other environment vars 
+
+# 7. build and install cpp stuff 
+. $SCRIPTS_DIR/install_cpp.sh $EXTERNAL_OPTIONS                    # use . in order to inherit python env configuration and other environment vars 
 
 # 8. install tools for semantics
 # HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
