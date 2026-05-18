@@ -47,6 +47,15 @@ if [[ $OSTYPE == "darwin"* ]]; then
     unset CC CXX CFLAGS CXXFLAGS LDFLAGS CPPFLAGS SDKROOT CONDA_BUILD_SYSROOT CONDA_BUILD_CROSS_COMPILATION
     unset PKG_CONFIG_PATH DYLD_LIBRARY_PATH
 
+    # Homebrew minizip installs unzip.h under include/minizip/ (version-independent path)
+    if [[ "$ARCH" == "arm64" ]]; then
+        HOMEBREW_PREFIX="/opt/homebrew"
+    else
+        HOMEBREW_PREFIX="/usr/local"
+    fi
+    MINIZIP_PREFIX=$(brew --prefix minizip 2>/dev/null || echo "$HOMEBREW_PREFIX/opt/minizip")
+    MINIZIP_INCLUDE="${MINIZIP_PREFIX}/include/minizip"
+
     # Ask Xcode for the proper macOS SDK path (fallback to default if unavailable)
     MAC_SYSROOT=$(xcrun --show-sdk-path 2>/dev/null || echo "")
     if [[ "$ARCH" == "arm64" ]]; then
@@ -67,10 +76,10 @@ if [[ $OSTYPE == "darwin"* ]]; then
         -DBUILD_WEBRTC=OFF"
         
         # Set library paths for Homebrew on Apple Silicon
-        export LDFLAGS="-L/opt/homebrew/opt/openblas/lib -L/opt/homebrew/lib"
-        export CPPFLAGS="-I/opt/homebrew/opt/openblas/include -I/opt/homebrew/Cellar/minizip/1.3.1/include/minizip/ -I/opt/homebrew/include/libpng16"
-        export CPLUS_INCLUDE_PATH="/opt/homebrew/opt/openblas/include:/opt/homebrew/Cellar/minizip/1.3.1/include/minizip/"
-        export LIBRARY_PATH="/opt/homebrew/opt/openblas/lib"
+        export LDFLAGS="-L/opt/homebrew/opt/openblas/lib -L/opt/homebrew/lib -L${MINIZIP_PREFIX}/lib"
+        export CPPFLAGS="-I/opt/homebrew/opt/openblas/include -I${MINIZIP_INCLUDE} -I/opt/homebrew/include/libpng16"
+        export CPLUS_INCLUDE_PATH="/opt/homebrew/opt/openblas/include:${MINIZIP_INCLUDE}"
+        export LIBRARY_PATH="/opt/homebrew/opt/openblas/lib:${MINIZIP_PREFIX}/lib"
     else
         # Intel Mac
         MAC_OPTIONS="-DCMAKE_C_COMPILER=/usr/bin/clang \
@@ -79,10 +88,10 @@ if [[ $OSTYPE == "darwin"* ]]; then
         -DCMAKE_FIND_FRAMEWORK=LAST \
         -DCMAKE_FIND_APPBUNDLE=LAST"
         
-        export LDFLAGS="-L/usr/local/opt/openblas/lib -L/usr/local/lib"
-        export CPPFLAGS="-I/usr/local/opt/openblas/include -I/usr/local/Cellar/minizip/1.3.1/include/minizip/ -I/usr/local/include/libpng16"
-        export CPLUS_INCLUDE_PATH="/usr/local/opt/openblas/include:/usr/local/Cellar/minizip/1.3.1/include/minizip/"
-        export LIBRARY_PATH="/usr/local/opt/openblas/lib"
+        export LDFLAGS="-L/usr/local/opt/openblas/lib -L/usr/local/lib -L${MINIZIP_PREFIX}/lib"
+        export CPPFLAGS="-I/usr/local/opt/openblas/include -I${MINIZIP_INCLUDE} -I/usr/local/include/libpng16"
+        export CPLUS_INCLUDE_PATH="/usr/local/opt/openblas/include:${MINIZIP_INCLUDE}"
+        export LIBRARY_PATH="/usr/local/opt/openblas/lib:${MINIZIP_PREFIX}/lib"
     fi
 
     # Set CMAKE_SYSROOT if we have a valid SDK path
@@ -115,6 +124,7 @@ if [ ! -d open3d ]; then
     # - ExternalProject CMAKE_OSX_ARCHITECTURES inheritance
     # - Poisson SparseMatrix.inl compilation fix
     # - Pybind export symbols cleanup
+    # - Homebrew minizip include path (unzip.h)
     print_blue "Applying Open3D patches..."
     # Use --3way to handle cases where patch might already be partially applied
     # Suppress trailing whitespace warnings (harmless) but preserve git apply exit code
@@ -161,7 +171,11 @@ if [ ! -d install ]; then
     # Initialize empty for Linux
     MAC_CXX_FLAGS=""
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        MAC_CXX_FLAGS="-Wno-error=unused-variable"
+        # VTK 9.6+ deprecations (e.g. vtkCellArray::InputArrayList) must not fail -Werror builds
+        MAC_CXX_FLAGS="-Wno-error=unused-variable -Wno-error=deprecated-declarations"
+        if [[ -n "${MINIZIP_INCLUDE:-}" && -d "${MINIZIP_INCLUDE}" ]]; then
+            MAC_CXX_FLAGS="$MAC_CXX_FLAGS -I${MINIZIP_INCLUDE}"
+        fi
         if [[ -n "$MAC_SYSROOT" ]]; then
             # Explicitly set sysroot and ensure we use libc++ (macOS standard library)
             MAC_CXX_FLAGS="$MAC_CXX_FLAGS -isysroot $MAC_SYSROOT -stdlib=libc++"
@@ -337,6 +351,7 @@ if [ ! -d install ]; then
 
         # macOS: Use system packages for problematic dependencies
         CMAKE_CMD="cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=OFF -DBUILD_SHARED_LIBS=ON \
+        -DWITH_MINIZIP=ON \
         -DUSE_SYSTEM_ASSIMP=ON -DUSE_SYSTEM_VTK=ON -DUSE_SYSTEM_BLAS=$USE_SYSTEM_BLAS_VALUE -DUSE_SYSTEM_EIGEN3=ON \
         -DUSE_SYSTEM_PNG=ON -DUSE_SYSTEM_TBB=ON -DUSE_SYSTEM_EMBREE=ON \
         -DUSE_SYSTEM_CURL=$USE_SYSTEM_CURL_VALUE \
