@@ -91,6 +91,8 @@ if [ "$CUDA_VERSION" != "0" ]; then
     pip install --no-build-isolation ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
     pip install --no-build-isolation ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
 else
+    pip install faiss-cpu
+
     print_yellow "Skipping MonoGS since CUDA_VERSION is 0"
 fi 
 

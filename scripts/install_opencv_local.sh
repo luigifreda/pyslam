@@ -563,6 +563,13 @@ if [ ! -f $OPENCV_CORE_LIB ]; then
     fi
     echo "entering opencv"
     cd opencv
+
+    # macOS: patch opencv_contrib viz for VTK 9.6+ / recent Xcode (missing <iostream>)
+    if [[ "$OSTYPE" == "darwin"* ]] && [[ -d "opencv_contrib-$OPENCV_VERSION" ]]; then
+        bash "$SCRIPT_DIR_/opencv/patch_opencv_contrib_mac_viz.sh" \
+            "$(pwd)/opencv_contrib-$OPENCV_VERSION"
+    fi
+    
     mkdir -p build
     mkdir -p install
     cd build
