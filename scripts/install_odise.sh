@@ -30,11 +30,20 @@ if [ ! -d "odise" ]; then
     cd ..
 
     pip install --no-build-isolation ./odise/
-    
-    pip install --no-build-isolation "xformers>=0.0.16"
+fi
 
+# xformers is optional for ODISE (README: "Optional ... for efficient transformer").
+# On macOS there are no prebuilt wheels; building from source fails with Apple clang (-fopenmp).
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    print_yellow "Skipping xformers on macOS (optional for ODISE; not supported by Apple clang)"
+elif ! python3 -c "import xformers" 2>/dev/null; then
+    print_blue "Installing optional xformers for ODISE..."
+    pip install --no-build-isolation "xformers>=0.0.16" || \
+        print_yellow "xformers install failed (optional for ODISE; inference still works without it)"
+fi
 
-    # install back kornia target version since the required stable-diffusion-sdkit requires kornia=0.6.0 and downgrades it 
+if [ -d "odise" ]; then
+    # install back kornia target version since stable-diffusion-sdkit requires kornia=0.6.0 and downgrades it
     pip install --upgrade kornia==0.8.2
 fi
 

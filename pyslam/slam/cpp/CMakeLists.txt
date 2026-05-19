@@ -74,8 +74,24 @@ set(PYSLAM_SEMANTICS_SRC ${PYSLAM_SRC}/semantics/cpp)
 # Find required packages
 #=======================================
 
-find_package(OpenCV REQUIRED)
+# Prefer the repo-local OpenCV when OpenCV_DIR was not passed (e.g. cmake .. without build.sh).
+if(NOT OpenCV_DIR)
+    set(_pyslam_default_opencv_dir "${PYSLAM_ROOT}/thirdparty/opencv/install/lib/cmake/opencv4")
+    if(EXISTS "${_pyslam_default_opencv_dir}/OpenCVConfig.cmake")
+        set(OpenCV_DIR "${_pyslam_default_opencv_dir}" CACHE PATH "PYSLAM: OpenCVConfig.cmake under thirdparty/opencv/install")
+        message(STATUS "Defaulting OpenCV_DIR to thirdparty build: ${OpenCV_DIR}")
+    endif()
+endif()
+
+find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d features2d flann imgcodecs)
 message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
+message(STATUS "OpenCV_LIBS (cpp_core links these only; avoids pulling opencv_dnn/protobuf into Python): ${OpenCV_LIBS}")
+message(STATUS "OpenCV_DIR: ${OpenCV_DIR}")
+
+# .../install/lib/cmake/opencv4 -> .../install/lib
+get_filename_component(_pyslam_opencv_cmake_parent "${OpenCV_DIR}" DIRECTORY)
+get_filename_component(OpenCV_LIB_DIR "${_pyslam_opencv_cmake_parent}" DIRECTORY)
+message(STATUS "OpenCV_LIB_DIR: ${OpenCV_LIB_DIR}")
 
 find_package(Eigen3 REQUIRED)
 # Modern CMake provides Eigen3::Eigen target, older versions use variables
@@ -99,7 +115,100 @@ if(NOT EIGEN3_INCLUDE_DIR)
     message(FATAL_ERROR "Eigen3 include directory not found. Please install Eigen3 or ensure it's in your system paths.")
 endif()
 message(STATUS "EIGEN3_INCLUDE_DIR: ${EIGEN3_INCLUDE_DIR}")
-find_package(TBB REQUIRED)
+
+# ---------------------------------------------------------------------------
+# TBB: use the *same* libtbb that libopencv_core is linked against.
+# Otherwise find_package(TBB) may pick conda/Homebrew first and you get two
+# incompatible TBB/OpenCV stacks at runtime (often segfault on import).
+# ---------------------------------------------------------------------------
+set(PYSLAM_TBB_LIB_DIR "")
+set(PYSLAM_TBB_FROM_OPENCV "")
+file(GLOB _pyslam_opencv_core_glob "${OpenCV_LIB_DIR}/libopencv_core*${CMAKE_SHARED_LIBRARY_SUFFIX}")
+if(_pyslam_opencv_core_glob)
+    list(SORT _pyslam_opencv_core_glob)
+    list(GET _pyslam_opencv_core_glob 0 _pyslam_opencv_core_path)
+    if(APPLE)
+        execute_process(
+            COMMAND sh -c "otool -L '${_pyslam_opencv_core_path}' 2>/dev/null | sed -n 's/^[[:space:]]\\([^[:space:]]*tbb[^[:space:]]*\\).*/\\1/p' | head -1"
+            OUTPUT_VARIABLE PYSLAM_TBB_FROM_OPENCV
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        if(PYSLAM_TBB_FROM_OPENCV MATCHES "^@rpath/")
+            string(REGEX REPLACE "^@rpath/" "" _pyslam_tbb_relpath "${PYSLAM_TBB_FROM_OPENCV}")
+            if(EXISTS "${OpenCV_LIB_DIR}/${_pyslam_tbb_relpath}")
+                set(PYSLAM_TBB_FROM_OPENCV "${OpenCV_LIB_DIR}/${_pyslam_tbb_relpath}")
+            elseif(DEFINED ENV{CONDA_PREFIX} AND EXISTS "$ENV{CONDA_PREFIX}/lib/${_pyslam_tbb_relpath}")
+                set(PYSLAM_TBB_FROM_OPENCV "$ENV{CONDA_PREFIX}/lib/${_pyslam_tbb_relpath}")
+            endif()
+        elseif(PYSLAM_TBB_FROM_OPENCV MATCHES "^@loader_path/")
+            get_filename_component(_ocv_core_dir "${_pyslam_opencv_core_path}" DIRECTORY)
+            string(REGEX REPLACE "^@loader_path" "${_ocv_core_dir}" PYSLAM_TBB_FROM_OPENCV "${PYSLAM_TBB_FROM_OPENCV}")
+        endif()
+    elseif(UNIX)
+        execute_process(
+            COMMAND sh -c "ldd '${_pyslam_opencv_core_path}' 2>/dev/null | awk '/libtbb/ {print $3; exit}'"
+            OUTPUT_VARIABLE PYSLAM_TBB_FROM_OPENCV
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+    endif()
+endif()
+
+if(PYSLAM_TBB_FROM_OPENCV AND EXISTS "${PYSLAM_TBB_FROM_OPENCV}")
+    get_filename_component(PYSLAM_TBB_LIB_DIR "${PYSLAM_TBB_FROM_OPENCV}" DIRECTORY)
+    get_filename_component(_pyslam_tbb_prefix "${PYSLAM_TBB_LIB_DIR}" DIRECTORY)
+    set(TBB_INCLUDE_DIRS "${_pyslam_tbb_prefix}/include")
+    add_library(pyslam_tbb_from_opencv SHARED IMPORTED)
+    set_target_properties(
+        pyslam_tbb_from_opencv
+        PROPERTIES IMPORTED_LOCATION "${PYSLAM_TBB_FROM_OPENCV}"
+                   INTERFACE_INCLUDE_DIRECTORIES "${TBB_INCLUDE_DIRS}"
+    )
+    set(TBB_LINK_LIBS pyslam_tbb_from_opencv)
+    message(STATUS "Using TBB matched to local OpenCV (from libopencv_core): ${PYSLAM_TBB_FROM_OPENCV}")
+else()
+    if(PYSLAM_TBB_FROM_OPENCV)
+        message(WARNING "Could not resolve TBB path from OpenCV (${PYSLAM_TBB_FROM_OPENCV}); falling back to find_package(TBB)")
+    endif()
+    find_package(TBB REQUIRED)
+    if(TARGET TBB::tbb)
+        message(STATUS "Using TBB::tbb target")
+        set(TBB_LINK_LIBS TBB::tbb)
+    elseif(TBB_LIBRARIES)
+        message(STATUS "Using TBB_LIBRARIES: ${TBB_LIBRARIES}")
+        set(TBB_LINK_LIBS ${TBB_LIBRARIES})
+    else()
+        find_library(TBB_LIB tbb PATHS ${TBB_ROOT}/lib ${TBB_ROOT}/lib64 /usr/lib /usr/local/lib)
+        if(TBB_LIB)
+            message(STATUS "Found TBB library: ${TBB_LIB}")
+            set(TBB_LINK_LIBS ${TBB_LIB})
+        else()
+            find_package(PkgConfig QUIET)
+            if(PKG_CONFIG_FOUND)
+                pkg_check_modules(TBB_PKG QUIET tbb)
+                if(TBB_PKG_FOUND)
+                    set(TBB_LINK_LIBS ${TBB_PKG_LIBRARIES})
+                    if(NOT TBB_INCLUDE_DIRS)
+                        set(TBB_INCLUDE_DIRS ${TBB_PKG_INCLUDE_DIRS})
+                    endif()
+                    message(STATUS "Found TBB via pkg-config: ${TBB_LINK_LIBS}")
+                endif()
+            endif()
+            if(NOT TBB_LINK_LIBS)
+                message(FATAL_ERROR "TBB found but no libraries located")
+            endif()
+        endif()
+    endif()
+    if(TARGET TBB::tbb AND NOT TBB_INCLUDE_DIRS)
+        get_target_property(_tbb_includes TBB::tbb INTERFACE_INCLUDE_DIRECTORIES)
+        if(_tbb_includes)
+            set(TBB_INCLUDE_DIRS ${_tbb_includes})
+            message(STATUS "Resolved TBB_INCLUDE_DIRS from TBB::tbb target: ${TBB_INCLUDE_DIRS}")
+        endif()
+    endif()
+endif()
+
+message(STATUS "TBB include: ${TBB_INCLUDE_DIRS}")
+message(STATUS "TBB link libs: ${TBB_LINK_LIBS}")
 
 # boost 
 find_package(Boost REQUIRED COMPONENTS thread filesystem)
@@ -226,7 +335,7 @@ set(CPP_CORE_LINK_LIBRARIES
     ${OpenCV_LIBS}
     ${EIGEN3_LIBRARIES}
     ${G2O_LIBRARIES}
-    ${TBB_LIBRARIES}
+    ${TBB_LINK_LIBS}
     gtsam  
     ${Boost_LIBRARIES}
     nlohmann_json::nlohmann_json
@@ -401,8 +510,15 @@ else()
 endif()
 
 if (USE_PYTHON)
-    target_link_libraries(cpp_core_lib PRIVATE ${Python_LIBRARIES})
-    target_include_directories(cpp_core_lib SYSTEM PRIVATE ${Python_INCLUDE_DIRS})
+    # On macOS, do not link libpython into the extension: resolve Python symbols from
+    # the embedding interpreter (-undefined dynamic_lookup). Linking libpython.dylib
+    # explicitly often duplicates runtime state and crashes in take_gil during PyInit.
+    if(APPLE)
+        target_include_directories(cpp_core_lib SYSTEM PRIVATE ${Python_INCLUDE_DIRS})
+    else()
+        target_link_libraries(cpp_core_lib PRIVATE ${Python_LIBRARIES})
+        target_include_directories(cpp_core_lib SYSTEM PRIVATE ${Python_INCLUDE_DIRS})
+    endif()
     if(NUMPY_INCLUDE_DIR)
         target_include_directories(cpp_core_lib SYSTEM PRIVATE ${NUMPY_INCLUDE_DIR})
     endif()
@@ -438,8 +554,12 @@ if (USE_PYTHON)
     endif()
     target_link_libraries(cpp_core PRIVATE
         ${CPP_CORE_LINK_LIBRARIES}
-        ${Python_LIBRARIES}
     )
+    if(APPLE)
+        target_link_options(cpp_core PRIVATE "LINKER:-undefined,dynamic_lookup")
+    else()
+        target_link_libraries(cpp_core PRIVATE ${Python_LIBRARIES})
+    endif()
 
     # Treat Eigen headers as SYSTEM to silence warnings originating from Eigen itself
     if(TARGET Eigen3::Eigen)
@@ -458,9 +578,22 @@ if (USE_PYTHON)
         PYBIND11_DETAILED_ERROR_MESSAGES
     )
 
-    # Set output directory
+    # Prefer OpenCV + GTSAM (+ matched TBB) in the loader path before any RPATH
+    # entries inherited from Python/conda (avoids loading a second OpenCV/TBB).
+    set(_pyslam_cpp_core_rpath "${OpenCV_LIB_DIR};${PYSLAM_ROOT}/thirdparty/gtsam_local/install/lib")
+    if(PYSLAM_TBB_LIB_DIR)
+        set(_pyslam_cpp_core_rpath "${_pyslam_cpp_core_rpath};${PYSLAM_TBB_LIB_DIR}")
+    elseif(TARGET TBB::tbb)
+        get_target_property(_tbb_imported_loc TBB::tbb IMPORTED_LOCATION)
+        if(_tbb_imported_loc)
+            get_filename_component(_tbb_imported_dir "${_tbb_imported_loc}" DIRECTORY)
+            set(_pyslam_cpp_core_rpath "${_pyslam_cpp_core_rpath};${_tbb_imported_dir}")
+        endif()
+    endif()
     set_target_properties(cpp_core PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        INSTALL_RPATH "${_pyslam_cpp_core_rpath}"
+        BUILD_WITH_INSTALL_RPATH TRUE
     )
 
 endif()

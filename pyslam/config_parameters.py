@@ -28,13 +28,29 @@ kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = os.path.join(kScriptFolder, "..")
 
 
+def _use_cpp_core_from_env(default: bool) -> bool:
+    """Read PYSLAM_USE_CPP before any code imports pyslam.slam.cpp (native cpp_core)."""
+    v = os.environ.get("PYSLAM_USE_CPP")
+    if v is None:
+        return default
+    s = v.strip().lower()
+    if s in ("false", "0", "no", "off"):
+        return False
+    if s in ("true", "1", "yes", "on"):
+        return True
+    return default
+
+
 # List of shared static parameters for configuring SLAM modules
 class Parameters:
 
     # ================================================================
     # C++ core
     # ================================================================
-    USE_CPP_CORE = True  # True: use the C++ core; False: use the Python core
+    # True: use the C++ core; False: use the Python core.
+    # Override without editing this file: PYSLAM_USE_CPP=false (e.g. if cpp_core
+    # was built against different OpenCV/TBB than your conda env and segfaults on import).
+    USE_CPP_CORE = _use_cpp_core_from_env(default=True)
 
     # ================================================================
     # Logs

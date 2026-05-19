@@ -16,16 +16,7 @@ ROOT_DIR="$SCRIPT_DIR_/.."
 
 # ====================================================
 
-PYTHON_BIN="${PYTHON:-python}"
-
-if ! command -v "$PYTHON_BIN" &> /dev/null; then
-    if command -v python3 &> /dev/null; then
-        PYTHON_BIN="python3"
-    else
-        echo "ERROR: neither 'python' nor 'python3' was found in PATH."
-        exit 1
-    fi
-fi
+PYTHON_BIN=$(get_python_exe)
 
 # This script avoids the following error by checking if the detectron2 C++ extension is loaded correctly:
 #  Detectron2 C++ extension failed to load. This usually means it was compiled against a different PyTorch version. Rebuild detectron2 after installing the desired torch/torchvision versions, for example:
@@ -34,6 +25,9 @@ fi
 
 function print_detectron_fix_hint() {
     print_yellow "Recommended fix:"
+    print_yellow "  $SCRIPT_DIR_/install_pip3_torch.sh   # if torch is missing"
+    print_yellow "  $SCRIPT_DIR_/install_detectron2.sh"
+    print_yellow "Or manually:"
     print_yellow "  cd \"$ROOT_DIR/thirdparty/detectron2\""
     print_yellow "  \"$PYTHON_BIN\" -m pip install --no-build-isolation -e . --force-reinstall"
     print_yellow "Make sure you rebuild detectron2 after changing torch/torchvision."
@@ -83,7 +77,8 @@ try:
     print(f"torch cuda version: {getattr(torch.version, 'cuda', None)}")
     print(f"torch cuda available: {torch.cuda.is_available()}")
 except Exception as exc:
-    print(f"Warning: failed to import torch: {exc}")
+    print(f"ERROR: torch is not installed: {exc}")
+    sys.exit(1)
 
 try:
     import detectron2
@@ -124,10 +119,16 @@ function rebuild_detectron() {
         return 1
     fi
 
-    cd "$ROOT_DIR/thirdparty/detectron2"
-    reapply_detectron_patch_if_needed
-    "$PYTHON_BIN" -m pip install --no-build-isolation -e . --force-reinstall
-    "$PYTHON_BIN" -m pip install  "numpy<2" --force-reinstall
+    ensure_pip "$PYTHON_BIN" || return 1
+
+    if ! "$PYTHON_BIN" -c "import torch" 2>/dev/null; then
+        print_red "ERROR: torch is not installed in ${PYTHON_BIN}."
+        print_yellow "Run $SCRIPT_DIR_/install_pip3_torch.sh first."
+        return 1
+    fi
+
+    "$SCRIPT_DIR_/install_detectron2.sh"
+    "$PYTHON_BIN" -m pip install "numpy<2" --force-reinstall
     print_green "detectron2 C++ extension has been rebuilt."
 }
 
@@ -138,7 +139,7 @@ fi
 print_red "detectron2 check failed."
 print_detectron_fix_hint
 
-rebuild_detectron
+rebuild_detectron || exit 1
 
 print_blue "Rechecking detectron2 after rebuild..."
 check_detectron

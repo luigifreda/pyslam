@@ -57,7 +57,11 @@ fi
 
 # ====================================================
 
-ubuntu_version=$(lsb_release -rs | cut -d. -f1)
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    ubuntu_version=$(lsb_release -rs | cut -d. -f1)
+else
+    ubuntu_version=""
+fi
 
 # Check if CC is set and available, otherwise use default gcc
 if command -v "$CC" &> /dev/null; then
@@ -92,7 +96,15 @@ print_blue '================================================'
 print_blue "Installing gtsam from source"
 print_blue '================================================'
 
-PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
+# Prefer the active conda/venv python (set by install_all_conda.sh via pyenv-activate.sh)
+if [[ -n "$CONDA_PREFIX" && -x "$CONDA_PREFIX/bin/python" ]]; then
+    PYTHON_EXE="$CONDA_PREFIX/bin/python"
+else
+    PYTHON_EXE=$(which python)
+fi
+echo "Using PYTHON_EXE: $PYTHON_EXE"
+
+PYTHON_VERSION=$($PYTHON_EXE -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
 
 
 WITH_MARCH_NATIVE=ON
@@ -103,6 +115,9 @@ if [[ "$PIXI_ACTIVATED" == true ]]; then
     WITH_MARCH_NATIVE=OFF
 fi
 echo "WITH_MARCH_NATIVE: $WITH_MARCH_NATIVE"
+
+# gtwrap (GTSAM Python bindings) needs pyparsing at build time (normally installed by install_pip3_packages.sh)
+ensure_python_package "$PYTHON_EXE" "pyparsing>=2.4.6" pyparsing || exit 1
 
 cd thirdparty
 if [ ! -d gtsam_local ]; then
@@ -129,7 +144,7 @@ if [[ ! -f "$TARGET_GTSAM_LIB" ]]; then
         # Ubuntu 24.04 requires CMake 3.22 or higher
         GTSAM_OPTIONS+=" -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
     fi
-    GTSAM_OPTIONS+=" -DGTSAM_THROW_CHEIRALITY_EXCEPTION=OFF -DCMAKE_PYTHON_EXECUTABLE=$(which python) -DGTSAM_PYTHON_VERSION=$PYTHON_VERSION"
+    GTSAM_OPTIONS+=" -DGTSAM_THROW_CHEIRALITY_EXCEPTION=OFF -DCMAKE_PYTHON_EXECUTABLE=$PYTHON_EXE -DGTSAM_PYTHON_VERSION=$PYTHON_VERSION"
     if [[ "$OSTYPE" == darwin* ]]; then
         GTSAM_OPTIONS+=" -DGTSAM_WITH_TBB=OFF"
     fi 

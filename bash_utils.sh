@@ -124,6 +124,73 @@ function install_pip_packages(){
     done
 }
 
+# Return the Python executable for the active pySLAM environment.
+# Prefers $CONDA_PREFIX/bin/python when using conda (avoids pyenv shims on PATH).
+function get_python_exe(){
+    if [[ -n "$CONDA_PREFIX" && -x "$CONDA_PREFIX/bin/python" ]]; then
+        echo "$CONDA_PREFIX/bin/python"
+    elif [[ -n "${PYTHON:-}" && -x "$(command -v "$PYTHON" 2>/dev/null)" ]]; then
+        command -v "$PYTHON"
+    elif command -v python3 &>/dev/null; then
+        command -v python3
+    else
+        command -v python
+    fi
+}
+
+# Ensure pip is available for PYTHON_EXE (bootstrap with ensurepip or conda if needed).
+function ensure_pip(){
+    local python_exe="${1:-$(get_python_exe)}"
+
+    if "$python_exe" -m pip --version &>/dev/null; then
+        return 0
+    fi
+
+    print_yellow "pip is missing for ${python_exe}; bootstrapping..."
+
+    if "$python_exe" -m ensurepip --upgrade &>/dev/null; then
+        "$python_exe" -m pip install --upgrade pip setuptools wheel
+        return 0
+    fi
+
+    if [[ -n "$CONDA_PREFIX" ]] && command -v conda &>/dev/null; then
+        conda install -y -p "$CONDA_PREFIX" pip
+        return 0
+    fi
+
+    print_red "ERROR: cannot bootstrap pip for ${python_exe}"
+    return 1
+}
+
+# Ensure a Python package is importable; install via pip or conda if missing.
+# Usage: ensure_python_package PYTHON_EXE "pyparsing>=2.4.6" pyparsing
+function ensure_python_package(){
+    local python_exe="$1"
+    local pip_spec="$2"
+    local import_name="${3:-${pip_spec%%[<>= ]*}}"
+
+    if "$python_exe" -c "import ${import_name}" 2>/dev/null; then
+        return 0
+    fi
+
+    print_blue "Installing ${import_name} for ${python_exe}..."
+
+    if "$python_exe" -m pip --version &>/dev/null; then
+        "$python_exe" -m pip install "$pip_spec"
+    elif [[ -n "$CONDA_PREFIX" ]] && command -v conda &>/dev/null; then
+        print_yellow "pip not available in ${python_exe}; installing ${import_name} via conda..."
+        conda install -y -p "$CONDA_PREFIX" -c conda-forge "$import_name"
+    else
+        print_red "ERROR: cannot install ${import_name}: no pip module and conda unavailable"
+        return 1
+    fi
+
+    if ! "$python_exe" -c "import ${import_name}" 2>/dev/null; then
+        print_red "ERROR: ${import_name} is still not importable from ${python_exe}"
+        return 1
+    fi
+}
+
 function set_git_modules() {
 	#print_blue "setting up git submodules"
 	git submodule init -- 

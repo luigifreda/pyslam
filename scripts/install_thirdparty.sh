@@ -188,6 +188,15 @@ cd $ROOT_DIR
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/depth_anything_v2 ..."
 
+if [[ -n "$CONDA_PREFIX" && -x "$CONDA_PREFIX/bin/python" ]]; then
+    PYTHON_EXE="$CONDA_PREFIX/bin/python"
+else
+    PYTHON_EXE=$(which python3)
+fi
+ensure_python_package "$PYTHON_EXE" "requests" requests || exit 1
+ensure_python_package "$PYTHON_EXE" "gdown" gdown || exit 1
+ensure_python_package "$PYTHON_EXE" "tqdm" tqdm || exit 1
+
 cd thirdparty
 if [ ! -d depth_anything_v2 ]; then
     git clone https://github.com/DepthAnything/Depth-Anything-V2.git depth_anything_v2
@@ -195,8 +204,13 @@ if [ ! -d depth_anything_v2 ]; then
     #git checkout 31dc97708961675ce6b3a8d8ffa729170a4aa273 # use this commit if you hit any problems
 
     git apply ../depth_anything_v2.patch
+    cd ..
+fi
 
-    ./download_metric_models.py
+if [ -f depth_anything_v2/download_metric_models.py ]; then
+    cd depth_anything_v2
+    "$PYTHON_EXE" download_metric_models.py
+    cd ..
 fi
 
 cd $ROOT_DIR

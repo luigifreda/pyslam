@@ -29,6 +29,11 @@ fi
 . "$CONDA_PREFIX"/bin/activate base   # from https://community.anaconda.cloud/t/unable-to-activate-environment-prompted-to-run-conda-init-before-conda-activate-but-it-doesnt-work/68677/10
 conda activate $ENV_NAME
 
+# Put conda env binaries first so pyenv/venv shims do not shadow python/pip.
+if [[ -n "$CONDA_PREFIX" && -d "$CONDA_PREFIX/bin" ]]; then
+    export PATH="$CONDA_PREFIX/bin:$PATH"
+fi
+
 # N.B.: in order to deactivate the virtual environment run: 
 # $ conda deactivate
 

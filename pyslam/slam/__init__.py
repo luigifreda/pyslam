@@ -30,19 +30,6 @@ from .cpp import (
 )
 
 USE_CPP = Parameters.USE_CPP_CORE
-try:
-    # Try to get from environment variable and fallback to default declared above
-    USE_CPP_VAR = os.environ.get("PYSLAM_USE_CPP", str(USE_CPP).lower())
-    if USE_CPP_VAR == "true":
-        print(f"[pyslam.slam module] USE_CPP_VAR: {USE_CPP_VAR}")
-    USE_CPP = USE_CPP_VAR.lower() in (
-        "true",
-        "1",
-        "yes",
-        "on",
-    )
-except:
-    pass
 
 classes_dict = {}
 
