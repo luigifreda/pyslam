@@ -27,6 +27,14 @@ While this may be self-evident, it is important to keep in mind that when `USE_C
 - The Python implementation of the sparse SLAM core is effectively bypassed, and any modifications to it will have no effect at runtime.
 - All functional changes to the sparse SLAM C++ codebase must be rebuilt using `./build_cpp_core.sh` (as explained above) in order to take effect.
 
+### macOS, conda Python, and local OpenCV
+
+`cpp_core` links **OpenCV** from `thirdparty/opencv/install` and **TBB** must be the same library that **`libopencv_core`** was built against (CMake now infers it from `otool -L` / `ldd`). If OpenCV was built with **Homebrew** TBB but you run **conda** Python, you can get a **segfault on `import cpp_core`** (mixed allocators / duplicate TBB).
+
+**Fix:** in the conda env install **`tbb` and `tbb-devel`** (the latter supplies `lib/cmake/TBB`): `conda install -y -c conda-forge tbb tbb-devel`. Without `tbb-devel`, OpenCV CMake usually picks Homebrew TBB while your script may still succeed. Verify with `otool -L thirdparty/opencv/install/lib/libopencv_core*.dylib | grep tbb` — paths should live under **`$CONDA_PREFIX`**, not `/opt/homebrew`. Then wipe `thirdparty/opencv/build` and `thirdparty/opencv/install`, rerun `./scripts/install_opencv_local.sh`, and rebuild **`cpp_core`**. CMake defaults `OpenCV_DIR` to `thirdparty/opencv/install/lib/cmake/opencv4` when unset.
+
+**macOS `cpp_core` link:** do **not** link `libpython3.11.dylib` into the extension. The build uses `-undefined dynamic_lookup` and skips `${Python_LIBRARIES}` on `APPLE` so Python symbols resolve from the embedding interpreter. Linking `libpython` into the `.so` often crashes in `take_gil` during `PyInit_cpp_core` even when OpenCV/TBB are correct.
+
 
 ---
 

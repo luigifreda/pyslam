@@ -18,8 +18,12 @@ cd "$ROOT_DIR"
 #set -x
 #set -e
 
-PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
+PYTHON_EXE=$(get_python_exe)
+PYTHON_ENV=$("$PYTHON_EXE" -c "import sys; print(sys.prefix)")
 echo "PYTHON_ENV: $PYTHON_ENV"
+echo "PYTHON_EXE: $PYTHON_EXE"
+
+ensure_pip "$PYTHON_EXE" || exit 1
 
 # Check if conda is installed
 if command -v conda &> /dev/null; then
@@ -44,9 +48,11 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 . "$ROOT_DIR"/cuda_config.sh
 
 
-if [ "$OSTYPE" == darwin* ]; then
-    pip install torch==2.1           # torch==2.2.0 causes some segmentation faults on mac
-    pip install torchvision==0.16         
+if [[ "$OSTYPE" == darwin* ]]; then
+    # torch 2.1/2.4 headers fail to compile detectron2 on recent macOS/Xcode; 2.6+ works.
+    # torch==2.2.0 causes some segmentation faults on older mac setups.
+    "$PYTHON_EXE" -m pip install torch==2.6.0
+    "$PYTHON_EXE" -m pip install torchvision==0.21.0
 else
 
     # previous versions
@@ -74,22 +80,22 @@ else
     if $INSTALL_CUDA_SPECIFIC_TORCH; then
         print_green "System CUDA_VERSION is $CUDA_VERSION but the detected TORCH CUDA version is $TORCH_CUDA_VERSION."
         print_green "Installing torch==$TARGET_TORCH_VERSION+cu${CUDA_VERSION_STRING_COMPACT} and torchvision==$TARGET_TORCHVISION_VERSION+cu${CUDA_VERSION_STRING_COMPACT}"
-        pip3 install torch=="$TARGET_TORCH_VERSION+cu${CUDA_VERSION_STRING_COMPACT}" \
+        "$PYTHON_EXE" -m pip install torch=="$TARGET_TORCH_VERSION+cu${CUDA_VERSION_STRING_COMPACT}" \
             torchvision=="$TARGET_TORCHVISION_VERSION+cu${CUDA_VERSION_STRING_COMPACT}" \
             --index-url https://download.pytorch.org/whl/cu${CUDA_VERSION_STRING_COMPACT}   
         
         # check if last command was ok  (in the case we don't find the CUDA-specific torch version)
         if [[ $? -ne 0 ]]; then
             print_yellow "WARNING: Failed to install CUDA-specific torch and torchvision. Installing default versions."
-            pip install torch==$TARGET_TORCH_VERSION
-            pip install torchvision==$TARGET_TORCHVISION_VERSION
+            "$PYTHON_EXE" -m pip install torch==$TARGET_TORCH_VERSION
+            "$PYTHON_EXE" -m pip install torchvision==$TARGET_TORCHVISION_VERSION
         fi
     else
         print_green "Installing torch==$TARGET_TORCH_VERSION and torchvision==$TARGET_TORCHVISION_VERSION"
-        pip install torch==$TARGET_TORCH_VERSION
-        pip install torchvision==$TARGET_TORCHVISION_VERSION
+        "$PYTHON_EXE" -m pip install torch==$TARGET_TORCH_VERSION
+        "$PYTHON_EXE" -m pip install torchvision==$TARGET_TORCHVISION_VERSION
     fi             
 fi 
 
-pip install "numpy<2"
+"$PYTHON_EXE" -m pip install "numpy<2"
 

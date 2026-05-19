@@ -818,4 +818,26 @@ index 000000000..3a94688d6
 +
 +template< class T , class IndexType , size_t MaxRowSize >
 +SparseMatrix< T , IndexType , MaxRowSize > SparseMatrix< T , IndexType , MaxRowSize >::operator / ( T s ) const { return (*this) * ( (T)1. / s ); }
+diff --git a/3rdparty/find_dependencies.cmake b/3rdparty/find_dependencies.cmake
+index f54c14abe..a1b2c3d4e 100644
+--- a/3rdparty/find_dependencies.cmake
++++ b/3rdparty/find_dependencies.cmake
+@@ -1170,6 +1170,17 @@ if(WITH_MINIZIP)
+     open3d_pkg_config_3rdparty_library(3rdparty_minizip
+         SEARCH_ARGS minizip
+     )
++    if(3rdparty_minizip_FOUND)
++        # Homebrew and most distros install unzip.h under include/minizip/
++        find_path(OPEN3D_MINIZIP_HEADER_DIR NAMES unzip.h
++            PATHS ${pc_3rdparty_minizip_INCLUDE_DIRS}
++            PATH_SUFFIXES minizip
++        )
++        if(OPEN3D_MINIZIP_HEADER_DIR)
++            get_filename_component(OPEN3D_MINIZIP_INCLUDE_DIR "${OPEN3D_MINIZIP_HEADER_DIR}" DIRECTORY)
++            target_include_directories(3rdparty_minizip SYSTEM INTERFACE ${OPEN3D_MINIZIP_INCLUDE_DIR})
++        endif()
++    endif()
+     list(APPEND Open3D_3RDPARTY_PRIVATE_TARGETS_FROM_SYSTEM Open3D::3rdparty_minizip)
+ endif()
+ 
 \ No newline at end of file

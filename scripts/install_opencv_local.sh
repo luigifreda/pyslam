@@ -528,6 +528,24 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     echo "Using MAC_OPTIONS for opencv build: $MAC_OPTIONS"
 fi
 
+# macOS + active conda: prefer conda's oneTBB for OpenCV so libopencv_core matches
+# the TBB runtime loaded by conda Python (avoids mixed Homebrew/conda TBB segfaults
+# when importing native modules such as cpp_core).
+DARWIN_CONDA_TBB=""
+if [[ "$OSTYPE" == "darwin"* ]] && [[ -n "${CONDA_PREFIX:-}" ]]; then
+    if [[ -d "${CONDA_PREFIX}/lib/cmake/TBB" ]]; then
+        DARWIN_CONDA_TBB="-DTBB_DIR=${CONDA_PREFIX}/lib/cmake/TBB"
+        echo "Darwin + conda: forcing OpenCV TBB_DIR to conda oneTBB: ${CONDA_PREFIX}/lib/cmake/TBB"
+    elif [[ -d "${CONDA_PREFIX}/lib/cmake/tbb" ]]; then
+        DARWIN_CONDA_TBB="-DTBB_DIR=${CONDA_PREFIX}/lib/cmake/tbb"
+        echo "Darwin + conda: forcing OpenCV TBB_DIR to: ${CONDA_PREFIX}/lib/cmake/tbb"
+    else
+        print_yellow "Darwin + conda: no oneTBB CMake package under \$CONDA_PREFIX/lib/cmake/TBB (install: conda install -y -c conda-forge tbb tbb-devel)."
+        print_yellow "  If you build OpenCV without -DTBB_DIR, it often links Homebrew TBB → cpp_core may segfault with conda Python."
+        print_yellow "  This script will abort at OpenCV CMake unless PYSLAM_ALLOW_HOMEBREW_TBB_WITH_CONDA_PYTHON=1."
+    fi
+fi
+
 export CMAKE_ARGS="$CONDA_OPTIONS $CMAKE_ARGS" # -DCMAKE_CXX_FLAGS=$CPPFLAGS"
 export CMAKE_CXX_FLAGS="$CPPFLAGS"
 export CMAKE_INCLUDE_PATH="$CPP_INCLUDE_PATH"
@@ -579,6 +597,10 @@ if [ ! -f $OPENCV_CORE_LIB ]; then
     if [[ "$machine" == "x86_64" || "$machine" == "x64" || "$version" == "darwin"* ]]; then
 		# standard configuration 
         echo "building laptop/desktop config under $version"
+        if [[ "$OSTYPE" == "darwin"* ]] && [[ -n "${CONDA_PREFIX:-}" ]] && [[ -z "$DARWIN_CONDA_TBB" ]] && [[ "${PYSLAM_ALLOW_HOMEBREW_TBB_WITH_CONDA_PYTHON:-}" != "1" ]]; then
+            print_red "Aborting OpenCV CMake: conda active but no TBB_DIR set (missing tbb-devel?). See messages above."
+            exit 1
+        fi
         # as for the flags and consider this nice reference https://gist.github.com/raulqf/f42c718a658cddc16f9df07ecc627be7
         cmake \
           -DCMAKE_BUILD_TYPE=Release \
@@ -616,7 +638,7 @@ if [ ! -f $OPENCV_CORE_LIB ]; then
           -Wno-deprecated-gpu-targets \
           -DBUILD_PROTOBUF=${WITH_PROTOBUF:-OFF} \
           -DAPPLE_FRAMEWORK=${WITH_APPLE_FRAMEWORK:-OFF} \
-          $CONDA_OPTIONS $MAC_OPTIONS $PIXI_OPTIONS $PYTHON_OPTIONS ..
+          $CONDA_OPTIONS $MAC_OPTIONS $PIXI_OPTIONS $PYTHON_OPTIONS $DARWIN_CONDA_TBB ..
     else
         # Nvidia Jetson aarch64
         echo "building NVIDIA Jetson config"
@@ -678,6 +700,22 @@ cd $TARGET_FOLDER
 if [[ -d opencv/install ]]; then
     cd opencv
     echo "deploying built cv2 python module"
+
+    if [[ "$OSTYPE" == "darwin"* ]] && [[ -n "${CONDA_PREFIX:-}" ]]; then
+        shopt -s nullglob
+        for _ocv_core in install/lib/libopencv_core*.dylib; do
+            if otool -L "$_ocv_core" 2>/dev/null | grep -q '/opt/homebrew/.*[Tt]bb'; then
+                print_red "ERROR: Local OpenCV core library still links Homebrew TBB:"
+                otool -L "$_ocv_core" 2>/dev/null | grep -E 'homebrew|tbb' || true
+                print_red "  With conda Python, import cpp_core often segfaults. Fix:"
+                print_red "    conda install -y -c conda-forge tbb tbb-devel"
+                print_red "    rm -rf \"$ROOT_DIR/thirdparty/opencv/build\" \"$ROOT_DIR/thirdparty/opencv/install\""
+                print_red "    Run ./scripts/install_opencv_local.sh again, then rebuild cpp_core (pyslam/slam/cpp/build.sh)."
+            fi
+            break
+        done
+        shopt -u nullglob
+    fi
     
     # For pixi environments, use pixi's Python directly to avoid pyenv interference
     # The pixi_python_config.sh script should have been sourced earlier

@@ -74,15 +74,17 @@ if [ "$CONDA_DEFAULT_ENV" != "$ENV_NAME" ]; then
     exit 1
 fi
 
-pip install --upgrade pip setuptools wheel build
-pip install -e .
+PYTHON_EXE=$(get_python_exe)
+ensure_pip "$PYTHON_EXE" || exit 1
+"$PYTHON_EXE" -m pip install --upgrade pip setuptools wheel build
+"$PYTHON_EXE" -m pip install -e .
 
 # NOTE: these are the "system" packages that are needed within conda to build code from source
 if [[ "$OSTYPE" == darwin* ]]; then
     # macOS: use clang from Xcode; avoid Linux-only packages
     conda install -y -c conda-forge \
         pkg-config cmake eigen suitesparse lapack openblas \
-        tbb libpng libtiff zlib jpeg freetype \
+        tbb tbb-devel libpng libtiff zlib jpeg freetype \
         ffmpeg glew glfw boost
 else
     conda install -y -c conda-forge \

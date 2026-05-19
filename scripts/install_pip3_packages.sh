@@ -21,6 +21,12 @@ cd "$ROOT_DIR"
 PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
 echo "PYTHON_ENV: $PYTHON_ENV"
 
+if [[ -n "$CONDA_PREFIX" && -x "$CONDA_PREFIX/bin/python" ]]; then
+    PYTHON_EXE="$CONDA_PREFIX/bin/python"
+else
+    PYTHON_EXE=$(which python3)
+fi
+
 # Check if conda is installed
 if command -v conda &> /dev/null; then
     CONDA_INSTALLED=true
@@ -37,6 +43,14 @@ fi
 
 print_blue '================================================'
 print_blue "Configuring and installing python packages ..."
+
+# gtwrap (GTSAM Python bindings) needs pyparsing at build time in install_thirdparty.sh
+ensure_python_package "$PYTHON_EXE" "pyparsing>=2.4.6" pyparsing || exit 1
+
+# Needed by install_thirdparty.sh model downloads and pyslam.utilities.download
+ensure_python_package "$PYTHON_EXE" "requests" requests || exit 1
+ensure_python_package "$PYTHON_EXE" "gdown" gdown || exit 1
+ensure_python_package "$PYTHON_EXE" "tqdm" tqdm || exit 1
 
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter
 
