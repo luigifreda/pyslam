@@ -162,6 +162,18 @@ $SCRIPTS_DIR/install_gtsam.sh $EXTERNAL_OPTIONS
 cd $ROOT_DIR
 
 print_blue "=================================================================="
+print_blue "Configuring thirdparty/r2d2 ..."
+
+cd thirdparty
+if [ -d r2d2 ]; then
+    cd r2d2
+    git apply ../r2d2.patch
+    cd ..
+fi
+
+cd $ROOT_DIR
+
+print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/ros2_pybindings ..."
 cd thirdparty/ros2_pybindings
 ./build.sh $EXTERNAL_OPTIONS
