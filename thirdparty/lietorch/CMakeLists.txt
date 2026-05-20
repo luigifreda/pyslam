@@ -295,6 +295,14 @@ target_compile_options(lietorch_extras PUBLIC ${CUDA_FLAGS} ${CUDA_NVCC_FLAGS})
 target_link_libraries(lietorch_backends PUBLIC ${TORCH_LIBRARIES} ${Python3_LIBRARIES} ${CUDA_LIBRARIES})
 target_link_libraries(lietorch_extras PUBLIC ${TORCH_LIBRARIES} ${Python3_LIBRARIES} ${CUDA_LIBRARIES})
 
+# Extensions install into site-packages next to torch/; embed RPATH so imports work
+# without LD_LIBRARY_PATH (otherwise libcaffe2_nvrtc.so etc. are not found).
+set(_lietorch_rpath "\$ORIGIN/torch/lib")
+set_target_properties(lietorch_backends lietorch_extras PROPERTIES
+    INSTALL_RPATH "${_lietorch_rpath}"
+    BUILD_WITH_INSTALL_RPATH TRUE
+)
+
 # Specify output directories (this is optional and can be adjusted)
 set_target_properties(lietorch_backends PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set_target_properties(lietorch_extras PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)

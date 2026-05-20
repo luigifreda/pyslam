@@ -167,7 +167,9 @@ print_blue "Configuring thirdparty/r2d2 ..."
 cd thirdparty
 if [ -d r2d2 ]; then
     cd r2d2
-    git apply ../r2d2.patch
+    if git apply --check ../r2d2.patch &>/dev/null; then
+        git apply ../r2d2.patch
+    fi
     cd ..
 fi
 
