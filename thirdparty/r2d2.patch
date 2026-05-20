@@ -1,0 +1,82 @@
+diff --git a/datasets/pair_dataset.py b/datasets/pair_dataset.py
+index aeed98b..a565cdb 100644
+--- a/datasets/pair_dataset.py
++++ b/datasets/pair_dataset.py
+@@ -7,8 +7,8 @@ import numpy as np
+ from PIL import Image
+ 
+ from .dataset import Dataset, CatDataset
+-from tools.transforms import instanciate_transformation
+-from tools.transforms_tools import persp_apply
++from r2d2.tools.transforms import instanciate_transformation
++from r2d2.tools.transforms_tools import persp_apply
+ 
+ 
+ class PairDataset (Dataset):
+diff --git a/nets/losses.py b/nets/losses.py
+index f8eea8f..3328f48 100644
+--- a/nets/losses.py
++++ b/nets/losses.py
+@@ -8,9 +8,9 @@ import torch
+ import torch.nn as nn
+ import torch.nn.functional as F
+ 
+-from nets.sampler import *
+-from nets.repeatability_loss import *
+-from nets.reliability_loss import *
++from .sampler import *
++from .repeatability_loss import *
++from .reliability_loss import *
+ 
+ 
+ class MultiLoss (nn.Module):
+diff --git a/nets/reliability_loss.py b/nets/reliability_loss.py
+index 52d5383..545cae3 100644
+--- a/nets/reliability_loss.py
++++ b/nets/reliability_loss.py
+@@ -6,7 +6,7 @@ import pdb
+ import torch.nn as nn
+ import torch.nn.functional as F
+ 
+-from nets.ap_loss import APLoss
++from .ap_loss import APLoss
+ 
+ 
+ class PixelAPLoss (nn.Module):
+diff --git a/nets/repeatability_loss.py b/nets/repeatability_loss.py
+index 5cda0b6..26639b0 100644
+--- a/nets/repeatability_loss.py
++++ b/nets/repeatability_loss.py
+@@ -8,7 +8,7 @@ import torch
+ import torch.nn as nn
+ import torch.nn.functional as F
+ 
+-from nets.sampler import FullSampler
++from .sampler import FullSampler
+ 
+ class CosimLoss (nn.Module):
+     """ Try to make the repeatability repeatable from one image to the other.
+diff --git a/tools/dataloader.py b/tools/dataloader.py
+index f6d9fff..47f738d 100644
+--- a/tools/dataloader.py
++++ b/tools/dataloader.py
+@@ -9,8 +9,8 @@ import numpy as np
+ import torch
+ import torchvision.transforms as tvf
+ 
+-from tools.transforms import instanciate_transformation
+-from tools.transforms_tools import persp_apply
++from .transforms import instanciate_transformation
++from .transforms_tools import persp_apply
+ 
+ 
+ RGB_mean = [0.485, 0.456, 0.406]
+@@ -358,7 +358,7 @@ if __name__ == '__main__':
+     loader = eval(args.dataloader)
+     print("Data loader =", loader)
+ 
+-    from tools.viz import show_flow
++    from .viz import show_flow
+     for data in loader:
+         aflow = data['aflow']
+         H, W = aflow.shape[-2:]

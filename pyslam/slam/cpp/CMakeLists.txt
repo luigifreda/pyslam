@@ -157,6 +157,34 @@ if(PYSLAM_TBB_FROM_OPENCV AND EXISTS "${PYSLAM_TBB_FROM_OPENCV}")
     get_filename_component(PYSLAM_TBB_LIB_DIR "${PYSLAM_TBB_FROM_OPENCV}" DIRECTORY)
     get_filename_component(_pyslam_tbb_prefix "${PYSLAM_TBB_LIB_DIR}" DIRECTORY)
     set(TBB_INCLUDE_DIRS "${_pyslam_tbb_prefix}/include")
+    # Debian/Ubuntu multiarch: libs in /lib/x86_64-linux-gnu, headers in /usr/include.
+    if(NOT EXISTS "${TBB_INCLUDE_DIRS}")
+        find_path(
+            _pyslam_tbb_include_dir
+            NAMES tbb/tbb.h tbb/global_control.h
+            PATHS /usr/include /usr/local/include
+                  "${OpenCV_LIB_DIR}/../include"
+                  "$ENV{CONDA_PREFIX}/include"
+        )
+        if(_pyslam_tbb_include_dir)
+            set(TBB_INCLUDE_DIRS "${_pyslam_tbb_include_dir}")
+        else()
+            find_package(PkgConfig QUIET)
+            if(PKG_CONFIG_FOUND)
+                pkg_check_modules(TBB_PKG QUIET tbb)
+                if(TBB_PKG_FOUND)
+                    set(TBB_INCLUDE_DIRS ${TBB_PKG_INCLUDE_DIRS})
+                endif()
+            endif()
+        endif()
+    endif()
+    if(NOT TBB_INCLUDE_DIRS OR NOT EXISTS "${TBB_INCLUDE_DIRS}")
+        message(
+            FATAL_ERROR
+            "TBB matched from OpenCV at ${PYSLAM_TBB_FROM_OPENCV} but headers not found "
+            "(tried ${_pyslam_tbb_prefix}/include and standard paths). Install libtbb-dev."
+        )
+    endif()
     add_library(pyslam_tbb_from_opencv SHARED IMPORTED)
     set_target_properties(
         pyslam_tbb_from_opencv
