@@ -1501,6 +1501,144 @@ class NeuralRGBDDataset(Dataset):
         return self.focal_length
 
 
+# CLIO dataset (Hydra / Clio RGB-D sequences)
+# Folder layout per scene:
+#   images/rgb_{id}.jpg
+#   depth/depth_{id}.png
+#   sparse/0/images.bin   (COLMAP reference poses, optional for GT)
+#   *.bag                 (ROS1 recording, used to auto-detect capture rate)
+class ClioDataset(Dataset):
+    # Default playback rate (Hz). Measured on the office scene from office.bag:
+    # 1460 frames in 194.6 s, median dt ~= 133 ms -> ~7.5 Hz (not 25/30 Hz).
+    # At runtime _resolve_fps() delegates to colmap_io.resolve_clio_fps (shared with ClioGroundTruth).
+    fps = 7.5
+    Ts = 1.0 / fps
+
+    @staticmethod
+    def _resolve_fps(base_path, config=None):
+        """Pick CLIO playback fps for synthetic timestamps and main_slam frame pacing."""
+        from pyslam.io.colmap_io import resolve_clio_fps
+
+        # Single shared resolver with ClioGroundTruth so dataset/GT timestamps stay in sync.
+        dataset_settings = config.dataset_settings if config is not None else None
+        cam_settings = config.cam_settings if config is not None else None
+        return resolve_clio_fps(
+            base_path, settings=dataset_settings, cam_settings=cam_settings
+        )
+
+    @staticmethod
+    def _frame_id_from_path(path, prefix):
+        basename = os.path.basename(path)
+        return int(basename.replace(prefix, "").split(".")[0])
+
+    def __init__(
+        self,
+        path,
+        name,
+        sensor_type=SensorType.RGBD,
+        associations=None,
+        start_frame_id=0,
+        type=DatasetType.CLIO,
+        config=None,
+    ):
+        super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
+        self.environment_type = DatasetEnvironmentType.INDOOR
+        if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.RGBD:
+            raise ValueError("ClioDataset only supports MONOCULAR and RGBD sensor types")
+
+        self.base_path = os.path.join(self.path, self.name) if self.name else self.path
+        self.fps = ClioDataset._resolve_fps(self.base_path, config=config)
+        self.Ts = 1.0 / self.fps
+        self.scale_viewer_3d = 0.1
+        if sensor_type == SensorType.MONOCULAR:
+            self.scale_viewer_3d = 0.05
+
+        print("Processing CLIO Sequence")
+        self.images_path = os.path.join(self.base_path, "images")
+        self.depth_path = os.path.join(self.base_path, "depth")
+
+        if not os.path.isdir(self.images_path):
+            error_message = f"ERROR: [ClioDataset] Images directory not found: {self.images_path}!"
+            Printer.red(error_message)
+            sys.exit(error_message)
+
+        if sensor_type == SensorType.RGBD and not os.path.isdir(self.depth_path):
+            Printer.yellow(f"WARNING: [ClioDataset] Depth directory not found: {self.depth_path}!")
+            Printer.yellow("Falling back to MONOCULAR mode")
+            self.sensor_type = SensorType.MONOCULAR
+
+        image_pattern = os.path.join(self.images_path, "rgb_*.jpg")
+        self.image_paths = sorted(
+            glob.glob(image_pattern),
+            key=lambda x: ClioDataset._frame_id_from_path(x, "rgb_"),
+        )
+        self.frame_ids = [ClioDataset._frame_id_from_path(p, "rgb_") for p in self.image_paths]
+        self.max_frame_id = len(self.image_paths)
+        self.num_frames = self.max_frame_id
+
+        if self.max_frame_id == 0:
+            error_message = f"ERROR: [ClioDataset] No images found in {self.images_path}!"
+            Printer.red(error_message)
+            sys.exit(error_message)
+
+        if self.sensor_type == SensorType.RGBD:
+            depth_pattern = os.path.join(self.depth_path, "depth_*.png")
+            self.depth_paths = sorted(
+                glob.glob(depth_pattern),
+                key=lambda x: ClioDataset._frame_id_from_path(x, "depth_"),
+            )
+            depth_ids = [ClioDataset._frame_id_from_path(p, "depth_") for p in self.depth_paths]
+            if depth_ids != self.frame_ids:
+                Printer.yellow(
+                    "WARNING: [ClioDataset] RGB and depth frame ids do not match exactly; "
+                    "using index-based pairing"
+                )
+                if len(self.depth_paths) < self.max_frame_id:
+                    error_message = (
+                        f"ERROR: [ClioDataset] Not enough depth frames "
+                        f"({len(self.depth_paths)} < {self.max_frame_id})!"
+                    )
+                    Printer.red(error_message)
+                    sys.exit(error_message)
+        else:
+            self.depth_paths = []
+
+        print(f"Number of frames: {self.max_frame_id}")
+        print(f"CLIO playback fps: {self.fps:.2f} (frame period: {self.Ts:.4f}s)")
+
+    def getImage(self, frame_id):
+        img = None
+        # NOTE: frame_id is already shifted by start_frame_id in Dataset.getImageColor()
+        if frame_id < self.max_frame_id:
+            file = self.image_paths[frame_id]
+            img = cv2.imread(file)
+            self.is_ok = img is not None
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts
+        else:
+            self.is_ok = False
+            self._timestamp = None
+        return np.ascontiguousarray(img) if img is not None else None
+
+    def getDepth(self, frame_id):
+        if self.sensor_type == SensorType.MONOCULAR:
+            return None
+        frame_id += self.start_frame_id
+        img = None
+        if frame_id < self.max_frame_id:
+            depth_file = os.path.join(self.depth_path, f"depth_{self.frame_ids[frame_id]}.png")
+            if not os.path.isfile(depth_file) and frame_id < len(self.depth_paths):
+                depth_file = self.depth_paths[frame_id]
+            img = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED)
+            self.is_ok = img is not None
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts
+        else:
+            self.is_ok = False
+            self._timestamp = None
+        return np.ascontiguousarray(img) if img is not None else None
+
+
 class RoverDataset(Dataset):
     def __init__(
         self,

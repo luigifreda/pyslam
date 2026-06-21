@@ -52,6 +52,7 @@ kScaleScannet = 1.0
 kScaleSevenScenes = 1.0
 kScaleNeuralRGBD = 1.0
 kScaleRover = 1.0
+kScaleClio = 1.0
 
 
 @register_class
@@ -68,9 +69,16 @@ class GroundTruthType(SerializableEnum):
     SEVEN_SCENES = 10
     NEURAL_RGBD = 11
     ROVER = 12
+    CLIO = 13
 
 
-def groundtruth_factory(settings):
+def groundtruth_factory(settings, cam_settings=None):
+    """
+    Build a GroundTruth loader for the configured dataset type.
+
+    cam_settings: optional camera yaml dict (config.cam_settings). Required for CLIO so
+    playback fps matches ClioDataset when no ROS bag is available for auto-detection.
+    """
 
     type = GroundTruthType.NONE
     associations = None
@@ -123,6 +131,16 @@ def groundtruth_factory(settings):
         return NeuralRGBDGroundTruth(
             path, name, associations, start_frame_id, type=GroundTruthType.NEURAL_RGBD
         )
+    if type == "clio":
+        return ClioGroundTruth(
+            path,
+            name,
+            associations,
+            start_frame_id,
+            type=GroundTruthType.CLIO,
+            settings=settings,
+            cam_settings=cam_settings,
+        )
     if type == "rover":
         camera_name = settings["camera_name"]
         associations = settings["associations"]
@@ -160,6 +178,10 @@ class GroundTruth(object):
         self.data = None
         self.scale = 1
         self.start_frame_id = start_frame_id
+
+        # True for metric GT (TUM, bag colmap_odom, …). False for up-to-scale references
+        # (CLIO sparse COLMAP); main_slam uses need_sim3_alignment() for ATE / viewer scale.
+        self.reference_is_metric = True
 
         self.trajectory = None  # 3d position trajectory
         self.timestamps = None  # array of timestamps corresponding to the trajectory
@@ -468,6 +490,29 @@ class GroundTruth(object):
             Printer.red(f"ERROR: {num_missing_associations} missing associations!")
         print(f"[associate2] Number of matches: {len(matches)}")
         return matches
+
+
+# Validate the groundtruth
+def is_valid_groundtruth(groundtruth: GroundTruth) -> bool:
+    if groundtruth is None:
+        Printer.warning("WARNING: GroundTruth: is_valid_groundtruth() called with None!")
+        return False
+    if groundtruth.type == GroundTruthType.NONE:
+        Printer.warning("WARNING: GroundTruth: is_valid_groundtruth() called with NONE!")
+        return False
+    if groundtruth.getNumSamples() == 0:
+        Printer.warning("WARNING: GroundTruth: is_valid_groundtruth() called with 0 samples!")
+        return False
+    return True
+
+
+# Check if GT/estimate alignment should estimate scale (Sim(3) vs SE(3)).
+# Used by main_slam for ATE and viewer GT overlay (monocular SLAM or non-metric CLIO sparse).
+def need_sim3_alignment(groundtruth: GroundTruth) -> bool:
+    if groundtruth is None:
+        Printer.warning("WARNING: GroundTruth: need_sim3_alignment() called with None!")
+        return False
+    return not groundtruth.reference_is_metric
 
 
 # Read the ground truth from a simple file containining [timestamp, x,y,z, qx, qy, qz, qw, scale] lines
@@ -1681,6 +1726,206 @@ class NeuralRGBDGroundTruth(GroundTruth):
         # Extract rotation matrix and convert to quaternion
         R = pose[0:3, 0:3]
         q = rotmat2qvec(R)  # [qx, qy, qz, qw]
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+        return timestamp, x, y, z, q[0], q[1], q[2], q[3], abs_scale
+
+
+class ClioGroundTruth(GroundTruth):
+    """
+    CLIO reference trajectory (not independent motion-capture GT).
+
+    Two sources are supported (see load_clio_reference_poses in colmap_io.py):
+      - bag_colmap_odom: metric poses from *.bag (/dominic/forward/colmap_odom).
+        Built by the Hydra/CLIO pipeline with RGB-D depth; same scale as RGB-D SLAM.
+      - sparse_colmap: poses from sparse/0/images.bin (classic COLMAP export).
+        Same relative motion, but typically up-to-scale / non-metric (office ~2.1x smaller
+        than bag_colmap_odom). Use Sim(3) alignment in the viewer when this source is used.
+
+    reference_is_metric is True for bag_colmap_odom, False for sparse_colmap.
+
+    Pose indexing: reference poses are aligned to dataset playback indices via
+    align_clio_poses_to_dataset(). Timestamps use (dataset_index * Ts), matching
+    ClioDataset.getImage(), so ATE / viewer association stays consistent even when
+    COLMAP sparse omits frames or rgb ids are non-contiguous.
+    """
+
+    def __init__(
+        self,
+        path,
+        name,
+        associations=None,
+        start_frame_id=0,
+        type=GroundTruthType.CLIO,
+        settings=None,
+        cam_settings=None,
+    ):
+        super().__init__(path, name, associations, start_frame_id, type)
+        from pyslam.io.colmap_io import (
+            align_clio_poses_to_dataset,
+            list_clio_dataset_frame_ids,
+            load_clio_reference_poses,
+            resolve_clio_fps,
+        )
+
+        self.base_path = os.path.join(path, name) if name else path
+        # Same fps resolution as ClioDataset (resolve_clio_fps) — required for timestamp sync.
+        self.fps = resolve_clio_fps(
+            self.base_path, settings=settings, cam_settings=cam_settings
+        )
+        self.Ts = 1.0 / self.fps
+        self.scale = kScaleClio
+        self.filename = os.path.join(self.base_path, "sparse", "0", "images.bin")
+        self.reference_is_metric = False
+        self.reference_source = "unknown"
+
+        # Image list defines dataset playback order (must match ClioDataset.frame_ids).
+        dataset_frame_ids = list_clio_dataset_frame_ids(self.base_path)
+        if not dataset_frame_ids:
+            sys.exit(
+                f"ERROR: [ClioGroundTruth] No rgb_*.jpg images found in "
+                f"{os.path.join(self.base_path, 'images')}"
+            )
+
+        # Prefer metric bag odometry; fall back to sparse COLMAP (often non-metric).
+        try:
+            raw_poses, ref_frame_ids, self.reference_source, self.reference_is_metric = (
+                load_clio_reference_poses(self.base_path, settings=settings)
+            )
+        except Exception as e:
+            error_message = f"ERROR: [ClioGroundTruth] Failed to load CLIO reference poses: {e}"
+            Printer.red(error_message)
+            sys.exit(error_message)
+
+        # Map raw reference poses onto dataset indices (see align_clio_poses_to_dataset).
+        self.pose_by_dataset_index_, num_missing = align_clio_poses_to_dataset(
+            raw_poses,
+            ref_frame_ids,
+            dataset_frame_ids,
+            reference_is_index_ordered=(self.reference_source == "bag_colmap_odom"),
+        )
+        if num_missing > 0:
+            Printer.yellow(
+                f"[ClioGroundTruth] {num_missing} / {len(dataset_frame_ids)} dataset frames "
+                "have no reference pose"
+            )
+
+        # Trajectory for getFull*dTrajectory / ATE: only frames with a pose, timestamp = dataset index * Ts.
+        self.poses_ = [p for p in self.pose_by_dataset_index_ if p is not None]
+        self.timestamps_ = np.ascontiguousarray(
+            [
+                i * self.Ts
+                for i, pose in enumerate(self.pose_by_dataset_index_)
+                if pose is not None
+            ],
+            dtype=np.float64,
+        )
+        self.data = np.ascontiguousarray(self.poses_)
+
+        if self.reference_is_metric:
+            Printer.green(
+                f"[ClioGroundTruth] Using metric reference trajectory from ROS bag "
+                f"({self.reference_source})."
+            )
+        else:
+            Printer.yellow(
+                "[ClioGroundTruth] Using COLMAP sparse reconstruction poses as reference "
+                f"({self.reference_source}). These are typically NOT metric: for the office "
+                "scene they are ~2.1x smaller than bag colmap_odom. Prefer the bag when "
+                "available, or enable Sim(3) GT alignment in the viewer."
+            )
+
+        print(
+            f"[ClioGroundTruth] Number of reference poses: {len(self.poses_)} "
+            f"(dataset frames: {len(dataset_frame_ids)})"
+        )
+
+        if len(self.poses_) == 0:
+            sys.exit("ERROR: [ClioGroundTruth] No reference poses loaded!")
+
+    def getFull3dTrajectory(self):
+        if self.trajectory is not None and self.timestamps is not None:
+            return self.trajectory, self.timestamps
+        self.trajectory = np.ascontiguousarray(
+            [pose[0:3, 3] * self.scale for pose in self.poses_], dtype=np.float64
+        )
+        self.timestamps = self.timestamps_.copy()
+        return self.trajectory, self.timestamps
+
+    def getFull6dTrajectory(self):
+        if self.trajectory is not None and self.poses is not None and self.timestamps is not None:
+            return self.trajectory, self.poses, self.timestamps
+        self.trajectory = np.ascontiguousarray(
+            [pose[0:3, 3] * self.scale for pose in self.poses_], dtype=np.float64
+        )
+        self.poses = self.data.copy()
+        self.timestamps = self.timestamps_.copy()
+        return self.trajectory, self.poses, self.timestamps
+
+    def getDataLine(self, frame_id):
+        # Poses are 4x4 matrices, not text lines — do not use GroundTruth.getDataLine().
+        idx = frame_id + self.start_frame_id
+        pose = self.pose_by_dataset_index_[idx]
+        if pose is None:
+            raise IndexError(
+                f"[ClioGroundTruth] No reference pose for dataset frame index {idx}"
+            )
+        return pose.reshape(-1).tolist()
+
+    def _pose_at_dataset_index(self, dataset_index):
+        """Return the reference pose at a ClioDataset playback index (after start_frame_id shift)."""
+        if dataset_index < 0 or dataset_index >= len(self.pose_by_dataset_index_):
+            raise IndexError(f"[ClioGroundTruth] Dataset frame index out of range: {dataset_index}")
+        pose = self.pose_by_dataset_index_[dataset_index]
+        if pose is None:
+            raise IndexError(
+                f"[ClioGroundTruth] No reference pose for dataset frame index {dataset_index}"
+            )
+        return pose
+
+    def _previous_pose_at_dataset_index(self, dataset_index):
+        """Previous pose with a valid registration (COLMAP sparse may leave gaps)."""
+        for idx in range(dataset_index - 1, -1, -1):
+            pose = self.pose_by_dataset_index_[idx]
+            if pose is not None:
+                return pose
+        return None
+
+    def getTimestampPositionAndAbsoluteScale(self, frame_id):
+        idx = frame_id + self.start_frame_id
+        pose_prev = self._previous_pose_at_dataset_index(idx)
+        if pose_prev is None:
+            x_prev, y_prev, z_prev = None, None, None
+        else:
+            pos_prev = pose_prev[0:3, 3] * self.scale
+            x_prev, y_prev, z_prev = pos_prev[0], pos_prev[1], pos_prev[2]
+        # Timestamp matches ClioDataset: dataset_index * Ts (not rgb filename id * Ts).
+        timestamp = idx * self.Ts
+        pose = self._pose_at_dataset_index(idx)
+        pos = pose[0:3, 3] * self.scale
+        x, y, z = pos[0], pos[1], pos[2]
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+        return timestamp, x, y, z, abs_scale
+
+    def getTimestampPoseAndAbsoluteScale(self, frame_id):
+        idx = frame_id + self.start_frame_id
+        pose_prev = self._previous_pose_at_dataset_index(idx)
+        if pose_prev is None:
+            x_prev, y_prev, z_prev = None, None, None
+        else:
+            pos_prev = pose_prev[0:3, 3] * self.scale
+            x_prev, y_prev, z_prev = pos_prev[0], pos_prev[1], pos_prev[2]
+        # Same timestamp convention as getTimestampPositionAndAbsoluteScale (dataset index * Ts).
+        timestamp = idx * self.Ts
+        pose = self._pose_at_dataset_index(idx)
+        x, y, z = pose[0:3, 3] * self.scale
+        R = pose[0:3, 0:3]
+        q = rotmat2qvec(R)
         if x_prev is None:
             abs_scale = 1
         else:

@@ -39,7 +39,7 @@ from pyslam.slam.slam import Slam, SlamState
 from pyslam.slam import PinholeCamera, USE_CPP
 
 from pyslam.viz.slam_plot_drawer import SlamPlotDrawerThread
-from pyslam.io.ground_truth import groundtruth_factory
+from pyslam.io.ground_truth import groundtruth_factory, is_valid_groundtruth, need_sim3_alignment
 from pyslam.io.dataset_factory import dataset_factory
 from pyslam.io.dataset_types import SensorType
 from pyslam.io.trajectory_writer import TrajectoryWriter
@@ -151,7 +151,13 @@ if __name__ == "__main__":
         )
     metrics_save_dir = trajectory_saving_base_path
 
-    groundtruth = groundtruth_factory(config.dataset_settings)
+    # cam_settings needed for CLIO fps fallback (Camera.fps) when no bag is present.
+    groundtruth = groundtruth_factory(config.dataset_settings, cam_settings=config.cam_settings)
+    has_groundtruth = is_valid_groundtruth(groundtruth)
+    # Sim(3) alignment for monocular SLAM or non-metric GT (e.g. CLIO sparse COLMAP).
+    eval_ate_correct_scale = is_monocular or (
+        has_groundtruth and need_sim3_alignment(groundtruth)
+    )
 
     camera = PinholeCamera(config)
     Printer.green(f"Camera: {json.dumps(camera.to_json(), indent=4, cls=SerializableEnumEncoder)}")
@@ -277,10 +283,15 @@ if __name__ == "__main__":
     if viewer3D:
         print(f"Viewer3D scale: {viewer3D.scale}")
 
-    if groundtruth:
+    gt_traj3d = None
+    gt_poses = None
+    gt_timestamps = None
+    if has_groundtruth:
         gt_traj3d, gt_poses, gt_timestamps = groundtruth.getFull6dTrajectory()
         if viewer3D:
-            viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=is_monocular)
+            viewer3D.set_gt_trajectory(
+                gt_traj3d, gt_timestamps, align_with_scale=eval_ate_correct_scale
+            )
 
     if viewer3D:
         # wait for the viewer3D to be ready
@@ -439,20 +450,25 @@ if __name__ == "__main__":
 
                 if not is_paused and viewer3D.is_paused():  # when a pause is triggered
                     est_poses, timestamps, ids = slam.get_final_trajectory()
-                    assoc_timestamps, assoc_est_poses, assoc_gt_poses = find_poses_associations(
-                        timestamps, est_poses, gt_timestamps, gt_poses
-                    )
-                    ape_stats, T_gt_est = eval_ate(
-                        poses_est=assoc_est_poses,
-                        poses_gt=assoc_gt_poses,
-                        frame_ids=ids,
-                        curr_frame_id=img_id,
-                        is_final=False,
-                        is_monocular=is_monocular,
-                        save_dir=None,
-                    )
-                    Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
-                    # draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est)
+                    if has_groundtruth:
+                        assoc_timestamps, assoc_est_poses, assoc_gt_poses = find_poses_associations(
+                            timestamps, est_poses, gt_timestamps, gt_poses
+                        )
+                        ape_stats, T_gt_est = eval_ate(
+                            poses_est=assoc_est_poses,
+                            poses_gt=assoc_gt_poses,
+                            frame_ids=ids,
+                            curr_frame_id=img_id,
+                            is_final=False,
+                            is_monocular=eval_ate_correct_scale,
+                            save_dir=None,
+                        )
+                        Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
+                        # draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est)
+                    else:
+                        Printer.yellow(
+                            "Ground truth not available: skipping trajectory evaluation on pause"
+                        )
 
                 is_paused = viewer3D.is_paused()
                 is_map_save = viewer3D.is_map_save() and is_map_save == False
@@ -488,19 +504,22 @@ if __name__ == "__main__":
     try:
         est_poses, timestamps, ids = slam.get_final_trajectory()
         is_final = not dataset.is_ok
-        assoc_timestamps, assoc_est_poses, assoc_gt_poses = find_poses_associations(
-            timestamps, est_poses, gt_timestamps, gt_poses
-        )
-        ape_stats, T_gt_est = eval_ate(
-            poses_est=assoc_est_poses,
-            poses_gt=assoc_gt_poses,
-            frame_ids=ids,
-            curr_frame_id=img_id,
-            is_final=is_final,
-            is_monocular=is_monocular,
-            save_dir=metrics_save_dir,
-        )
-        Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
+        if has_groundtruth:
+            assoc_timestamps, assoc_est_poses, assoc_gt_poses = find_poses_associations(
+                timestamps, est_poses, gt_timestamps, gt_poses
+            )
+            ape_stats, T_gt_est = eval_ate(
+                poses_est=assoc_est_poses,
+                poses_gt=assoc_gt_poses,
+                frame_ids=ids,
+                curr_frame_id=img_id,
+                is_final=is_final,
+                is_monocular=eval_ate_correct_scale,
+                save_dir=metrics_save_dir,
+            )
+            Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
+        else:
+            Printer.yellow("Ground truth not available: skipping trajectory evaluation")
 
         if final_trajectory_writer:
             final_trajectory_writer.write_full_trajectory(est_poses, timestamps)

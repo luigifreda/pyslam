@@ -1,6 +1,6 @@
 <p align="center"><img src="./images/pyslam-logo.png" height="160"></p>
 
-# pySLAM v2.10.5
+# pySLAM v2.10.6
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -52,7 +52,7 @@ See the demo **video** for release v2.10.0
 
 <!-- TOC -->
 
-- [pySLAM v2.10.5](#pyslam-v2105)
+- [pySLAM v2.10.6](#pyslam-v2106)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
@@ -120,6 +120,7 @@ See the demo **video** for release v2.10.0
       - [Neural RGBD dataset](#neural-rgbd-dataset)
       - [Rover dataset](#rover-dataset)
       - [ScanNet Datasets](#scannet-datasets)
+      - [CLIO Datasets](#clio-datasets)
       - [ROS1 bags](#ros1-bags)
       - [ROS2 bags](#ros2-bags)
       - [MCAP files](#mcap-files)
@@ -961,6 +962,7 @@ The following datasets are supported:
 | [NEURAL_RGBD dataset](https://github.com/dazinovic/neural-rgbd-surface-reconstruction)                                                       | `type: NEURAL_RGBD_DATASET`  |
 | [ROVER dataset](https://iis-esslingen.github.io/rover/)                                                                                      | `type: NEURAL_RGBD_DATASET`  |
 | [ScanNet dataset](http://www.scan-net.org/)                                                                                                  | `type: SCANNET_DATASET`      |
+| [CLIO dataset](https://github.com/MIT-SPARK/Clio)                                                                                            | `type: CLIO_DATASET`         |
 | [ROS1  bags](https://wiki.ros.org/Bags)                                                                                                      | `type: ROS1BAG_DATASET`      |
 | [ROS2  bags](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html) | `type: ROS2BAG_DATASET`      |
 | [MCAP file](https://foxglove.dev/blog/introducing-the-mcap-file-format)                                                                      | `type: MCAP_DATASET`         |
@@ -1046,6 +1048,25 @@ You can download the datasets following instructions in http://www.scan-net.org/
 - The raw data: this version is the one used for SLAM. You can download the whole dataset (TBs of data) or specific scenes. A common approach for evaluation of semantic mapping is to use the `scannetv2_val.txt` scenes. For downloading and processing the data, you can use the following [repository](https://github.com/dvdmc/scannet-processing) as the original Scannet repository is tested under Python 2.7 and doesn't support batch downloading of scenes.
 1. Once you have the `color`, `depth`, `pose`, and (optional for semantic mapping) `label` folders, you should place them following `{path_to_scannet}/scans/{scene_name}/[color, depth, pose, label]`. Then, configure the `base_path` and `name` in the file `config.yaml`.
 2.  Select the corresponding calibration settings file (section `SCANNET_DATASET: settings:` in the file `config.yaml`). NOTE: the RGB images are rescaled to match the depth image. The current intrinsic parameters in the existing calibration file reflect that.
+
+#### CLIO Datasets
+
+pySLAM supports the RGB-D sequences released with [Clio](https://github.com/MIT-SPARK/Clio) (Hydra/Clio scene-graph mapping). Each scene is expected to follow this layout under `{base_path}/{name}/`:
+
+```
+images/rgb_{id}.jpg
+depth/depth_{id}.png
+sparse/0/images.bin          # COLMAP sparse model (optional reference poses)
+*.bag                        # ROS1 recording (used for fps auto-detection and metric odometry)
+```
+
+1. Download or prepare a CLIO scene and set `base_path` and `name` in the `CLIO_DATASET` section of `config.yaml`.
+2. Select the calibration settings file (`CLIO_DATASET: settings: settings/CLIO.yaml`). Depth maps are stored as `uint16` in **millimeters** (`DepthMapFactor: 1000.0`).
+3. Set `sensor_type: rgbd` (or `mono` if depth is unavailable).
+4. Set `groundtruth_file: auto` to load a **reference trajectory** for evaluation and visualization (not independent motion-capture GT). By default, pySLAM prefers metric poses from the scene ROS1 bag topic `/dominic/forward/colmap_odom`; if the bag is missing, it falls back to COLMAP `sparse/0` poses (typically up-to-scale). Use `clio_reference_poses: auto | bag | sparse` to override this choice.
+5. Playback rate is auto-detected from the bag when present (~7.5 Hz on the office scene); you can override it with `fps` in `config.yaml` or `Camera.fps` in the settings file.
+
+When the reference trajectory is non-metric (COLMAP sparse), pySLAM automatically uses Sim(3) alignment for the ground-truth overlay and ATE metrics.
 
 #### ROS1 bags
 

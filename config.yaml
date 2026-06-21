@@ -8,6 +8,7 @@ DATASET:
   #type: TARTANAIR_DATASET
   #type: SEVEN_SCENES_DATASET
   #type: NEURAL_RGBD_DATASET
+  #type: CLIO_DATASET
   #type: BONN_RGBD_DYNAMIC_DATASET
   #type: ROVER_DATASET  
   type: VIDEO_DATASET
@@ -24,14 +25,15 @@ KITTI_DATASET:
   sensor_type: stereo # Here, 'sensor_type' can be 'mono' or 'stereo'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/kitti_color/dataset
   #
-  # name: '06'
-  # settings: settings/KITTI04-12.yaml # do not forget to correctly set the corresponding camera settings file 
+  #name: '06'
+  #settings: settings/KITTI04-12.yaml # do not forget to correctly set the corresponding camera settings file 
   #
   name: '00'
   settings: settings/KITTI00-02.yaml # do not forget to correctly set the corresponding camera settings file 
   #
   is_color: True # do you have the color images for the kitti dataset? (image2 and image3 folders)
   groundtruth_file: auto
+  start_frame_id: 0
 
 
 TUM_DATASET:
@@ -67,7 +69,7 @@ ICL_NUIM_DATASET:
   #name: living_room_traj0n_frei_png
   settings: settings/ICL_NUIM.yaml # do not forget to set the corresponding camera settings file   
   #
-  name: traj1_frei_png
+  #name: traj1_frei_png
   #settings: settings/ICL_NUIM.yaml # do not forget to set the corresponding camera settings file 
   #
   associations: associations.txt
@@ -101,7 +103,8 @@ REPLICA_DATASET:
   type: replica
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/replica
-  name: 'office0'
+  #name: 'office0'
+  name: 'room0'
   settings: settings/REPLICA.yaml 
   groundtruth_file: auto
 
@@ -130,7 +133,7 @@ SEVEN_SCENES_DATASET:
   type: seven_scenes
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/7scenes
-  name: 'redkitchen'  # chess, office, redkitchen, bedroom, fireplace, conference, livingroom, playroom
+  name: 'office'  # chess, office, redkitchen, bedroom, fireplace, conference, livingroom, playroom
   settings: settings/SEVEN_SCENES.yaml
   groundtruth_file: auto
 
@@ -139,9 +142,22 @@ NEURAL_RGBD_DATASET:
   type: neural_rgbd
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/neural_RGBD/neural_rgbd_data
-  name: 'complete_kitchen'  
+  #name: 'complete_kitchen'
+  name: 'morning_apartment'  
   settings: settings/NEURAL_RGBD.yaml
   groundtruth_file: auto
+
+
+CLIO_DATASET:
+  type: clio
+  sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
+  base_path: /media/luigi/T72/datasets/rgbd_datasets/clio
+  name: office
+  settings: settings/CLIO.yaml
+  # fps: 7.5  # optional override; otherwise auto-detected from *.bag (~7.5 Hz for office)
+  # clio_reference_poses: auto  # auto | bag | sparse (auto prefers bag colmap_odom, metric)
+  groundtruth_file: auto  # reference trajectory: bag colmap_odom or COLMAP sparse/0
+  start_frame_id: 0
 
 
 BONN_RGBD_DYNAMIC_DATASET:

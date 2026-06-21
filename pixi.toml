@@ -3,8 +3,8 @@ authors = ["Luigi Freda <luigifreda@gmail.com>"]
 channels = ["conda-forge"]
 name = "pyslam-pixi"
 platforms = ["linux-64"]
-version = "2.10.5"
-preview = ["pixi-build"]  
+version = "2.10.6"
+preview = ["pixi-build"]
 
 [dependencies]
 python = "==3.11.9"
@@ -112,7 +112,7 @@ gtsam = "*"
 tbb = ">=2021.13.0,<2022"
 tbb-devel = ">=2021.13.0,<2022"
 pyqtgraph = "*"
-viser="*"
+viser = "*"
 vtk = ">=9.3.1,<10"
 ffmpeg = ">=7.1.1,<8"
 jinja2 = ">=3.1.6,<4"
