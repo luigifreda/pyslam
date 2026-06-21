@@ -1948,6 +1948,8 @@ dataset} \cite{replica19arxiv} & \texttt{type:\ REPLICA\_DATASET}\tabularnewline
 \texttt{type:\ ROVER\_DATASET}\tabularnewline
 \href{http://www.scan-net.org/}{ScanNet dataset} \cite{dai2017scannet} &
 \texttt{type:\ SCANNET\_DATASET}\tabularnewline
+\href{https://github.com/MIT-SPARK/Clio}{CLIO dataset} \cite{kim2024clio} &
+\texttt{type:\ CLIO\_DATASET}\tabularnewline
 \href{https://wiki.ros.org/Bags}{ROS1 bags} &
 \texttt{type:\ ROS1BAG\_DATASET}\tabularnewline
 \href{https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html}{ROS2
@@ -2153,6 +2155,58 @@ supported in the future.
   depth image. The current intrinsic parametes in the existing
   calibration file reflect that.
 \end{enumerate}
+
+\hypertarget{clio-datasets}{%
+\paragraph{CLIO Datasets}\label{clio-datasets}}
+
+pySLAM supports the RGB-D sequences released with
+\href{https://github.com/MIT-SPARK/Clio}{Clio} \cite{kim2024clio}
+(Hydra/Clio scene-graph mapping). Each scene is expected to follow this
+layout under \texttt{\{base\_path\}/\{name\}/}:
+
+\begin{scriptsize}
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{images/rgb\_\{id\}.jpg}
+\NormalTok{depth/depth\_\{id\}.png}
+\NormalTok{sparse/0/images.bin          \# COLMAP sparse model (optional reference poses)}
+\NormalTok{*.bag                        \# ROS1 recording (fps auto-detection, metric odometry)}
+\end{Highlighting}
+\end{Shaded}
+\end{scriptsize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Download or prepare a CLIO scene and set \texttt{base\_path} and
+  \texttt{name} in the \texttt{CLIO\_DATASET} section of
+  \texttt{config.yaml}.
+\item
+  Select the calibration settings file (\texttt{CLIO\_DATASET:\ settings:\
+  settings/CLIO.yaml}). Depth maps are stored as \texttt{uint16} in
+  \textbf{millimeters} (\texttt{DepthMapFactor:\ 1000.0}).
+\item
+  Set \texttt{sensor\_type:\ rgbd} (or \texttt{mono} if depth is
+  unavailable).
+\item
+  Set \texttt{groundtruth\_file:\ auto} to load a \textbf{reference
+  trajectory} for evaluation and visualization (not independent
+  motion-capture GT). By default, pySLAM prefers metric poses from the
+  scene ROS1 bag topic \texttt{/dominic/forward/colmap\_odom}; if the
+  bag is missing, it falls back to COLMAP \texttt{sparse/0} poses
+  (typically up-to-scale). Use \texttt{clio\_reference\_poses:\ auto\ |\ bag\ |\ sparse}
+  to override this choice.
+\item
+  Playback rate is auto-detected from the bag when present
+  (${\sim}7.5$~Hz on the office scene); you can override it with
+  \texttt{fps} in \texttt{config.yaml} or \texttt{Camera.fps} in the
+  settings file.
+\end{enumerate}
+
+When the reference trajectory is non-metric (COLMAP sparse), pySLAM
+automatically uses Sim(3) alignment for the ground-truth overlay and ATE
+metrics.
 
 \hypertarget{ros1-bags}{%
 \paragraph{ROS1 bags}\label{ros1-bags}}
