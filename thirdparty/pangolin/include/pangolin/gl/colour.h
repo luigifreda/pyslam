@@ -29,6 +29,7 @@
 
 #include <cmath>
 
+#include <limits>
 #include <stdexcept>
 
 namespace pangolin
