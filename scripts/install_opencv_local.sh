@@ -635,7 +635,6 @@ if [ ! -f $OPENCV_CORE_LIB ]; then
           -DOPENCV_ENABLE_NONFREE=ON \
           -DBUILD_opencv_java=OFF \
           -DBUILD_opencv_python3=ON \
-          -Wno-deprecated-gpu-targets \
           -DBUILD_PROTOBUF=${WITH_PROTOBUF:-OFF} \
           -DAPPLE_FRAMEWORK=${WITH_APPLE_FRAMEWORK:-OFF} \
           $CONDA_OPTIONS $MAC_OPTIONS $PIXI_OPTIONS $PYTHON_OPTIONS $DARWIN_CONDA_TBB ..
@@ -672,8 +671,7 @@ if [ ! -f $OPENCV_CORE_LIB ]; then
           -DBUILD_PERF_TESTS=OFF \
           -DINSTALL_PYTHON_EXAMPLES=OFF \
           -DINSTALL_C_EXAMPLES=OFF \
-          -DBUILD_EXAMPLES=OFF \
-          -Wno-deprecated-gpu-targets ..
+          -DBUILD_EXAMPLES=OFF ..
     fi
     make -j$(nproc)  # use nproc to get the number of available cores
     make install -j$(nproc)
