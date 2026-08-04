@@ -1081,8 +1081,15 @@ def _search_by_sim3(
                     best_idx = kd1_idx
 
             if best_dist <= max_descriptor_distance:
-                if new_matches12[best_idx] == -1:
-                    new_matches21[unmatched_idxs2[i2]] = best_idx
+                # NOTE: record the reciprocal candidate unconditionally. The
+                #       previous guard `if new_matches12[best_idx] == -1` skipped
+                #       recording exactly when the 1->2 pass had matched that kf1
+                #       point — so its reciprocal entry was never written, the
+                #       final agreement check below reset every new match, and
+                #       search_by_sim3 could only ever return its seed pairs.
+                #       Mutual consistency is already enforced by the agreement
+                #       check; this guard made expansion structurally impossible.
+                new_matches21[unmatched_idxs2[i2]] = best_idx
 
     # if print_fun is not None:
     #     print_fun(f'search_by_sim3: new matches before check: 1->2: {np.sum(new_matches12!=-1)}, 2->1: {np.sum(new_matches21!=-1)}')

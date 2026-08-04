@@ -140,11 +140,24 @@ class LoopDetectorDBoW3(LoopDetectorBase):
         if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
             # add image descriptors to global_des_database
             # NOTE: relocalization works on frames (not keyframes) and we don't need to add them to the database
-            self.db.addBowVector(keyframe.g_des)
+            # NOTE: use the entry id RETURNED by the database as the mapping key.
+            #       Keying on the manually incremented self.entry_id counter can
+            #       desync from the database's internal entry counter (e.g. one
+            #       stray add, or a saved/reloaded database whose size differs
+            #       from the saved counter); after that, every query result maps
+            #       to the wrong frame id and a hit on the newest entry raises a
+            #       KeyError that silently kills the whole loop-detection task.
+            db_entry_id = int(self.db.addBowVector(keyframe.g_des))
+            if db_entry_id != self.entry_id:
+                LoopDetectorBase.print(
+                    f"LoopDetectorDBoW3: WARNING entry-id desync: db assigned {db_entry_id}, "
+                    f"counter was {self.entry_id} — resyncing"
+                )
+                self.entry_id = db_entry_id
 
             # the img_ids are mapped to entry_ids (entry ids) inside the database management
-            self.map_entry_id_to_frame_id[self.entry_id] = frame_id
-            # print(f'LoopDetectorDBoW3: mapping frame_id: {frame_id} to entry_id: {self.entry_id}')
+            self.map_entry_id_to_frame_id[db_entry_id] = frame_id
+            # print(f'LoopDetectorDBoW3: mapping frame_id: {frame_id} to entry_id: {db_entry_id}')
 
         detection_output = LoopDetectorOutput(
             task_type=task.task_type, g_des_vec=g_des_vec, frame_id=frame_id, img=keyframe.img
@@ -162,9 +175,13 @@ class LoopDetectorDBoW3(LoopDetectorBase):
                     f"LoopDetectorDBoW3: Relocalization: frame: {frame_id}, candidate keyframes: {[r.id for r in results]}"
                 )
                 for r in results:
-                    r_frame_id = self.map_entry_id_to_frame_id[
-                        r.id
-                    ]  # get the image id of the keyframe from it's internal image count
+                    # get the image id of the keyframe from it's internal image count
+                    r_frame_id = self.map_entry_id_to_frame_id.get(r.id)
+                    if r_frame_id is None:
+                        LoopDetectorBase.print(
+                            f"LoopDetectorDBoW3: WARNING unmapped db entry {r.id} in reloc query, skipping"
+                        )
+                        continue
                     candidate_idxs.append(r_frame_id)
                     candidate_scores.append(r.score)
 
@@ -185,9 +202,13 @@ class LoopDetectorDBoW3(LoopDetectorBase):
                 )
                 # print(f'connected keyframes: {[frame_id for frame_id in task.connected_keyframes_ids]}')
                 for r in results:
-                    r_frame_id = self.map_entry_id_to_frame_id[
-                        r.id
-                    ]  # get the image id of the keyframe from it's internal image count
+                    # get the image id of the keyframe from it's internal image count
+                    r_frame_id = self.map_entry_id_to_frame_id.get(r.id)
+                    if r_frame_id is None:
+                        LoopDetectorBase.print(
+                            f"LoopDetectorDBoW3: WARNING unmapped db entry {r.id} in loop query, skipping"
+                        )
+                        continue
                     # print(f'r_frame_id = {r_frame_id}, r.id = {r.id}')
                     self.update_similarity_matrix(
                         score=r.score, entry_id=self.entry_id, other_entry_id=r.id
