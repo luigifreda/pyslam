@@ -751,8 +751,9 @@ int ProjectionMatcher::search_and_fuse(const std::vector<MapPointPtr> &points,
             const auto kpsu = keyframe->kpsu.row(kd_idx);
             const Eigen::Vector2f err = proj_uv.cast<float>() - kpsu.transpose();
             float chi2 = err.squaredNorm() * invSigma2;
-            const float kp_ur = keyframe->kps_ur[kd_idx];
-            if (do_stereo_check && kp_ur >= 0) {
+            // kps_ur is empty for monocular keyframes
+            const float kp_ur = do_stereo_check ? keyframe->kps_ur[kd_idx] : -1.0f;
+            if (kp_ur >= 0) {
                 const float proj_ur = proj[2];
                 chi2 += (kp_ur - proj_ur) * (kp_ur - proj_ur) * invSigma2;
                 if (chi2 > Parameters::kChi2Stereo) {
