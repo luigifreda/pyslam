@@ -1,6 +1,6 @@
 [project]
 name = "pyslam"
-version = "2.10.7"
+version = "2.10.8"
 authors = [{ name = "Luigi Freda", email = "luigifreda@gmail.com" }]
 maintainers = [{ name = "Luigi Freda", email = "luigifreda@gmail.com" }]
 description = "pySLAM is a Python-based Visual SLAM pipeline that supports monocular, stereo, and RGB-D cameras. It offers a wide range of modern local and global features, multiple loop-closing strategies, a volumetric reconstruction pipeline, integration of depth prediction models, and semantic segmentation for enhanced scene understanding."

@@ -290,6 +290,9 @@ def _search_frame_by_projection(
 
 
 # Search by projection between {keyframe map points} and {current frame keypoints}
+# already_matched_ref_idxs and the returned ref indices are positions in
+# kf_ref.get_matched_points() (the compact list of non-None points), NOT keypoint
+# indices of kf_ref or f_cur.
 def _search_keyframe_by_projection(
     kf_ref: KeyFrame,
     f_cur: Frame,
@@ -941,8 +944,8 @@ def _search_and_fuse_for_loop_correction(
 #   idxs1, idxs2:  kf1.points(idxs1[i]) is matched with kf2.points(idxs2[i])
 #   s12, R12, t12: sim3 transformation that guides the matching
 # out:
-#   new_matches12: where kf2.points(new_matches12[i]) is matched to i-th map point in kf1 (includes the input matches) if new_matches12[i]>0
-#   new_matches21: where kf1.points(new_matches21[i]) is matched to i-th map point in kf2 (includes the input matches) if new_matches21[i]>0
+#   new_matches12: where kf2.points(new_matches12[i]) is matched to i-th map point in kf1 (includes the input matches) if new_matches12[i]>=0
+#   new_matches21: where kf1.points(new_matches21[i]) is matched to i-th map point in kf2 (includes the input matches) if new_matches21[i]>=0
 def _search_by_sim3(
     kf1: KeyFrame,
     kf2: KeyFrame,
@@ -968,7 +971,7 @@ def _search_by_sim3(
     n1 = len(map_points1)
     new_matches12 = np.full(
         n1, -1, dtype=np.int32
-    )  # kf2.points(new_matches12[i]) is matched to i-th map point in kf1 if new_matches12[i]>0 (from 1 to 2)
+    )  # kf2.points(new_matches12[i]) is matched to i-th map point in kf1 if new_matches12[i]>=0 (from 1 to 2)
     good_points1 = np.array(
         [True if mp is not None and not mp.is_bad() else False for mp in map_points1]
     )
@@ -977,7 +980,7 @@ def _search_by_sim3(
     n2 = len(map_points2)
     new_matches21 = np.full(
         n2, -1, dtype=np.int32
-    )  # kf1.points(new_matches21[i]) is matched to i-th map point in kf2 if new_matches21[i]>0 (from 2 to 1)
+    )  # kf1.points(new_matches21[i]) is matched to i-th map point in kf2 if new_matches21[i]>=0 (from 2 to 1)
     good_points2 = np.array(
         [True if mp is not None and not mp.is_bad() else False for mp in map_points2]
     )

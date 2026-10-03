@@ -129,6 +129,24 @@ def _convert_kf_points_indices_to_matched_indices(kf, kf_point_indices):
     return np.array(matched_points_indices, dtype=int) if matched_points_indices else None
 
 
+def _union_matched_idxs(*index_groups):
+    """Compact indices into kf.get_matched_points(), or None if there are none.
+
+    search_keyframe_by_projection sizes its skip-mask to that compact list.
+    Keypoint indices from the current frame are a different index space.
+    """
+    parts = []
+    for group in index_groups:
+        if group is None:
+            continue
+        arr = np.asarray(group, dtype=int).reshape(-1)
+        if arr.size:
+            parts.append(arr)
+    if not parts:
+        return None
+    return np.unique(np.concatenate(parts))
+
+
 def _validate_and_filter_indices(idxs_frame, idxs_kf, num_points, num_kf_points, print_func=None):
     """Validate indices are within bounds and create a boolean mask.
 
@@ -461,8 +479,13 @@ class Relocalizer:
                                 and num_matched_map_points
                                 < Parameters.kRelocalizationDoPoseOpt2NumInliers
                             ):
-                                # Get matched point indices (safe for C++ MapPoint objects)
-                                matched_ref_idxs = frame.get_matched_points_idxs()
+                                # Stay in kf.get_matched_points() index space. Frame keypoint
+                                # indices are larger than that compact list and the C++ skip-mask
+                                # is a vector<bool> of that size: an out-of-range write corrupts
+                                # the heap and aborts in free().
+                                matched_ref_idxs = _union_matched_idxs(
+                                    already_matched_ref_idxs, idxs_kf
+                                )
 
                                 idxs_kf, idxs_frame, num_new_found_map_points = (
                                     ProjectionMatcher.search_keyframe_by_projection(

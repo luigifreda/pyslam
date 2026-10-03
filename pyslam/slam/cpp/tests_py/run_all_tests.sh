@@ -21,6 +21,8 @@ TESTS_DIR="${SCRIPT_DIR}"
 KDTREE_TESTS=("test_ckdtree_basic.py" "test_ckdtree_validation.py")
 SLAM_TESTS=("test_slam_cpp_module.py" "test_slam_cpp_map.py" "test_slam_cpp_feature_matching_equivalence.py" "test_slam_cpp_rotation_histogram.py")
 OPTIMIZATION_TESTS=("test_slam_cpp_optimize_pose.py" "test_slam_cpp_optimize_sim3.py" "test_slam_cpp_optimize_essential_graph.py")
+# Regression tests for past crashes and matching bugs (see test/cpp/README.md)
+REGRESSION_TESTS=("test_slam_cpp_search_and_fuse.py" "test_slam_cpp_search_by_sim3.py" "test_slam_cpp_search_keyframe_by_projection.py")
 
 # Test tracking
 PASSED_TESTS=()
@@ -111,6 +113,14 @@ fi
 if [ ${#OPTIMIZATION_TESTS[@]} -gt 0 ]; then
     print_header "Running OPTIMIZATION Tests"
     for test in "${OPTIMIZATION_TESTS[@]}"; do
+        run_test $test $TESTS_DIR || true  # Continue on failure to collect all results
+    done
+fi
+
+# Run REGRESSION tests
+if [ ${#REGRESSION_TESTS[@]} -gt 0 ]; then
+    print_header "Running REGRESSION Tests"
+    for test in "${REGRESSION_TESTS[@]}"; do
         run_test $test $TESTS_DIR || true  # Continue on failure to collect all results
     done
 fi

@@ -321,8 +321,9 @@ class LoopGeometryChecker:
                     )
 
                     # NOTE:
-                    # matches12: where kf2.points(matches12[i]) is matched to i-th map point in kf1 if matches12[i]>0    (from 1 to 2)
-                    # matches21: where kf1.points(matches21[i]) is matched to i-th map point in kf2 if matches21[i]>0    (from 2 to 1)
+                    # matches12: where kf2.points(matches12[i]) is matched to i-th map point in kf1 if matches12[i]>=0    (from 1 to 2)
+                    # matches21: where kf1.points(matches21[i]) is matched to i-th map point in kf2 if matches21[i]>=0    (from 2 to 1)
+                    # -1 marks "no match"; index 0 is a valid kf2 point.
                     LoopClosing.print(
                         f"LoopGeometryChecker: guided matching (ProjectionMatcher.search_by_sim3) - found map point matches ({current_keyframe.id},{kf.id}): {np.sum(matches12!=-1)}, starting from {len(idxs1)}"
                     )
@@ -330,7 +331,7 @@ class LoopGeometryChecker:
                     assert len(matches12) == n1
                     map_points2 = kf.get_points()
                     map_point_matches12 = [
-                        map_points2[idx] if idx > 0 else None for idx in matches12
+                        map_points2[idx] if idx >= 0 else None for idx in matches12
                     ]  # from 1 to 2
                     assert len(map_point_matches12) == n1
 

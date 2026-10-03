@@ -41,6 +41,9 @@ class ProjectionMatcher {
 
     // search by projection matches between {map points of f_ref} and {keypoints of f_cur},  (access
     // frames from tracking thread, no need to lock)
+    // already_matched_ref_idxs and the returned ref indices are positions in
+    // kf_ref->get_matched_points() (the compact list of non-null points), NOT keypoint indices of
+    // kf_ref and NOT keypoint indices of f_cur. Out-of-range entries are ignored.
     static std::tuple<std::vector<int>, std::vector<int>, int>
     search_keyframe_by_projection(const KeyFramePtr &kf_ref, FramePtr &f_cur,
                                   float max_reproj_distance, float max_descriptor_distance = -1.0f,
@@ -109,9 +112,9 @@ class ProjectionMatcher {
     //   s12, R12, t12: sim3 transformation that guides the matching
     // out:
     //   - new_matches12: where kf2.points(new_matches12[i]) is matched to i-th map point in kf1
-    //   (includes the input matches) if new_matches12[i]>0
+    //   (includes the input matches) if new_matches12[i]>=0
     //   - new_matches21: where kf1.points(new_matches21[i]) is matched to i-th map point in kf2
-    //   (includes the input matches) if new_matches21[i]>0
+    //   (includes the input matches) if new_matches21[i]>=0
     static std::tuple<int, std::vector<int>, std::vector<int>>
     search_by_sim3(const KeyFramePtr &kf1, const KeyFramePtr &kf2, const std::vector<int> &idxs1,
                    const std::vector<int> &idxs2, float s12, const Eigen::Matrix3d &R12,

@@ -69,7 +69,7 @@ The codebase is organized into the following categories:
 
 - **Utilities** — `utils/` houses helper functions for geometry, features, descriptors, image processing, NumPy/Eigen operations, and serialization.
 
-- **Tests** — `tests_cpp/` and `tests_py/` contain C++ unit tests and Python integration tests respectively.
+- **Tests** — `tests_cpp/` and `tests_py/` contain C++ unit tests and Python integration tests respectively. See [test/cpp/README.md](../../../test/cpp/README.md) for how to run them.
 
 ---
 

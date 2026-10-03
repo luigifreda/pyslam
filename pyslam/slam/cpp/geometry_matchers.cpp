@@ -59,8 +59,10 @@ std::tuple<std::vector<int>, std::vector<int>, int> ProjectionMatcher::search_fr
     const bool check_already_matched_ref_idxs = !already_matched_ref_idxs.empty();
     if (check_already_matched_ref_idxs) {
         already_matched_ref_idxs_flags.resize(f_ref->points.size(), false);
-        for (const int &idx : already_matched_ref_idxs) {
-            already_matched_ref_idxs_flags[idx] = true;
+        for (const int idx : already_matched_ref_idxs) {
+            if (idx >= 0 && idx < static_cast<int>(already_matched_ref_idxs_flags.size())) {
+                already_matched_ref_idxs_flags[idx] = true;
+            }
         }
     }
 
@@ -273,8 +275,12 @@ ProjectionMatcher::search_keyframe_by_projection(
     const bool check_already_matched_ref_idxs = !already_matched_ref_idxs.empty();
     if (check_already_matched_ref_idxs) {
         already_matched_ref_idxs_flags.resize(ref_mps.size(), false);
-        for (const int &idx : already_matched_ref_idxs) {
-            already_matched_ref_idxs_flags[idx] = true;
+        for (const int idx : already_matched_ref_idxs) {
+            // Indices are into get_matched_points(), not the keypoint array.
+            // vector<bool> does not bounds-check; an out-of-range write corrupts the heap.
+            if (idx >= 0 && idx < static_cast<int>(already_matched_ref_idxs_flags.size())) {
+                already_matched_ref_idxs_flags[idx] = true;
+            }
         }
     }
 
@@ -906,9 +912,9 @@ std::vector<MapPointPtr> &ProjectionMatcher::search_and_fuse_for_loop_correction
 //   s12, R12, t12: sim3 transformation that guides the matching
 // out:
 //   - new_matches12: where kf2.points(new_matches12[i]) is matched to i-th map point in kf1
-//   (includes the input matches) if new_matches12[i]>0
+//   (includes the input matches) if new_matches12[i]>=0
 //   - new_matches21: where kf1.points(new_matches21[i]) is matched to i-th map point in kf2
-//   (includes the input matches) if new_matches21[i]>0
+//   (includes the input matches) if new_matches21[i]>=0
 std::tuple<int, std::vector<int>, std::vector<int>>
 ProjectionMatcher::search_by_sim3(const KeyFramePtr &kf1, const KeyFramePtr &kf2,
                                   const std::vector<int> &idxs1, const std::vector<int> &idxs2,
