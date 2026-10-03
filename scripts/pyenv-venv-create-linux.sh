@@ -88,6 +88,7 @@ MAKEFLAGS_OPTION="-j$(nproc)"
 #MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt #-vvv
 
 pip install --upgrade pip setuptools wheel build
+ensure_pyqt5 "$(which python3)"
 pip install -e .
 
 

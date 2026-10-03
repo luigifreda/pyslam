@@ -191,6 +191,60 @@ function ensure_python_package(){
     fi
 }
 
+# Make PyQt5 installable where PyPI ships no wheel (e.g. Linux aarch64 such as Raspberry Pi);
+# otherwise `pip install -e .` fails building the PyQt5 sdist because qmake is missing.
+# No-op on macOS, on x86_64, when PyQt5 is already importable, or when a wheel is available.
+# Usage: ensure_pyqt5 PYTHON_EXE
+function ensure_pyqt5(){
+    local python_exe="${1:-$(get_python_exe)}"
+
+    if [[ "$OSTYPE" == darwin* ]]; then
+        return 0
+    fi
+    case "$(uname -m)" in
+        x86_64|amd64) return 0 ;;
+    esac
+    if "$python_exe" -c "import PyQt5.QtCore" &>/dev/null; then
+        return 0
+    fi
+
+    local wheel_dir
+    wheel_dir=$(mktemp -d)
+    if "$python_exe" -m pip download "pyqt5==5.15.11" --only-binary=:all: --no-deps -d "$wheel_dir" &>/dev/null; then
+        rm -rf "$wheel_dir"
+        return 0
+    fi
+    rm -rf "$wheel_dir"
+
+    print_blue "No PyQt5 wheel available for $(uname -m); installing PyQt5 for ${python_exe}..."
+
+    if [[ -n "$CONDA_PREFIX" ]] && command -v conda &>/dev/null; then
+        conda install -y -p "$CONDA_PREFIX" -c conda-forge "pyqt=5.15"
+        return $?
+    fi
+
+    if ! command -v apt-get &>/dev/null; then
+        print_yellow "WARNING: apt-get not found; install Qt5 development packages (qmake) manually before installing PyQt5"
+        return 0
+    fi
+
+    sudo apt-get update
+    sudo apt-get install -y build-essential qtbase5-dev qtbase5-dev-tools qt5-qmake \
+        libqt5svg5-dev libqt5opengl5-dev
+
+    local qmake=/usr/lib/qt5/bin/qmake
+    if [[ ! -x "$qmake" ]]; then
+        qmake=$(command -v qmake)
+    fi
+
+    "$python_exe" -m pip install "sip>=6.8,<6.9" "PyQt-builder>=1.16,<1.17" "PyQt5-sip>=12.15,<13"
+    # NOTE: keep the job count low to avoid running out of memory on small boards
+    "$python_exe" -m pip install "pyqt5==5.15.11" --no-build-isolation --no-deps \
+        --config-settings --confirm-license= \
+        --config-settings --qmake="$qmake" \
+        --config-settings --jobs=2
+}
+
 function set_git_modules() {
 	#print_blue "setting up git submodules"
 	git submodule init -- 

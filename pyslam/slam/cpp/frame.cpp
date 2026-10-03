@@ -1509,10 +1509,17 @@ void extract_semantic_at_keypoints(const cv::Mat &semantic_img, MatNx2fRef kps, 
                 : extract_semantic_at_keypoints_impl<false, float>(semantic_img_32f, kps, kps_sem);
         }
 #else
-        // Linux and other platforms: use cv::float16_t directly if available
-        single
-            ? extract_semantic_at_keypoints_impl<true, cv::float16_t>(semantic_img, kps, kps_sem)
-            : extract_semantic_at_keypoints_impl<false, cv::float16_t>(semantic_img, kps, kps_sem);
+        // Linux and other platforms: OpenCV >= 4.10 omits the cv::float16_t typedef when
+        // __ARM_NEON or __STDCPP_FLOAT16_T__ is defined, while cv::hfloat is always available.
+        {
+#if (CV_VERSION_MAJOR > 4) || (CV_VERSION_MAJOR == 4 && CV_VERSION_MINOR >= 10)
+            using CvFloat16 = cv::hfloat;
+#else
+            using CvFloat16 = cv::float16_t;
+#endif
+            single ? extract_semantic_at_keypoints_impl<true, CvFloat16>(semantic_img, kps, kps_sem)
+                   : extract_semantic_at_keypoints_impl<false, CvFloat16>(semantic_img, kps, kps_sem);
+        }
 #endif
         break;
 #endif

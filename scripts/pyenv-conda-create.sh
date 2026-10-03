@@ -77,6 +77,7 @@ fi
 PYTHON_EXE=$(get_python_exe)
 ensure_pip "$PYTHON_EXE" || exit 1
 "$PYTHON_EXE" -m pip install --upgrade pip setuptools wheel build
+ensure_pyqt5 "$PYTHON_EXE"
 "$PYTHON_EXE" -m pip install -e .
 
 # NOTE: these are the "system" packages that are needed within conda to build code from source
