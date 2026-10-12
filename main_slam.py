@@ -30,44 +30,6 @@ import multiprocessing
 import torch.multiprocessing as mp
 import platform
 
-from pyslam.config import Config  # , dump_config_to_json
-
-from pyslam.semantics.semantic_mapping_configs import SemanticMappingConfigs
-from pyslam.semantics.semantic_eval import evaluate_semantic_mapping
-
-from pyslam.slam.slam_commons import SlamState
-from pyslam.slam import Slam, camera_from_config, USE_CPP
-
-from pyslam.viz.slam_plot_drawer import SlamPlotDrawerThread
-from pyslam.io.ground_truth import groundtruth_factory, is_valid_groundtruth, need_sim3_alignment
-from pyslam.io.dataset_factory import dataset_factory
-from pyslam.io.dataset_types import SensorType
-from pyslam.io.trajectory_writer import TrajectoryWriter
-
-from pyslam.viz.viewer3D import Viewer3D
-from pyslam.utilities.logging import Printer, LoggerQueue
-from pyslam.utilities.system import force_kill_all_and_exit
-from pyslam.utilities.img_management import ImgWriter
-from pyslam.utilities.evaluation import eval_ate
-from pyslam.utilities.geom_trajectory import find_poses_associations
-from pyslam.utilities.colors import GlColors
-from pyslam.utilities.serialization import SerializableEnumEncoder
-from pyslam.utilities.timer import TimerFps
-from pyslam.utilities.playback_timing import PlaybackTiming
-from pyslam.viz.cvimage_thread import CvImageViewer
-
-from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
-
-from pyslam.loop_closing.loop_detector_configs import LoopDetectorConfigs
-
-from pyslam.depth_estimation.depth_estimator_factory import (
-    depth_estimator_factory,
-    DepthEstimatorType,
-)
-from pyslam.utilities.depth import img_from_depth, filter_shadow_points
-
-from pyslam.config_parameters import Parameters
-
 from datetime import datetime
 import traceback
 
@@ -85,6 +47,8 @@ datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
 def draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est):
+    from pyslam.utilities.colors import GlColors
+
     T_est_gt = np.linalg.inv(T_gt_est)
     scale = np.mean([np.linalg.norm(T_est_gt[i, :3]) for i in range(3)])
     R_est_gt = T_est_gt[:3, :3] / scale  # we need a pure rotation to avoid camera scale changes
@@ -98,6 +62,44 @@ def draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est)
 
 
 if __name__ == "__main__":
+    # Keep optional native libraries out of the spawned OpenGL viewer.
+    from pyslam.config import Config  # , dump_config_to_json
+
+    from pyslam.semantics.semantic_mapping_configs import SemanticMappingConfigs
+    from pyslam.semantics.semantic_eval import evaluate_semantic_mapping
+
+    from pyslam.slam.slam_commons import SlamState
+    from pyslam.slam import Slam, camera_from_config, USE_CPP
+
+    from pyslam.viz.slam_plot_drawer import SlamPlotDrawerThread
+    from pyslam.io.ground_truth import groundtruth_factory, is_valid_groundtruth, need_sim3_alignment
+    from pyslam.io.dataset_factory import dataset_factory
+    from pyslam.io.dataset_types import SensorType
+    from pyslam.io.trajectory_writer import TrajectoryWriter
+
+    from pyslam.viz.viewer3D import Viewer3D
+    from pyslam.utilities.logging import Printer, LoggerQueue
+    from pyslam.utilities.system import force_kill_all_and_exit
+    from pyslam.utilities.img_management import ImgWriter
+    from pyslam.utilities.evaluation import eval_ate
+    from pyslam.utilities.geom_trajectory import find_poses_associations
+    from pyslam.utilities.serialization import SerializableEnumEncoder
+    from pyslam.utilities.timer import TimerFps
+    from pyslam.utilities.playback_timing import PlaybackTiming
+    from pyslam.viz.cvimage_thread import CvImageViewer
+
+    from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
+
+    from pyslam.loop_closing.loop_detector_configs import LoopDetectorConfigs
+
+    from pyslam.depth_estimation.depth_estimator_factory import (
+        depth_estimator_factory,
+        DepthEstimatorType,
+    )
+    from pyslam.utilities.depth import img_from_depth, filter_shadow_points
+
+    from pyslam.config_parameters import Parameters
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-c",
