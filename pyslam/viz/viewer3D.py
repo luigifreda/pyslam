@@ -18,6 +18,7 @@
 """
 
 import platform
+import os
 
 import pyslam.config as config
 
@@ -44,7 +45,6 @@ from pyslam.utilities.geom_trajectory import (
     TrajectoryAlignerProcessIncremental,
 )
 from pyslam.utilities.logging import Printer
-from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.data_management import empty_queue, get_last_item_from_queue
 from pyslam.utilities.colors import GlColors
 from pyslam.utilities.waiting import wait_for_ready
@@ -388,36 +388,39 @@ class Viewer3D(object):
         # TODO(dvdmc): to customize the semantic visualization from the UI, we need to create mp variables accesible from the refresh to the viewer thread
         # We would need a query word and a heatmap scale.
 
-        # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
-        self.mp_manager = MultiprocessingManager()
-        self.qmap = self.mp_manager.Queue()  # used to pass sparse map data to the viewer thread
-        self.qvo = self.mp_manager.Queue()  # used to pass VO data to the viewer thread
-        self.qdense = self.mp_manager.Queue()  # used to pass dense map data to the viewer thread
+        # OpenGL drivers must initialize in a fresh process, even when SLAM uses fork.
+        # In WSLg, Intel's LLVM driver conflicts with TensorFlow's global LLVM symbols.
+        # Queues and shared flags must use the same context as the viewer process.
+        viewer_context = mp.get_context("spawn")
+        self.mp_manager = None
+        self.qmap = viewer_context.Queue()  # used to pass sparse map data to the viewer thread
+        self.qvo = viewer_context.Queue()  # used to pass VO data to the viewer thread
+        self.qdense = viewer_context.Queue()  # used to pass dense map data to the viewer thread
         self.qcams = (
-            self.mp_manager.Queue()
+            viewer_context.Queue()
         )  # used to pass cameras and their poses to the viewer thread
 
-        self._is_running = mp.Value("i", 0)
-        self._is_looping = mp.Value("i", 0)
-        self._is_paused = mp.Value("i", 0)
-        self._is_closed = mp.Value("i", 0)
+        self._is_running = viewer_context.Value("i", 0)
+        self._is_looping = viewer_context.Value("i", 0)
+        self._is_paused = viewer_context.Value("i", 0)
+        self._is_closed = viewer_context.Value("i", 0)
 
-        self._is_map_save = mp.Value("i", 0)
-        self._is_bundle_adjust = mp.Value("i", 0)
-        self._do_step = mp.Value("i", 0)
-        self._do_reset = mp.Value("i", 0)
-        self._is_draw_features_with_radius = mp.Value("i", 0)
-        self._is_draw_objects = mp.Value("i", 0)
+        self._is_map_save = viewer_context.Value("i", 0)
+        self._is_bundle_adjust = viewer_context.Value("i", 0)
+        self._do_step = viewer_context.Value("i", 0)
+        self._do_reset = viewer_context.Value("i", 0)
+        self._is_draw_features_with_radius = viewer_context.Value("i", 0)
+        self._is_draw_objects = viewer_context.Value("i", 0)
 
-        self._is_gt_set = mp.Value("i", 0)
+        self._is_gt_set = viewer_context.Value("i", 0)
         self.alignment_gt_data_queue = (
-            self.mp_manager.Queue()
+            viewer_context.Queue()
         )  # used by slam_plot_drawer.py to draw GT alignment data
         self.aligner_input_queue = (
-            self.mp_manager.Queue()
+            viewer_context.Queue()
         )  # used to pass data to the trajectory aligner
-        self.aligner_output_queue = self.mp_manager.Queue()  # used to get aligner output
-        self.is_aligner_running = mp.Value("i", 0)
+        self.aligner_output_queue = viewer_context.Queue()  # used to get aligner output
+        self.is_aligner_running = viewer_context.Value("i", 0)
         self.trajectory_aligner = None
 
         # Create threaded drawer for asynchronous drawing operations
@@ -425,7 +428,7 @@ class Viewer3D(object):
         if Parameters.kViewerDrawSlamMapOnSeparateThread:
             self.slam_drawer_thread = SlamDrawerThread(self)
 
-        self.vp = mp.Process(
+        self.vp = viewer_context.Process(
             target=self.viewer_run,
             args=(
                 self.qmap,
@@ -457,6 +460,7 @@ class Viewer3D(object):
     def __getstate__(self):
         """Exclude non-picklable objects from pickling (for multiprocessing)"""
         state = self.__dict__.copy()
+        state.pop("vp", None)
         # Exclude slam_drawer_thread (contains locks, threads, queues - not picklable)
         # This is only used in the main process, not in the child process
         if self.slam_drawer_thread is not None:
@@ -466,6 +470,7 @@ class Viewer3D(object):
     def __setstate__(self, state):
         """Restore state after unpickling"""
         self.__dict__.update(state)
+        self.slam_drawer_thread = None
         # slam_drawer_thread will be None after unpickling, but that's OK
         # since it's only needed in the main process, not the child process
 
@@ -522,8 +527,21 @@ class Viewer3D(object):
         # pangolin.Quit()
         print("Viewer3D: done")
 
-    def wait_for_ready(self, timeout=None):
-        wait_for_ready(self.is_ready, "Viewer3D", timeout)
+    def wait_for_ready(self, timeout=120):
+        def check_ready():
+            if self.vp.exitcode is not None:
+                raise RuntimeError(
+                    f"Viewer3D exited before becoming ready (exit code {self.vp.exitcode})"
+                )
+            return self.is_ready()
+
+        try:
+            wait_for_ready(check_ready, "Viewer3D", timeout)
+        except (RuntimeError, TimeoutError):
+            if self.vp.is_alive():
+                self.vp.terminate()
+            self.vp.join(timeout=5)
+            raise
         Printer.green("Viewer3D: ready")
 
     def is_ready(self):
@@ -590,6 +608,24 @@ class Viewer3D(object):
         aligner_output_queue,
         is_aligner_running,
     ):
+        if os.environ.get("PYSLAM_VIEWER_TRACE") == "1":
+            import faulthandler
+            import linecache
+            import sys
+
+            faulthandler.enable()
+            faulthandler.dump_traceback_later(20, repeat=True)
+
+            def trace_startup(frame, event, arg):
+                if event == "line" and frame.f_code.co_name in ("viewer_run", "viewer_init"):
+                    print(
+                        f"Viewer3D[{os.getpid()}] {frame.f_lineno}: "
+                        f"{linecache.getline(__file__, frame.f_lineno).strip()}",
+                        flush=True,
+                    )
+                return trace_startup
+
+            sys.settrace(trace_startup)
         # Import heavy graphics libraries here (in the child process) to avoid slow startup
         # when using multiprocessing with 'spawn' method. This way they're only loaded
         # when the viewer process actually starts, not when the module is imported.
@@ -606,6 +642,8 @@ class Viewer3D(object):
         globals()["gl"] = gl
 
         self.viewer_init(kViewportWidth, kViewportHeight)
+        if os.environ.get("PYSLAM_VIEWER_TRACE") == "1":
+            print(f"Viewer3D OpenGL renderer: {gl.glGetString(gl.GL_RENDERER)!r}", flush=True)
         is_running.value = 1
 
         # Init other local vars for the the process/thread
@@ -623,6 +661,9 @@ class Viewer3D(object):
         self.thread_alignment_gt_data_queue = alignment_gt_data_queue  # used by slam_plot_drawer.py
 
         is_looping.value = 1
+        if os.environ.get("PYSLAM_VIEWER_TRACE") == "1":
+            sys.settrace(None)
+            faulthandler.cancel_dump_traceback_later()
         while not pangolin.ShouldQuit() and (is_running.value == 1):
             ts = time.time()
             try:
