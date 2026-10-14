@@ -1,5 +1,8 @@
 """Regression checks for isolated viewer startup and failure reporting (no display required)."""
 import subprocess
+import os
+import signal
+from pathlib import Path
 import sys
 import time
 import unittest
@@ -23,9 +26,30 @@ class QueueViewer(Viewer3D):
             time.sleep(0.01)
 
 
+class ParameterViewer(Viewer3D):
+    def viewer_run(self, *args):
+        import pyslam.viz.viewer3D as module
+
+        self.qvo.put(
+            (Parameters.kDenseMappingDtypeVertices, module.kMaxSparseMapPointsToVisualize)
+        )
+        self._is_running.value = 1
+        self._is_looping.value = 1
+        while self._is_running.value:
+            time.sleep(0.01)
+
+
 class FailedViewer(Viewer3D):
     def viewer_run(self, *args):
         raise SystemExit(7)
+
+
+class SignalIgnoringViewer(Viewer3D):
+    def viewer_run(self, *args):
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        self.qvo.put("handler ready")
+        while True:
+            time.sleep(1)
 
 
 class StalledViewer(Viewer3D):
@@ -53,6 +77,37 @@ class ViewerStartupTests(unittest.TestCase):
             self.assertEqual(viewer.qvo.get(timeout=5), ("spawn", False, True))
             np.testing.assert_array_equal(viewer.qvo.get(timeout=5), points)
             self.assertEqual(mp.get_start_method(), original_start_method)
+        finally:
+            viewer.quit()
+
+    def test_spawn_preserves_runtime_viewer_parameters(self):
+        with (
+            patch.object(Parameters, "kDenseMappingDtypeVertices", "float64"),
+            patch.object(Parameters, "kMaxSparseMapPointsToVisualize", 12345),
+        ):
+            viewer = ParameterViewer()
+        try:
+            viewer.wait_for_ready(timeout=30)
+            self.assertEqual(viewer.qvo.get(timeout=5), ("float64", 12345))
+        finally:
+            viewer.quit()
+
+    def test_shutdown_with_pending_visualization_data_exits(self):
+        subprocess.run(
+            [sys.executable, str(Path(__file__).with_name("viewer_queue_shutdown_probe.py"))],
+            check=True, timeout=30,
+        )
+
+    @unittest.skipUnless(os.name == "posix", "POSIX signal behavior")
+    def test_timeout_kills_child_that_ignores_termination(self):
+        viewer = SignalIgnoringViewer()
+        try:
+            self.assertEqual(viewer.qvo.get(timeout=30), "handler ready")
+            with self.assertRaises(TimeoutError):
+                viewer.wait_for_ready(timeout=0.1)
+            self.assertEqual(viewer.vp.exitcode, -signal.SIGKILL)
+            if viewer.slam_drawer_thread is not None:
+                self.assertFalse(viewer.slam_drawer_thread.draw_thread.is_alive())
         finally:
             viewer.quit()
 
