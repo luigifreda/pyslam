@@ -371,6 +371,17 @@ class SlamDrawerThread:
 class Viewer3D(object):
     def __init__(self, scale=0.1):
         self.scale = scale
+        # Spawn does not inherit runtime overrides from the parent process.
+        self.viewer_parameters = {
+            name: getattr(Parameters, name)
+            for name in (
+                "kDenseMappingDtypeVertices",
+                "kDenseMappingDtypeColors",
+                "kDenseMappingDtypeTriangles",
+                "kMinWeightForDrawingCovisibilityEdge",
+                "kMaxSparseMapPointsToVisualize",
+            )
+        }
 
         self.map_state: Viewer3DMapInput | None = None
         self.vo_state: Viewer3DVoInput | None = None
@@ -471,6 +482,12 @@ class Viewer3D(object):
         """Restore state after unpickling"""
         self.__dict__.update(state)
         self.slam_drawer_thread = None
+        for name, value in self.viewer_parameters.items():
+            setattr(Parameters, name, value)
+        globals()["kMinWeightForDrawingCovisibilityEdge"] = (
+            Parameters.kMinWeightForDrawingCovisibilityEdge
+        )
+        globals()["kMaxSparseMapPointsToVisualize"] = Parameters.kMaxSparseMapPointsToVisualize
         # slam_drawer_thread will be None after unpickling, but that's OK
         # since it's only needed in the main process, not the child process
 
@@ -508,14 +525,15 @@ class Viewer3D(object):
             self._is_running.value = 0
         if self._is_looping.value == 1:
             self._is_looping.value = 0
-        if self.vp.is_alive():
-            self.vp.join()
+        self._stop_viewer_process()
         # if self.is_aligner_running.value == 1:
         #     self.is_aligner_running.value = 0
         # if self.trajectory_aligner and self.trajectory_aligner.is_alive():
         #     self.trajectory_aligner.join()
         if self.trajectory_aligner:
             self.trajectory_aligner.quit()
+
+        self._close_queues()
 
         # Shutdown the manager AFTER threads/processes have exited
         if hasattr(self, "mp_manager") and self.mp_manager is not None:
@@ -526,6 +544,31 @@ class Viewer3D(object):
 
         # pangolin.Quit()
         print("Viewer3D: done")
+
+    def _stop_viewer_process(self, timeout=5):
+        self.vp.join(timeout=timeout)
+        if self.vp.is_alive():
+            self.vp.terminate()
+            self.vp.join(timeout=5)
+        if self.vp.is_alive():
+            self.vp.kill()
+            self.vp.join(timeout=5)
+
+    def _close_queues(self):
+        # Consumers have stopped; pending visualization updates may be discarded.
+        # Otherwise Queue feeder threads can hang at interpreter shutdown.
+        for queue_name in (
+            "qmap",
+            "qvo",
+            "qdense",
+            "qcams",
+            "alignment_gt_data_queue",
+            "aligner_input_queue",
+            "aligner_output_queue",
+        ):
+            queue = getattr(self, queue_name)
+            queue.cancel_join_thread()
+            queue.close()
 
     def wait_for_ready(self, timeout=120):
         def check_ready():
@@ -538,9 +581,10 @@ class Viewer3D(object):
         try:
             wait_for_ready(check_ready, "Viewer3D", timeout)
         except (RuntimeError, TimeoutError):
-            if self.vp.is_alive():
-                self.vp.terminate()
-            self.vp.join(timeout=5)
+            self._stop_viewer_process(timeout=0)
+            if self.slam_drawer_thread is not None:
+                self.slam_drawer_thread.quit()
+            self._close_queues()
             raise
         Printer.green("Viewer3D: ready")
 

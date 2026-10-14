@@ -58,3 +58,30 @@ Run the regression checks from the repository root in the pySLAM environment:
 ```bash
 PYTHONPATH=. python -m unittest discover -s test/viz -p test_viewer_startup.py
 ```
+
+## Follow-up compatibility checks
+
+Spawn does not inherit runtime overrides of class-level parameters. The viewer
+now transports its five graphics/drawing settings explicitly, including vertex
+precision. Queue cleanup also cancels feeder-thread waits after consumers stop,
+so pending visualization updates cannot hold up interpreter shutdown. Process
+shutdown has bounded waits and escalates termination when necessary; startup
+failure also stops the drawing thread and closes the queues.
+
+The expanded WSL2 checks passed seven regression tests, 21 rendering/startup/
+shutdown cycles across seven configurations (`fork`, `spawn`, `forkserver`,
+D3D12/llvmpipe, precision and drawing-thread options), and full 1101-frame GUI
+and headless runs. Two combined worker tests covered opposite startup orders:
+six YOLO11n-seg CPU outputs matched direct inference, and TSDF integration,
+rendering, reset, saving and readback succeeded on synthetic RGB-D input.
+
+Software rendering alone still crashes during window creation when TensorFlow
+shares the graphics process. The isolated viewer works with both renderers.
+A minimal D3D12 control without TensorFlow creates a window but later crashes
+at teardown, so these results do not establish a fix for all WSL driver issues.
+
+Native Linux, macOS, CUDA, other inference backends and Gaussian splatting remain
+untested. TSDF checks used the existing isolated Open3D 0.19 runtime because
+0.20 also produced an empty volume without the viewer. GUI shutdown used the
+existing forced termination of two plot processes; these independent issues
+are outside this viewer change.
