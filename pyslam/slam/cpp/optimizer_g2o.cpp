@@ -20,8 +20,10 @@
  */
 
 #include "optimizer_g2o.h"
+#include "owned_g2o_optimizer.h"
 
 #include "camera.h"
+#include "camera_edges_g2o.h"
 #include "camera_pose.h"
 #include "config_parameters.h"
 #include "feature_shared_resources.h"
@@ -86,11 +88,11 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
     }
 
     // Create g2o optimizer
-    g2o::SparseOptimizer optimizer;
+    OwnedG2oOptimizer optimizer;
     auto linearSolver =
         std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>>();
     auto blockSolver = std::make_unique<g2o::BlockSolverSE3>(std::move(linearSolver));
-    auto algorithm = new g2o::OptimizationAlgorithmLevenberg(std::move(blockSolver));
+    auto algorithm = optimizer.make<g2o::OptimizationAlgorithmLevenberg>(std::move(blockSolver));
     optimizer.setAlgorithm(algorithm);
 
     if (abort_flag) {
@@ -100,8 +102,8 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
     // Maps to store graph elements
     std::unordered_map<KeyFramePtr, g2o::VertexSE3Expmap *> graph_keyframes;
     std::unordered_map<MapPointPtr, g2o::VertexSBAPointXYZ *> graph_points;
-    std::unordered_map<g2o::EdgeSE3ProjectXYZ *, bool> graph_edges_mono;
-    std::unordered_map<g2o::EdgeStereoSE3ProjectXYZ *, bool> graph_edges_stereo;
+    std::unordered_map<EdgeCameraProjectXYZ *, bool> graph_edges_mono;
+    std::unordered_map<EdgeStereoCameraProjectXYZ *, bool> graph_edges_stereo;
 
     int num_edges = 0;
     int num_bad_edges = 0;
@@ -116,7 +118,7 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
         }
 
         // Create SE3 vertex
-        auto *vertex_se3 = new g2o::VertexSE3Expmap();
+        auto *vertex_se3 = optimizer.make<g2o::VertexSE3Expmap>();
         g2o::SE3Quat se3(kf->Rcw(), kf->tcw());
 
         vertex_se3->setEstimate(se3);
@@ -137,7 +139,7 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
             continue;
         }
 
-        auto *vertex_point = new g2o::VertexSBAPointXYZ();
+        auto *vertex_point = optimizer.make<g2o::VertexSBAPointXYZ>();
         vertex_point->setId(p->id * 2 + 1); // odd ids
         vertex_point->setEstimate(p->pt());
         vertex_point->setMarginalized(true);
@@ -158,11 +160,9 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
             }
             const auto v_se3_kf = it->second;
 
-            // Get keypoint information
-            const Eigen::Vector2d kpu = Eigen::Vector2d(kf->kpsu(idx, 0), kf->kpsu(idx, 1));
-
             const auto &kps_ur = kf->kps_ur;
             const bool is_stereo_obs = (kps_ur.size() > idx && kps_ur[idx] >= 0);
+            const Eigen::Vector2d kpu = kf->reprojection_measurement(idx, is_stereo_obs);
 
             // Get inverse sigma squared
             const auto &octaves = kf->octaves;
@@ -171,7 +171,7 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
             const auto &camera = kf->camera;
 
             if (is_stereo_obs) {
-                auto *edge = new g2o::EdgeStereoSE3ProjectXYZ();
+                auto *edge = optimizer.make<EdgeStereoCameraProjectXYZ>(camera.get());
                 edge->setVertex(0, vertex_point);
                 edge->setVertex(1, v_se3_kf);
 
@@ -180,7 +180,7 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
                 edge->setInformation(Eigen::Matrix3d::Identity() * invSigma2);
 
                 if (use_robust_kernel) {
-                    auto *robust_kernel = new g2o::RobustKernelHuber();
+                    auto *robust_kernel = optimizer.make<g2o::RobustKernelHuber>();
                     robust_kernel->setDelta(Parameters::kThHuberStereo);
                     edge->setRobustKernel(robust_kernel);
                 }
@@ -194,22 +194,17 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
                 optimizer.addEdge(edge);
                 graph_edges_stereo[edge] = true;
             } else {
-                auto *edge = new g2o::EdgeSE3ProjectXYZ();
+                auto *edge = optimizer.make<EdgeCameraProjectXYZ>(camera.get());
                 edge->setVertex(0, vertex_point);
                 edge->setVertex(1, v_se3_kf);
                 edge->setMeasurement(kpu);
                 edge->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
 
                 if (use_robust_kernel) {
-                    auto *robust_kernel = new g2o::RobustKernelHuber();
+                    auto *robust_kernel = optimizer.make<g2o::RobustKernelHuber>();
                     robust_kernel->setDelta(Parameters::kThHuberMono);
                     edge->setRobustKernel(robust_kernel);
                 }
-
-                edge->fx = camera->fx;
-                edge->fy = camera->fy;
-                edge->cx = camera->cx;
-                edge->cy = camera->cy;
 
                 optimizer.addEdge(edge);
                 graph_edges_mono[edge] = true;
@@ -372,15 +367,15 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
     result.is_ok = true;
 
     // Create g2o optimizer
-    g2o::SparseOptimizer optimizer;
+    OwnedG2oOptimizer optimizer;
     auto linearSolver =
         std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>>();
     auto blockSolver = std::make_unique<g2o::BlockSolverSE3>(std::move(linearSolver));
-    auto algorithm = new g2o::OptimizationAlgorithmLevenberg(std::move(blockSolver));
+    auto algorithm = optimizer.make<g2o::OptimizationAlgorithmLevenberg>(std::move(blockSolver));
     optimizer.setAlgorithm(algorithm);
 
     // Create SE3 vertex for frame pose
-    auto *vertex_se3 = new g2o::VertexSE3Expmap();
+    auto *vertex_se3 = optimizer.make<g2o::VertexSE3Expmap>();
     Eigen::Matrix3d Rcw = frame->Rcw();
     Eigen::Vector3d tcw = frame->tcw();
     g2o::SE3Quat se3(Rcw, tcw);
@@ -392,9 +387,9 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
 
     // Get frame points and create edges
     auto frame_points = frame->get_points();
-    std::vector<std::pair<g2o::EdgeSE3ProjectXYZOnlyPose *, int>> point_edge_pairs_mono;
+    std::vector<std::pair<EdgeCameraProjectXYZOnlyPose *, int>> point_edge_pairs_mono;
     point_edge_pairs_mono.reserve(frame_points.size());
-    std::vector<std::pair<g2o::EdgeStereoSE3ProjectXYZOnlyPose *, int>> point_edge_pairs_stereo;
+    std::vector<std::pair<EdgeStereoCameraProjectXYZOnlyPose *, int>> point_edge_pairs_stereo;
     point_edge_pairs_stereo.reserve(frame_points.size());
 
     int num_point_edges = 0;
@@ -413,8 +408,8 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
                 continue;
             }
 
-            const Eigen::Vector2d kpu = Eigen::Vector2d(frame->kpsu(idx, 0), frame->kpsu(idx, 1));
             const bool is_stereo_obs = (kps_ur.size() > idx && kps_ur[idx] >= 0);
+            const Eigen::Vector2d kpu = frame->reprojection_measurement(idx, is_stereo_obs);
 
             // Reset outlier flag
             frame->outliers[idx] = false;
@@ -423,13 +418,13 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
             const double invSigma2 = inv_level_sigmas2[octaves[idx]];
 
             if (is_stereo_obs) {
-                auto *edge = new g2o::EdgeStereoSE3ProjectXYZOnlyPose();
+                auto *edge = optimizer.make<EdgeStereoCameraProjectXYZOnlyPose>(camera.get());
                 Eigen::Vector3d obs_vec(kpu.x(), kpu.y(), kps_ur[idx]);
                 edge->setVertex(0, vertex_se3);
                 edge->setMeasurement(obs_vec);
                 edge->setInformation(Eigen::Matrix3d::Identity() * invSigma2);
 
-                auto *robust_kernel = new g2o::RobustKernelHuber();
+                auto *robust_kernel = optimizer.make<g2o::RobustKernelHuber>();
                 robust_kernel->setDelta(Parameters::kThHuberStereo);
                 edge->setRobustKernel(robust_kernel);
 
@@ -443,19 +438,15 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
                 optimizer.addEdge(edge);
                 point_edge_pairs_stereo.push_back({edge, static_cast<int>(idx)});
             } else {
-                auto *edge = new g2o::EdgeSE3ProjectXYZOnlyPose();
+                auto *edge = optimizer.make<EdgeCameraProjectXYZOnlyPose>(camera.get());
                 edge->setVertex(0, vertex_se3);
                 edge->setMeasurement(kpu);
                 edge->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
 
-                auto *robust_kernel = new g2o::RobustKernelHuber();
+                auto *robust_kernel = optimizer.make<g2o::RobustKernelHuber>();
                 robust_kernel->setDelta(Parameters::kThHuberMono);
                 edge->setRobustKernel(robust_kernel);
 
-                edge->fx = camera->fx;
-                edge->fy = camera->fy;
-                edge->cx = camera->cx;
-                edge->cy = camera->cy;
                 edge->Xw = p->pt();
 
                 optimizer.addEdge(edge);
@@ -494,7 +485,7 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
             }
 
             double chi2 = edge->chi2();
-            if (chi2 > Parameters::kChi2Mono) {
+            if (!std::isfinite(chi2) || chi2 > Parameters::kChi2Mono || !edge->isDepthPositive()) {
                 frame->outliers[idx] = true;
                 edge->setLevel(1);
                 num_bad_point_edges++;
@@ -577,11 +568,11 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
     bool *abort_flag, LockType *map_lock) {
 
     // Create g2o optimizer
-    g2o::SparseOptimizer optimizer;
+    OwnedG2oOptimizer optimizer;
     auto linearSolver =
         std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>>();
     auto blockSolver = std::make_unique<g2o::BlockSolverSE3>(std::move(linearSolver));
-    auto algorithm = new g2o::OptimizationAlgorithmLevenberg(std::move(blockSolver));
+    auto algorithm = optimizer.make<g2o::OptimizationAlgorithmLevenberg>(std::move(blockSolver));
     optimizer.setAlgorithm(algorithm);
 
     if (abort_flag) {
@@ -604,15 +595,15 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
     // Maps to store graph elements
     std::unordered_map<KeyFramePtr, g2o::VertexSE3Expmap *> graph_keyframes;
     std::unordered_map<MapPointPtr, g2o::VertexSBAPointXYZ *> graph_points;
-    std::unordered_map<g2o::EdgeSE3ProjectXYZ *, std::tuple<MapPointPtr, KeyFramePtr, int, bool>>
+    std::unordered_map<EdgeCameraProjectXYZ *, std::tuple<MapPointPtr, KeyFramePtr, int, bool>>
         graph_edges_mono;
-    std::unordered_map<g2o::EdgeStereoSE3ProjectXYZ *,
+    std::unordered_map<EdgeStereoCameraProjectXYZ *,
                        std::tuple<MapPointPtr, KeyFramePtr, int, bool>>
         graph_edges_stereo;
 
     // Add keyframe vertices
     for (const auto &kf : good_keyframes) {
-        auto *vertex_se3 = new g2o::VertexSE3Expmap();
+        auto *vertex_se3 = optimizer.make<g2o::VertexSE3Expmap>();
         Eigen::Matrix3d Rcw = kf->Rcw();
         Eigen::Vector3d tcw = kf->tcw();
         g2o::SE3Quat se3(Rcw, tcw);
@@ -637,7 +628,7 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
         if (!p || p->is_bad()) {
             continue;
         }
-        auto *vertex_point = new g2o::VertexSBAPointXYZ();
+        auto *vertex_point = optimizer.make<g2o::VertexSBAPointXYZ>();
         vertex_point->setId(p->id * 2 + 1);
         vertex_point->setEstimate(p->pt());
         vertex_point->setMarginalized(true);
@@ -667,9 +658,9 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
                 continue; // Skip invalid observations
             }
 
-            const Eigen::Vector2d kpu = Eigen::Vector2d(kf->kpsu(p_idx, 0), kf->kpsu(p_idx, 1));
             const auto &kps_ur = kf->kps_ur;
             bool is_stereo_obs = (kps_ur.size() > p_idx && kps_ur[p_idx] >= 0);
+            const Eigen::Vector2d kpu = kf->reprojection_measurement(p_idx, is_stereo_obs);
 
             const auto &octaves = kf->octaves;
             const double invSigma2 = inv_level_sigmas2[octaves[p_idx]];
@@ -677,12 +668,12 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
             const auto &camera = kf->camera;
 
             if (is_stereo_obs) {
-                auto *edge = new g2o::EdgeStereoSE3ProjectXYZ();
+                auto *edge = optimizer.make<EdgeStereoCameraProjectXYZ>(camera.get());
                 Eigen::Vector3d obs_vec(kpu.x(), kpu.y(), kps_ur[p_idx]);
                 edge->setMeasurement(obs_vec);
                 edge->setInformation(Eigen::Matrix3d::Identity() * invSigma2);
 
-                auto *robust_kernel = new g2o::RobustKernelHuber();
+                auto *robust_kernel = optimizer.make<g2o::RobustKernelHuber>();
                 robust_kernel->setDelta(Parameters::kThHuberStereo);
                 edge->setRobustKernel(robust_kernel);
 
@@ -698,18 +689,13 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
 
                 graph_edges_stereo[edge] = {p, kf, p_idx, is_stereo_obs};
             } else {
-                auto *edge = new g2o::EdgeSE3ProjectXYZ();
+                auto *edge = optimizer.make<EdgeCameraProjectXYZ>(camera.get());
                 edge->setMeasurement(kpu);
                 edge->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
 
-                auto *robust_kernel = new g2o::RobustKernelHuber();
+                auto *robust_kernel = optimizer.make<g2o::RobustKernelHuber>();
                 robust_kernel->setDelta(Parameters::kThHuberMono);
                 edge->setRobustKernel(robust_kernel);
-
-                edge->fx = camera->fx;
-                edge->fy = camera->fy;
-                edge->cx = camera->cx;
-                edge->cy = camera->cy;
 
                 edge->setVertex(0, vertex_point);
                 edge->setVertex(1, v_se3_kf);
@@ -881,17 +867,17 @@ Sim3OptimizationResult OptimizerG2o::optimize_sim3(
     Eigen::Vector3d t2w = kf2->tcw();
 
     // Setup optimizer
-    g2o::SparseOptimizer optimizer;
+    OwnedG2oOptimizer optimizer;
     auto linearSolver =
         std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>>();
     auto blockSolver = std::make_unique<g2o::BlockSolverX>(std::move(linearSolver));
-    auto algorithm = new g2o::OptimizationAlgorithmLevenberg(std::move(blockSolver));
+    auto algorithm = optimizer.make<g2o::OptimizationAlgorithmLevenberg>(std::move(blockSolver));
     optimizer.setAlgorithm(algorithm);
 
     g2o::Sim3 sim3(R12, t12, s12);
 
     // Sim3 vertex
-    auto *sim3_vertex = new g2o::VertexSim3Expmap();
+    auto *sim3_vertex = optimizer.make<g2o::VertexSim3Expmap>();
     sim3_vertex->setEstimate(sim3);
     sim3_vertex->setId(0);
     sim3_vertex->setFixed(false);
@@ -941,21 +927,21 @@ Sim3OptimizationResult OptimizerG2o::optimize_sim3(
         int index2 = mp2->get_observation_idx(kf2);
         if (index2 >= 0) {
             // Create vertex for map point 1 (fixed)
-            auto *v_mp1 = new g2o::VertexSBAPointXYZ();
+            auto *v_mp1 = optimizer.make<g2o::VertexSBAPointXYZ>();
             v_mp1->setEstimate(R1w * mp1->pt() + t1w);
             v_mp1->setId(vertex_id1);
             v_mp1->setFixed(true);
             optimizer.addVertex(v_mp1);
 
             // Create vertex for map point 2 (fixed)
-            auto *v_mp2 = new g2o::VertexSBAPointXYZ();
+            auto *v_mp2 = optimizer.make<g2o::VertexSBAPointXYZ>();
             v_mp2->setEstimate(R2w * mp2->pt() + t2w);
             v_mp2->setId(vertex_id2);
             v_mp2->setFixed(true);
             optimizer.addVertex(v_mp2);
 
             // Create edge 12 (project mp2_2 on camera 1)
-            auto *edge_12 = new g2o::EdgeSim3ProjectXYZ();
+            auto *edge_12 = optimizer.make<g2o::EdgeSim3ProjectXYZ>();
             edge_12->setVertex(0, optimizer.vertex(vertex_id2));
             edge_12->setVertex(1, optimizer.vertex(0));
             const Eigen::Vector2d kpu1 = Eigen::Vector2d(kf1->kpsu(i, 0), kf1->kpsu(i, 1));
@@ -965,13 +951,13 @@ Sim3OptimizationResult OptimizerG2o::optimize_sim3(
             const double invSigma2_12 = inv_level_sigmas2[octaves1[i]];
 
             edge_12->setInformation(Eigen::Matrix2d::Identity() * invSigma2_12);
-            auto *robust_kernel_12 = new g2o::RobustKernelHuber();
+            auto *robust_kernel_12 = optimizer.make<g2o::RobustKernelHuber>();
             robust_kernel_12->setDelta(delta_huber);
             edge_12->setRobustKernel(robust_kernel_12);
             optimizer.addEdge(edge_12);
 
             // Create edge 21 (project mp1_1 on camera 2)
-            auto *edge_21 = new g2o::EdgeInverseSim3ProjectXYZ();
+            auto *edge_21 = optimizer.make<g2o::EdgeInverseSim3ProjectXYZ>();
             edge_21->setVertex(0, optimizer.vertex(vertex_id1));
             edge_21->setVertex(1, optimizer.vertex(0));
             const Eigen::Vector2d kpu2 =
@@ -982,7 +968,7 @@ Sim3OptimizationResult OptimizerG2o::optimize_sim3(
             const double invSigma2_21 = inv_level_sigmas2[octaves2[index2]];
 
             edge_21->setInformation(Eigen::Matrix2d::Identity() * invSigma2_21);
-            auto *robust_kernel_21 = new g2o::RobustKernelHuber();
+            auto *robust_kernel_21 = optimizer.make<g2o::RobustKernelHuber>();
             robust_kernel_21->setDelta(delta_huber);
             edge_21->setRobustKernel(robust_kernel_21);
             optimizer.addEdge(edge_21);
@@ -1072,13 +1058,13 @@ double OptimizerG2o::optimize_essential_graph(
     bool fix_scale, bool verbose) {
 
     // Setup optimizer
-    g2o::SparseOptimizer optimizer;
+    OwnedG2oOptimizer optimizer;
     optimizer.setVerbose(false);
 
     auto linearSolver =
         std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolver_7_3::PoseMatrixType>>();
     auto blockSolver = std::make_unique<g2o::BlockSolverSim3>(std::move(linearSolver));
-    auto algorithm = new g2o::OptimizationAlgorithmLevenberg(std::move(blockSolver));
+    auto algorithm = optimizer.make<g2o::OptimizationAlgorithmLevenberg>(std::move(blockSolver));
     algorithm->setUserLambdaInit(1e-16);
     optimizer.setAlgorithm(algorithm);
 
@@ -1099,7 +1085,7 @@ double OptimizerG2o::optimize_essential_graph(
             continue;
         }
 
-        auto *vertex_sim3 = new g2o::VertexSim3Expmap();
+        auto *vertex_sim3 = optimizer.make<g2o::VertexSim3Expmap>();
         const int keyframe_id = keyframe->kid;
 
         g2o::Sim3 Siw;
@@ -1157,7 +1143,7 @@ double OptimizerG2o::optimize_essential_graph(
             auto &Sjw = vec_Scw[connected_id];
             const auto Sji = Sjw * Swi;
 
-            auto *edge = new g2o::EdgeSim3();
+            auto *edge = optimizer.make<g2o::EdgeSim3>();
             edge->setVertex(1, optimizer.vertex(connected_id));
             edge->setVertex(0, optimizer.vertex(keyframe_id));
             edge->setMeasurement(
@@ -1200,7 +1186,7 @@ double OptimizerG2o::optimize_essential_graph(
 
             const auto Sji = Sjw * Swi;
 
-            auto *edge = new g2o::EdgeSim3();
+            auto *edge = optimizer.make<g2o::EdgeSim3>();
             edge->setVertex(1, optimizer.vertex(parent_id));
             edge->setVertex(0, optimizer.vertex(keyframe_id));
             edge->setMeasurement(
@@ -1225,7 +1211,7 @@ double OptimizerG2o::optimize_essential_graph(
 
                 const auto Sli = Slw * Swi;
 
-                auto *edge = new g2o::EdgeSim3();
+                auto *edge = optimizer.make<g2o::EdgeSim3>();
                 edge->setVertex(1, optimizer.vertex(loop_edge->kid));
                 edge->setVertex(0, optimizer.vertex(keyframe_id));
                 edge->setMeasurement(
@@ -1256,7 +1242,7 @@ double OptimizerG2o::optimize_essential_graph(
 
                 const auto Sni = Snw * Swi;
 
-                auto *edge = new g2o::EdgeSim3();
+                auto *edge = optimizer.make<g2o::EdgeSim3>();
                 edge->setVertex(1, optimizer.vertex(connected_keyframe->kid));
                 edge->setVertex(0, optimizer.vertex(keyframe_id));
                 edge->setMeasurement(

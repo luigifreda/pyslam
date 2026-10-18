@@ -761,6 +761,9 @@ KeyFrameIdSet LocalCovisibilityMap::update_keyframes(const KeyFramePtr &kf_ref) 
 
     std::vector<KeyFramePtr> neighbor_kfs = kf_ref->get_covisible_keyframes();
     for (const auto &kf : neighbor_kfs) {
+        if (keyframes.size() >= Parameters::kMaxNumOfKeyframesInLocalMap) {
+            break;
+        }
         if (!kf->is_bad()) {
             keyframes.insert(kf);
         }

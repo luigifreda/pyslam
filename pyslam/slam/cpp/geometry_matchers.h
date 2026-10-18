@@ -20,6 +20,7 @@
 #pragma once
 
 #include "config_parameters.h"
+#include "eigen_aliases.h"
 #include "sim3_pose.h"
 #include "smart_pointers.h"
 
@@ -134,6 +135,18 @@ class EpipolarMatcher {
                                    const std::vector<int> &idxs1 = {},
                                    const std::vector<int> &idxs2 = {},
                                    float max_descriptor_distance = -1.0f, bool is_monocular = true);
+
+    // Stereo matches of a calibrated rig (camera.right_camera, camera.T_right_left) whose
+    // images need not be rectified. Right candidates must lie within the epipolar band of
+    // each left ray and within one octave. The ratio test compares candidates in the band.
+    // Matches are one-to-one and must triangulate in front of both cameras.
+    // Returns left indices, right indices and the left-camera z of each triangulated point.
+    // An empty level_sigmas2 selects FeatureSharedResources::level_sigmas2.
+    static std::tuple<std::vector<int>, std::vector<int>, std::vector<double>>
+    search_stereo_rig(const Camera &camera, MatNx2fRef kps, const std::vector<int> &octaves,
+                      const cv::Mat &des, MatNx2fRef kps_r, const std::vector<int> &octaves_r,
+                      const cv::Mat &des_r, float max_descriptor_distance, float ratio_test,
+                      const std::vector<float> &level_sigmas2 = {});
 };
 
 } // namespace pyslam

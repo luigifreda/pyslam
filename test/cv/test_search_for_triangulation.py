@@ -13,7 +13,7 @@ from pyslam.utilities.geometry import add_ones, poseRt, skew
 from pyslam.utilities.drawing import draw_points2, draw_feature_matches
 from pyslam.slam.geometry_matchers_test import EpipolarMatcherTest
 from pyslam.slam.slam import Slam
-from pyslam.slam import Camera, PinholeCamera
+from pyslam.slam import Camera, camera_from_config
 
 from pyslam.utilities.logging import Printer
 
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     # dataset = dataset_factory(config)
     # groundtruth = groundtruth_factory(config.dataset_settings)
 
-    cam = PinholeCamera(config)
+    cam = camera_from_config(config)
 
     # ============================================
     # Init Feature Tracker

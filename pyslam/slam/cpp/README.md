@@ -82,7 +82,7 @@ The codebase is organized into the following categories:
 | `keyframe.cpp/h` | `pyslam/slam/keyframe.py` | Keyframe class for storing keyframes in the map |
 | `map_point.cpp/h` | `pyslam/slam/map_point.py` | MapPoint class for 3D points in the map |
 | `map.cpp/h` | `pyslam/slam/map.py` | Map class managing keyframes and map points |
-| `camera.cpp/h` | `pyslam/slam/camera.py` | Camera model and calibration |
+| `camera.cpp/h`, `camera_models.cpp/h`, `camera_model_math.h` | `pyslam/slam/camera.py` | Pinhole, Kannala–Brandt4, rational pinhole, and double-sphere cameras |
 | `camera_pose.cpp/h` | `pyslam/slam/camera_pose.py` | Camera pose representation |
 | `tracking_core.cpp/h` | `pyslam/slam/tracking_core.py` | Core tracking functionality |
 | `local_mapping_core.cpp/h` | `pyslam/slam/local_mapping_core.py` | Local mapping core operations |

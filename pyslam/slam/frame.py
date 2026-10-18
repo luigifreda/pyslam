@@ -34,7 +34,7 @@ from pyslam.utilities.timer import Timer
 from pyslam.io.dataset_types import SensorType
 from pyslam.config_parameters import Parameters
 
-from .camera import Camera, PinholeCamera
+from .camera import Camera, PinholeCamera, camera_from_json
 from .camera_pose import CameraPose
 from .feature_tracker_shared import FeatureTrackerShared
 
@@ -533,8 +533,11 @@ class Frame(FrameBase):
                     raise Exception("Frame.init: camera is None")
                 self.kpsu = self.camera.undistort_points(
                     self.kps
-                )  # convert to undistorted keypoint coordinates
-                self.kpsn = self.camera.unproject_points(self.kpsu)
+                )  # pinhole image of each detected ray
+                # Original Python unprojection uses undistorted pixels.
+                # Raw models unproject the detection. USE_CPP_CORE=True selects cpp_core.Frame.
+                measured = self.kps if self.projects_raw_keypoints() else self.kpsu
+                self.kpsn = self.camera.unproject_points(measured)
                 if len(self.kps) != len(self.kpsu):
                     raise Exception("Frame.init: len(self.kps) != len(self.kpsu)")
                 num_kps = len(self.kps)
@@ -728,7 +731,7 @@ class Frame(FrameBase):
 
     @staticmethod
     def from_json(json_str):
-        camera = PinholeCamera.from_json(json_str["camera"])
+        camera = camera_from_json(json_str["camera"])
         pose = deserialize_array_flexible(json_str["pose"], dtype=np.float64)
 
         frame_data_dict = {}
@@ -872,11 +875,23 @@ class Frame(FrameBase):
         else:
             self.kf_ref = None
 
-    # KD tree of undistorted keypoints
+    def projects_raw_keypoints(self):
+        camera = self.camera
+        if camera is None:
+            return False
+        query = getattr(camera, "projects_raw_keypoints", None)
+        if query is None:
+            return False
+        return bool(query() if callable(query) else query)
+
+    def projection_keypoints(self):
+        return self.kps if self.projects_raw_keypoints() else self.kpsu
+
+    # KD tree in the image that camera.project() predicts
     @property
     def kd(self):
         if self._kd is None:
-            self._kd = cKDTree(self.kpsu)
+            self._kd = cKDTree(self.projection_keypoints())
         return self._kd
 
     def delete(self):
@@ -1120,6 +1135,32 @@ class Frame(FrameBase):
             self.fov_center_w = self._pose.Rwc @ self.fov_center_c + self._pose.Ow
 
     def compute_stereo_matches(self, img, img_right):
+        # A calibrated right camera matches through camera_models.EpipolarMatcher
+        # when this Python Frame is in use (USE_CPP_CORE=False). The block below
+        # is the original rectified-stereo matcher. USE_CPP_CORE=True selects
+        # cpp_core.Frame, which keeps its own matcher.
+        if self.camera.is_native_stereo():
+            from .camera_factors import bound_camera, projection_module
+
+            native = bound_camera(self.camera)
+            idxs_left, idxs_right, depths = projection_module(native).EpipolarMatcher.search_stereo_rig(
+                native,
+                np.ascontiguousarray(self.kps, dtype=np.float32),
+                np.ascontiguousarray(self.octaves, dtype=np.int32),
+                self.des,
+                np.ascontiguousarray(self.kps_r, dtype=np.float32),
+                np.ascontiguousarray(self.octaves_r, dtype=np.int32),
+                self.des_r,
+                0.75 * Parameters.kMaxDescriptorDistance,
+                Parameters.kFeatureMatchDefaultRatioTest,
+                np.ascontiguousarray(
+                    FeatureTrackerShared.feature_manager.level_sigmas2, dtype=np.float32
+                ),
+            )
+            if len(idxs_left):
+                self.depths[idxs_left] = depths
+                self.kps_ur[idxs_left] = self.kps_r[idxs_right, 0]
+            return
         min_z = self.camera.b
         min_disparity = 0
         max_disparity = self.camera.bf / min_z

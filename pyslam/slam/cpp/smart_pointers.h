@@ -85,6 +85,15 @@ DECLARE_SMART_POINTERS(Camera)
 class PinholeCamera;
 DECLARE_SMART_POINTERS(PinholeCamera)
 
+class KannalaBrandt4Camera;
+DECLARE_SMART_POINTERS(KannalaBrandt4Camera)
+
+class PinholeRadtan8Camera;
+DECLARE_SMART_POINTERS(PinholeRadtan8Camera)
+
+class DoubleSphereCamera;
+DECLARE_SMART_POINTERS(DoubleSphereCamera)
+
 class CameraPose;
 DECLARE_SMART_POINTERS(CameraPose)
 

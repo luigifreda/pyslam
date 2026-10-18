@@ -1,0 +1,8 @@
+[
+  {"id":"kitti_stereo","dataset":"KITTI_DATASET","base_path":"/media/luigi/T7/datasets/rgbd_datasets/kitti_color/dataset","name":"00","sensor_type":"stereo","settings":"settings/KITTI00-02.yaml","overrides":["is_color=true"]},
+  {"id":"kitti_mono","dataset":"KITTI_DATASET","base_path":"/media/luigi/T7/datasets/rgbd_datasets/kitti_color/dataset","name":"00","sensor_type":"mono","settings":"settings/KITTI00-02.yaml","overrides":["is_color=true"]},
+  {"id":"euroc_stereo","dataset":"EUROC_DATASET","base_path":"/media/luigi/T7/datasets/rgbd_datasets/euroc","name":"MH01","sensor_type":"stereo"},
+  {"id":"euroc_mono","dataset":"EUROC_DATASET","base_path":"/media/luigi/T7/datasets/rgbd_datasets/euroc","name":"MH01","sensor_type":"mono"},
+  {"id":"tum_rgbd","dataset":"TUM_DATASET","base_path":"/media/luigi/T7/datasets/rgbd_datasets/tum","name":"rgbd_dataset_freiburg1_xyz","sensor_type":"rgbd","settings":"settings/TUM1.yaml"},
+  {"id":"tum_mono","dataset":"TUM_DATASET","base_path":"/media/luigi/T7/datasets/rgbd_datasets/tum","name":"rgbd_dataset_freiburg1_xyz","sensor_type":"mono","settings":"settings/TUM1.yaml"}
+]

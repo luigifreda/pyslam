@@ -29,6 +29,9 @@ from .cpp import (
     core_classes,
 )
 
+# USE_CPP_CORE keeps the two implementations separate.
+# True: classes from cpp_core. False: Python classes, with the original
+# computations left in the Python modules.
 USE_CPP = Parameters.USE_CPP_CORE
 
 classes_dict = {}
@@ -54,11 +57,29 @@ else:
 
 globals()["USE_CPP"] = USE_CPP
 
+
+def camera_from_config(config):
+    """Build the active camera implementation selected by Camera.type."""
+    from pyslam.slam.camera import camera_from_config as build_camera
+
+    constructors = {
+        name: classes_dict[name]
+        for name in (
+            "PinholeCamera",
+            "KannalaBrandt4Camera",
+            "PinholeRadtan8Camera",
+            "DoubleSphereCamera",
+        )
+    }
+    return build_camera(config, constructors)
+
+
 __all__ = [
     "CPP_AVAILABLE",
     "cpp_module",
     "python_module",
     "USE_CPP",
+    "camera_from_config",
 ]
 # Add all core classes to the __all__ list
 for cls in core_classes:

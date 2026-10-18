@@ -47,7 +47,9 @@ class Parameters:
     # ================================================================
     # C++ core
     # ================================================================
-    # True: use the C++ core; False: use the Python core.
+    # True: cpp_core classes from pyslam/slam/cpp.
+    # False: the Python classes. Their original computations stay in the Python
+    # modules and do not load cpp_core. Other pybind modules are independent of this flag.
     # Override without editing this file: PYSLAM_USE_CPP=false (e.g. if cpp_core
     # was built against different OpenCV/TBB than your conda env and segfaults on import).
     USE_CPP_CORE = _use_cpp_core_from_env(default=True)

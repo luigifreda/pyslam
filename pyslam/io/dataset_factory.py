@@ -118,6 +118,10 @@ def dataset_factory(config: "Config") -> Dataset:
 
     dataset = None
 
+    if type in ("tum_vi", "tumvi", "tum-vi"):
+        from pyslam.io.tum_vi_dataset import TumViDataset
+        dataset = TumViDataset(path, name, sensor_type, associations, start_frame_id, config)
+
     if type == "kitti":
         dataset = KittiDataset(
             path, name, sensor_type, associations, start_frame_id, DatasetType.KITTI

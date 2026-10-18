@@ -286,6 +286,24 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
 
     const std::shared_ptr<cKDTree2f> &kd();
 
+    // Image coordinates predicted by camera->project(). Pinhole compares against
+    // the undistorted keypoints. The other models compare against the detection.
+    const MatNx2f &projection_keypoints() const {
+        if (camera && camera->projects_raw_keypoints()) {
+            return kps;
+        }
+        return kpsu;
+    }
+
+    // Both mono and stereo factors compare nonlinear model projections with
+    // detected pixels. Pinhole factors compare with undistorted pixels.
+    Eigen::Vector2d reprojection_measurement(int idx, bool stereo_observation) const {
+        const bool use_detected =
+            camera && camera->projects_raw_keypoints();
+        const MatNx2f &uvs = use_detected ? kps : kpsu;
+        return Eigen::Vector2d(uvs(idx, 0), uvs(idx, 1));
+    }
+
     MapPointPtr get_point_match(int idx) const;
     void set_point_match(MapPointPtr p, int idx); // no reference passing here!
     void remove_point_match(int idx);

@@ -20,6 +20,7 @@
 #include "optimizer_gtsam.h"
 
 #include "camera.h"
+#include "camera_factors_gtsam.h"
 #include "camera_pose.h"
 #include "config_parameters.h"
 #include "feature_shared_resources.h"
@@ -134,7 +135,7 @@ BundleAdjustmentResult OptimizerGTSAM::bundle_adjustment(
     // Maps to store graph elements
     std::unordered_map<KeyFramePtr, Key> keyframe_keys;
     std::unordered_map<MapPointPtr, Key> point_keys;
-    std::vector<std::tuple<boost::shared_ptr<gtsam_factors::WeightedGenericProjectionFactorCal3_S2>,
+    std::vector<std::tuple<boost::shared_ptr<CameraProjectionFactor>,
                            boost::shared_ptr<gtsam_factors::SwitchableRobustNoiseModel>,
                            MapPointPtr, KeyFramePtr, int>>
         graph_factors_mono;
@@ -196,9 +197,9 @@ BundleAdjustmentResult OptimizerGTSAM::bundle_adjustment(
             }
             Key pose_key = it->second;
 
-            const Eigen::Vector2d kpu = Eigen::Vector2d(kf->kpsu(idx, 0), kf->kpsu(idx, 1));
             const auto &kps_ur = kf->kps_ur;
             const bool is_stereo_obs = (kps_ur.size() > idx && kps_ur[idx] >= 0);
+            const Eigen::Vector2d kpu = kf->reprojection_measurement(idx, is_stereo_obs);
 
             double sigma = level_sigmas[kf->octaves[idx]];
 
@@ -208,23 +209,17 @@ BundleAdjustmentResult OptimizerGTSAM::bundle_adjustment(
             noise_model->setRobustModelActive(use_robust_kernel);
 
             if (is_stereo_obs) {
-                auto calib = boost::make_shared<Cal3_S2Stereo>(kf->camera->fx, kf->camera->fy, 0.0,
-                                                               kf->camera->cx, kf->camera->cy,
-                                                               kf->camera->b);
                 StereoPoint2 measurement(kpu.x(), kps_ur[idx], kpu.y());
                 auto factor =
-                    boost::make_shared<gtsam_factors::WeightedGenericStereoProjectionFactor3D>(
-                        measurement, noise_model, pose_key, point_key, calib);
+                    make_stereo_camera_factor(
+                        measurement, noise_model, pose_key, point_key, kf->camera);
 
                 graph_factors_stereo.push_back(std::make_tuple(factor, noise_model, p, kf, idx));
                 graph.add(factor);
             } else {
-                auto calib = boost::make_shared<Cal3_S2>(kf->camera->fx, kf->camera->fy, 0.0,
-                                                         kf->camera->cx, kf->camera->cy);
                 Point2 measurement(kpu.x(), kpu.y());
-                auto factor =
-                    boost::make_shared<gtsam_factors::WeightedGenericProjectionFactorCal3_S2>(
-                        measurement, noise_model, pose_key, point_key, calib);
+                auto factor = boost::make_shared<CameraProjectionFactor>(
+                    measurement, noise_model, pose_key, point_key, kf->camera.get());
 
                 graph_factors_mono.push_back(std::make_tuple(factor, noise_model, p, kf, idx));
                 graph.add(factor);
@@ -470,33 +465,22 @@ class PoseOptimizerGTSAM {
     NonlinearFactorGraph graph;
     Values initial;
 
-    std::vector<std::tuple<boost::shared_ptr<gtsam_factors::ResectioningFactor>,
+    std::vector<std::tuple<boost::shared_ptr<CameraResectioningFactor>,
                            boost::shared_ptr<gtsam_factors::SwitchableRobustNoiseModel>, int>>
         mono_factor_tuples;
-    std::vector<std::tuple<boost::shared_ptr<gtsam_factors::ResectioningFactorStereo>,
+    std::vector<std::tuple<boost::shared_ptr<StereoCameraResectioningFactor>,
                            boost::shared_ptr<gtsam_factors::SwitchableRobustNoiseModel>, int>>
         stereo_factor_tuples;
 
     int num_factors = 0;
     bool use_robust_factors;
 
-    boost::shared_ptr<Cal3_S2> K_mono;
-    boost::shared_ptr<Cal3_S2Stereo> K_stereo;
 
     double thHuberMono;
     double thHuberStereo;
 
     PoseOptimizerGTSAM(FramePtr &frame, bool use_robust_factors = true)
         : frame(frame), use_robust_factors(use_robust_factors) {
-
-        K_mono = boost::make_shared<Cal3_S2>(frame->camera->fx, frame->camera->fy, 0.0,
-                                             frame->camera->cx, frame->camera->cy);
-
-        if (frame->camera->b > 0) {
-            K_stereo = boost::make_shared<Cal3_S2Stereo>(frame->camera->fx, frame->camera->fy, 0.0,
-                                                         frame->camera->cx, frame->camera->cy,
-                                                         frame->camera->b);
-        }
 
         thHuberMono = std::sqrt(Parameters::kChi2Mono);
         thHuberStereo = std::sqrt(Parameters::kChi2Stereo);
@@ -526,9 +510,9 @@ class PoseOptimizerGTSAM {
                 continue;
             }
 
-            const Eigen::Vector2d kpu = Eigen::Vector2d(frame->kpsu(idx, 0), frame->kpsu(idx, 1));
             const auto &kps_ur = frame->kps_ur;
             const bool is_stereo_obs = (kps_ur.size() > idx && kps_ur[idx] >= 0);
+            const Eigen::Vector2d kpu = frame->reprojection_measurement(idx, is_stereo_obs);
 
             // Reset outlier flag
             outliers[idx] = false;
@@ -545,14 +529,14 @@ class PoseOptimizerGTSAM {
             gtsam::NonlinearFactor::shared_ptr factor;
             if (is_stereo_obs) {
                 StereoPoint2 measurement(kpu.x(), kps_ur[idx], kpu.y());
-                auto factor = boost::make_shared<gtsam_factors::ResectioningFactorStereo>(
-                    noise_model, X(0), *K_stereo, measurement, Point3(p->pt()));
+                auto factor = make_stereo_camera_pose_factor(
+                    noise_model, X(0), frame->camera, measurement, Point3(p->pt()));
                 stereo_factor_tuples.push_back({factor, noise_model, static_cast<int>(idx)});
                 graph.add(factor);
             } else {
                 Point2 measurement(kpu.x(), kpu.y());
-                auto factor = boost::make_shared<gtsam_factors::ResectioningFactor>(
-                    noise_model, X(0), *K_mono, measurement, Point3(p->pt()));
+                auto factor = boost::make_shared<CameraResectioningFactor>(
+                    noise_model, X(0), frame->camera.get(), measurement, Point3(p->pt()));
                 mono_factor_tuples.push_back({factor, noise_model, static_cast<int>(idx)});
                 graph.add(factor);
             }
@@ -743,7 +727,7 @@ std::pair<double, double> OptimizerGTSAM::local_bundle_adjustment(
     std::unordered_map<KeyFramePtr, Key> keyframe_keys;
     std::unordered_map<MapPointPtr, Key> point_keys;
     // Use vector instead of unordered_map for graph_factors since pair doesn't have hash
-    std::vector<std::tuple<boost::shared_ptr<gtsam_factors::WeightedGenericProjectionFactorCal3_S2>,
+    std::vector<std::tuple<boost::shared_ptr<CameraProjectionFactor>,
                            boost::shared_ptr<gtsam_factors::SwitchableRobustNoiseModel>,
                            MapPointPtr, KeyFramePtr, int>>
         graph_factors_mono;
@@ -803,9 +787,9 @@ std::pair<double, double> OptimizerGTSAM::local_bundle_adjustment(
 
             assert(kf->get_point_match(p_idx) == p);
 
-            const Eigen::Vector2d kpu = Eigen::Vector2d(kf->kpsu(p_idx, 0), kf->kpsu(p_idx, 1));
             const auto &kps_ur = kf->kps_ur;
             const bool is_stereo_obs = (kps_ur.size() > p_idx && kps_ur[p_idx] >= 0);
+            const Eigen::Vector2d kpu = kf->reprojection_measurement(p_idx, is_stereo_obs);
 
             double sigma = level_sigmas[kf->octaves[p_idx]];
 
@@ -815,22 +799,16 @@ std::pair<double, double> OptimizerGTSAM::local_bundle_adjustment(
             Key pose_key = it->second;
 
             if (is_stereo_obs) {
-                auto calib = boost::make_shared<Cal3_S2Stereo>(kf->camera->fx, kf->camera->fy, 0.0,
-                                                               kf->camera->cx, kf->camera->cy,
-                                                               kf->camera->b);
                 StereoPoint2 measurement(kpu.x(), kps_ur[p_idx], kpu.y());
                 auto factor =
-                    boost::make_shared<gtsam_factors::WeightedGenericStereoProjectionFactor3D>(
-                        measurement, noise_model, pose_key, point_key, calib);
+                    make_stereo_camera_factor(
+                        measurement, noise_model, pose_key, point_key, kf->camera);
                 graph_factors_stereo.push_back(std::make_tuple(factor, noise_model, p, kf, p_idx));
                 graph.add(factor);
             } else {
-                auto calib = boost::make_shared<Cal3_S2>(kf->camera->fx, kf->camera->fy, 0.0,
-                                                         kf->camera->cx, kf->camera->cy);
                 Point2 measurement(kpu.x(), kpu.y());
-                auto factor =
-                    boost::make_shared<gtsam_factors::WeightedGenericProjectionFactorCal3_S2>(
-                        measurement, noise_model, pose_key, point_key, calib);
+                auto factor = boost::make_shared<CameraProjectionFactor>(
+                    measurement, noise_model, pose_key, point_key, kf->camera.get());
                 graph_factors_mono.push_back(std::make_tuple(factor, noise_model, p, kf, p_idx));
                 graph.add(factor);
             }

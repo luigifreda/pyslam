@@ -112,6 +112,7 @@ See the demo **video** for release v2.10.0
     - [Datasets](#datasets)
       - [KITTI Datasets](#kitti-datasets)
       - [TUM Datasets](#tum-datasets)
+      - [TUM-VI Datasets](#tum-vi-datasets)
       - [ICL-NUIM Datasets](#icl-nuim-datasets)
       - [EuRoC Datasets](#euroc-datasets)
       - [Replica Datasets](#replica-datasets)
@@ -954,6 +955,7 @@ The following datasets are supported:
 | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
 | [KITTI odometry data set (grayscale, 22 GB)](http://www.cvlibs.net/datasets/kitti/eval_odometry.php)                                         | `type: KITTI_DATASET`        |
 | [TUM dataset](https://vision.in.tum.de/data/datasets/rgbd-dataset/download)                                                                  | `type: TUM_DATASET`          |
+| [TUM-VI dataset](https://cvg.cit.tum.de/data/datasets/visual-inertial-dataset)                                                               | `type: TUM_VI_DATASET`       |
 | [ICL-NUIM dataset](https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html)                                                                     | `type: ICL_NUIM_DATASET`     |
 | [EUROC dataset](https://projects.asl.ethz.ch/datasets/euroc-mav/)                                                                            | `type: EUROC_DATASET`        |
 | [REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)                                                                       | `type: REPLICA_DATASET`      |
@@ -1003,6 +1005,23 @@ pySLAM code expects a file `associations.txt` in each TUM dataset folder (specif
 3. Select the corresponding calibration settings file (section `TUM_DATASET: settings:` in the file `config.yaml`).
 
 
+#### TUM-VI Datasets
+
+pySLAM reads the 512×512 TUM-VI image sequences. IMU measurements are not used. Each sequence folder (the `name` field under `TUM_VI_DATASET` in `config.yaml`) is expected to contain:
+
+```text
+mav0/cam0/data.csv
+mav0/cam0/data/<timestamp>.png
+mav0/cam1/data.csv
+mav0/cam1/data/<timestamp>.png
+mav0/mocap0/data.csv
+```
+
+1. Download a 512×512 sequence from https://cvg.cit.tum.de/data/datasets/visual-inertial-dataset and uncompress it under `TUM_VI_DATASET: base_path`.
+2. Set `DATASET.type: TUM_VI_DATASET` in `config.yaml`. Set `sensor_type` to `stereo` or `mono`, and `stereo_mode` to `native` (original Kannala–Brandt images) or `rectified` (fisheye images remapped to pinhole stereo). For monocular fisheye tracking use `sensor_type: mono` and `stereo_mode: native`.
+3. Select `settings/TUM_VI.yaml` (`TUM_VI_DATASET: settings:`). With `groundtruth_file: auto`, mocap poses are converted to the tracking camera. See [TUM-VI](./docs/tum-vi.md) for calibration, rectification, and ground-truth conversion.
+
+
 #### ICL-NUIM Datasets 
 
 You can download the dataset [here](https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html). Follow the same instructions provided for the TUM datasets. 
@@ -1039,7 +1058,7 @@ To download the dataset follow the instructions at https://github.com/dazinovic/
 
 #### Rover dataset 
 
-To download the dataset follow the instructions at https://iis-esslingen.github.io/rover/. Select the section `ROVER_DATASET: settings:` in the file `config.yaml`. A calibration file for the `d435i` camera is already available: `settings/ROVER_d435i.yaml`. Other camera models will be supported in the future.
+To download the dataset follow the instructions at https://iis-esslingen.github.io/rover/. Select the section `ROVER_DATASET: settings:` in the file `config.yaml`. A calibration file for the `d435i` camera is already available: `settings/ROVER_d435i.yaml`. Additional camera models support model-aware sparse tracking and RGB-D; see [Camera models](./docs/cameras.md#integration-status) for conventions and limits.
 
 #### ScanNet Datasets
 
@@ -1092,7 +1111,13 @@ You can use the `VIDEO_DATASET` and `FOLDER_DATASET` types to read generic video
 --- 
 ### Camera Settings
 
+TUM-VI visual mono and stereo are available with native Kannala–Brandt images or cached fisheye rectification. See [TUM-VI setup and calibration](./docs/tum-vi.md).
+
 The folder `settings` contains the camera settings files which can be used for testing the code. These are the same used in the framework [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2). You can easily modify one of those files for creating your own new calibration file (for your new datasets).
+
+A file that does not set `Camera.type` keeps the linear pinhole: `Camera.k1` … `Camera.k3` are used to undistort keypoints, and projection stays `K * (x/z, y/z)`. Set `Camera.type` to `kannala_brandt4`, `pinhole_radtan8`, or `double_sphere` to project detected pixels with that model. Rectified stereo retains pinhole geometry; native TUM-VI stereo uses the calibrated fisheye rig. Sim(3) uses undistorted coordinates. See [Camera models](./docs/cameras.md) for parameters and pixel conventions.
+
+New-model sparse tracking uses native analytic factors and consistent raw-pixel measurements. See the [integration status](./docs/cameras.md#integration-status), [where the code lives](./docs/cameras.md#where-the-code-lives), and [TUM-VI stereo modes](./docs/tum-vi.md).
 
 In order to calibrate your camera, you can use the scripts in the folder `calibration`. In particular: 
 1. Use the script `grab_chessboard_images.py` to collect a sequence of images where the chessboard can be detected (set the chessboard size therein, you can use the calibration pattern `calib_pattern.pdf` in the same folder) 
@@ -1234,5 +1259,5 @@ Many improvements and additional features are currently under development:
 - [ ] Integration of direct methods in the tracker
 - [x] XSt3r-based methods integration [WIP]
 - [x] Evaluation scripts 
-- [ ] More camera models
+- [x] Additional camera models and native/rectified TUM-VI stereo (see [camera models](./docs/cameras.md) and [TUM-VI](./docs/tum-vi.md))
 - [ ] Integrate pypose library

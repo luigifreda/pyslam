@@ -19,10 +19,13 @@ TESTS_DIR="${SCRIPT_DIR}"
 
 # Test lists
 KDTREE_TESTS=("test_ckdtree_basic.py" "test_ckdtree_validation.py")
-SLAM_TESTS=("test_slam_cpp_module.py" "test_slam_cpp_map.py" "test_slam_cpp_feature_matching_equivalence.py" "test_slam_cpp_rotation_histogram.py")
+SLAM_TESTS=("test_slam_cpp_module.py" "test_slam_cpp_map.py" "test_slam_cpp_feature_matching_equivalence.py" "test_slam_cpp_rotation_histogram.py" "test_camera_models.py")
 OPTIMIZATION_TESTS=("test_slam_cpp_optimize_pose.py" "test_slam_cpp_optimize_sim3.py" "test_slam_cpp_optimize_essential_graph.py")
 # Regression tests for past crashes and matching bugs (see test/cpp/README.md)
-REGRESSION_TESTS=("test_slam_cpp_search_and_fuse.py" "test_slam_cpp_search_by_sim3.py" "test_slam_cpp_search_keyframe_by_projection.py")
+REGRESSION_TESTS=("test_slam_cpp_search_and_fuse.py" "test_slam_cpp_search_by_sim3.py" "test_slam_cpp_search_keyframe_by_projection.py" "../../../../test/camera/test_camera_regressions.py" "../../../../test/camera/test_tum_vi.py")
+REGRESSION_TESTS+=("../../../../test/camera/test_camera_models_modules.py" "../../../../test/camera/test_trajectory_evaluation.py")
+REGRESSION_TESTS+=("../../../../test/camera/test_benchmark_guard.py")
+REGRESSION_TESTS+=("../../../../test/camera/test_local_map_limits.py")
 
 # Test tracking
 PASSED_TESTS=()

@@ -36,7 +36,7 @@ from pyslam.semantics.semantic_mapping_configs import SemanticMappingConfigs
 from pyslam.semantics.semantic_eval import evaluate_semantic_mapping
 
 from pyslam.slam.slam import Slam, SlamState
-from pyslam.slam import PinholeCamera, USE_CPP
+from pyslam.slam import camera_from_config, USE_CPP
 
 from pyslam.viz.slam_plot_drawer import SlamPlotDrawerThread
 from pyslam.io.ground_truth import groundtruth_factory, is_valid_groundtruth, need_sim3_alignment
@@ -159,7 +159,7 @@ if __name__ == "__main__":
         has_groundtruth and need_sim3_alignment(groundtruth)
     )
 
-    camera = PinholeCamera(config)
+    camera = camera_from_config(config)
     Printer.green(f"Camera: {json.dumps(camera.to_json(), indent=4, cls=SerializableEnumEncoder)}")
 
     # Select your tracker configuration (see the file feature_tracker_configs.py)

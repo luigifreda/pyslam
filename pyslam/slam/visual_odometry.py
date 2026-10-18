@@ -119,12 +119,17 @@ class VisualOdometryEducational(VisualOdometryBase):
     def estimatePose(self, kps_ref, kps_cur):
         kp_ref_u = self.cam.undistort_points(kps_ref)
         kp_cur_u = self.cam.undistort_points(kps_cur)
-        self.kpn_ref = np.ascontiguousarray(np.asarray(self.cam.unproject_points(kp_ref_u))).reshape(
-            -1, 2
-        )
-        self.kpn_cur = np.ascontiguousarray(np.asarray(self.cam.unproject_points(kp_cur_u))).reshape(
-            -1, 2
-        )
+        # Pinhole cameras unproject undistorted pixels; nonlinear cameras consume
+        # the detected pixels. This VO class can use either camera backend.
+        projects_raw = bool(getattr(self.cam, "projects_raw_keypoints", lambda: False)())
+        measured_ref = kps_ref if projects_raw else kp_ref_u
+        measured_cur = kps_cur if projects_raw else kp_cur_u
+        self.kpn_ref = np.ascontiguousarray(
+            np.asarray(self.cam.unproject_points(measured_ref))
+        ).reshape(-1, 2)
+        self.kpn_cur = np.ascontiguousarray(
+            np.asarray(self.cam.unproject_points(measured_cur))
+        ).reshape(-1, 2)
         if kUseEssentialMatrixEstimation:
             ransac_method = None
             try:

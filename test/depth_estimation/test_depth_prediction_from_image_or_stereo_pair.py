@@ -34,7 +34,7 @@ from pyslam.utilities.depth import (
     PointCloud,
 )
 
-from pyslam.slam import PinholeCamera
+from pyslam.slam import camera_from_config
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 
 from pyslam.depth_estimation.depth_estimator_factory import (
@@ -154,7 +154,7 @@ if __name__ == "__main__":
     use_image_mode = args.image is not None
     dataset = dataset_factory(config) if not use_image_mode else None
 
-    cam = PinholeCamera(config)
+    cam = camera_from_config(config)
 
     # tracker_config = FeatureTrackerConfigs.ORB2
     # tracker_config["num_features"] = 2000

@@ -22,6 +22,8 @@ private/
 test/private
 data/videos/private
 
+docs/private/
+
 thirdparty/opencv-python
 thirdparty/opencv
 thirdparty/open3d

@@ -42,7 +42,15 @@
 namespace pyslam {
 
 // Camera types enum
-enum class CameraType { NONE = 0, PINHOLE = 1 }; // keep it consistent with Python CameraType
+// Keep the integer values consistent with Python CameraType. PINHOLE stays 1 so
+// maps written before the extra models still deserialize as a linear pinhole.
+enum class CameraType {
+    NONE = 0,
+    PINHOLE = 1,
+    KANNALA_BRANDT4 = 2,
+    PINHOLE_RADTAN8 = 3,
+    DOUBLE_SPHERE = 4
+};
 
 // Sensor types enum
 enum class SensorType {
@@ -175,6 +183,20 @@ class Camera : public CameraBase {
     // Intrinsic matrices
     Eigen::Matrix3d K = Eigen::Matrix3d::Zero();    // intrinsic matrix
     Eigen::Matrix3d Kinv = Eigen::Matrix3d::Zero(); // inverse intrinsic matrix
+    CameraPtr right_camera;
+    Eigen::Matrix4d T_right_left = Eigen::Matrix4d::Identity();
+    bool is_native_stereo() const { return static_cast<bool>(right_camera); }
+    bool project_stereo_with_jacobian(Vec3dRef Xc, Vec3d &uvur,
+                                      Eigen::Matrix3d *J = nullptr) const;
+    std::pair<MatNx3d, VecNd> triangulate_stereo(MatNx2dRef left, MatNx2dRef right,
+                                               double max_error = 2.5) const;
+    // Intersects the left and right rays of a rig observation. X is in the left camera and
+    // must reproject within max_error pixels in both images.
+    bool triangulate_stereo_point(const Vec2d &left, const Vec2d &right, double max_error,
+                                  Vec3d &X) const;
+    // First-order pixel distance between the image of a unit bearing and the image of the
+    // plane (through the optical center) with the given unit normal.
+    double bearing_to_plane_pixel_distance(const Vec3d &bearing, const Vec3d &unit_normal) const;
 
     cv::Mat K_cv;
     cv::Mat D_cv;
@@ -295,16 +317,39 @@ class Camera : public CameraBase {
     std::string to_json() const;
     void init_from_json(const std::string &json_str);
 
+    // Pinhole projection is valid only for z > 0. Kannala-Brandt and double sphere
+    // accept rays past 180 degrees, so their visibility check uses a finite depth
+    // instead. project() writes NaN for a ray the model rejects.
+    virtual bool requires_positive_depth() const { return true; }
+
+    // True when project() predicts the detected pixel. undistort_points() still
+    // returns the pinhole image of that ray, which epipolar geometry consumes.
+    virtual bool projects_raw_keypoints() const { return false; }
+
     template <typename Scalar> bool is_in_image(Vec2Ref<Scalar> uv, const Scalar z) const {
-        return (uv.x() >= u_min) && (uv.x() < u_max) && (uv.y() >= v_min) && (uv.y() < v_max) &&
-               (z > 0);
+        const bool in_bounds = (uv.x() >= u_min) && (uv.x() < u_max) && (uv.y() >= v_min) &&
+                               (uv.y() < v_max);
+        if (!in_bounds) {
+            return false;
+        }
+        if (requires_positive_depth()) {
+            return z > Scalar(0);
+        }
+        return std::isfinite(z);
     }
 
     template <typename Scalar>
     std::vector<bool> are_in_image(MatNxMRef<Scalar> uvs, VecNRef<Scalar> zs) const {
-        return CameraUtils::are_in_image(uvs, zs, static_cast<Scalar>(u_min),
-                                         static_cast<Scalar>(u_max), static_cast<Scalar>(v_min),
-                                         static_cast<Scalar>(v_max));
+        std::vector<bool> result;
+        result.reserve(static_cast<size_t>(uvs.rows()));
+        const bool positive_depth = requires_positive_depth();
+        for (int i = 0; i < uvs.rows(); ++i) {
+            const bool in_bounds = (uvs(i, 0) >= u_min) && (uvs(i, 0) < u_max) &&
+                                   (uvs(i, 1) >= v_min) && (uvs(i, 1) < v_max);
+            const bool depth_ok = positive_depth ? (zs(i) > Scalar(0)) : std::isfinite(zs(i));
+            result.push_back(in_bounds && depth_ok);
+        }
+        return result;
     }
 
     Eigen::Matrix4d get_render_projection_matrix(double znear = 0.01, double zfar = 100.0) const;
@@ -332,6 +377,44 @@ class Camera : public CameraBase {
     // Zero-copy friendly overload (NumPy C-contiguous (N,2) float64, (3,3) float64)
     virtual MatNx3d unproject_points_3d(MatNx2dRef uvs, VecNdRef depths) const { return MatNx3d(); }
     virtual MatNx3f unproject_points_3d(MatNx2fRef uvs, VecNfRef depths) const { return MatNx3f(); }
+
+    // ------------------------------------------------------------------------
+    // Analytic projection. J_uv_Xc is d(u, v) / d(Xc) and may be null.
+    // The base implementation is the linear pinhole used by the existing factors.
+    virtual bool project_with_jacobian(Vec3dRef Xc, Vec2d &uv,
+                                       Eigen::Matrix<double, 2, 3> *J_uv_Xc) const;
+    virtual bool project_with_jacobian(Vec3fRef Xc, Vec2f &uv,
+                                       Eigen::Matrix<float, 2, 3> *J_uv_Xc) const;
+
+    // Bearing of a pixel. The linear pinhole returns the point on the plane z = 1.
+    virtual bool unproject_bearing(Vec2dRef uv, Vec3d &bearing,
+                                   Eigen::Matrix<double, 3, 2> *J_bearing_uv) const;
+    virtual bool unproject_bearing(Vec2fRef uv, Vec3f &bearing,
+                                   Eigen::Matrix<float, 3, 2> *J_bearing_uv) const;
+
+    // Batch projection into caller-owned buffers. `valid` is 1 where project() accepts
+    // the point and 0 otherwise. Arrays must be C-contiguous and already sized to N.
+    virtual void project_into(MatNx3dRef xcs, Eigen::Ref<MatNx2d> uv, Eigen::Ref<VecNd> depth,
+                              Eigen::Ref<VecNd> valid) const;
+    virtual void project_into(MatNx3fRef xcs, Eigen::Ref<MatNx2f> uv, Eigen::Ref<VecNf> depth,
+                              Eigen::Ref<VecNf> valid) const;
+    virtual void unproject_bearings_into(MatNx2dRef uvs, Eigen::Ref<MatNx3d> bearings,
+                                         Eigen::Ref<VecNd> valid) const;
+    virtual void unproject_bearings_into(MatNx2fRef uvs, Eigen::Ref<MatNx3f> bearings,
+                                         Eigen::Ref<VecNf> valid) const;
+
+    // Error Jacobians of (measurement - projection). One projection supplies J_uv_Xc,
+    // then the caller-supplied pose/point chain is applied. g2o_reprojection_error_jacobians
+    // fills that chain for g2o's left perturbation exp(xi) * T, with dXc/dXw = Rcw.
+    bool reprojection_error_jacobians(Vec3dRef Xc, const Eigen::Matrix<double, 3, 6> &dXc_dpose,
+                                      const Eigen::Matrix3d &dXc_dpoint,
+                                      Eigen::Matrix<double, 2, 6> &J_error_pose,
+                                      Eigen::Matrix<double, 2, 3> &J_error_point,
+                                      Vec2d *uv = nullptr) const;
+    bool g2o_reprojection_error_jacobians(Vec3dRef Xc, const Eigen::Matrix3d &Rcw,
+                                          Eigen::Matrix<double, 2, 6> &J_error_pose,
+                                          Eigen::Matrix<double, 2, 3> &J_error_point,
+                                          Vec2d *uv = nullptr) const;
 
 #ifdef USE_PYTHON
     // Numpy serialization
