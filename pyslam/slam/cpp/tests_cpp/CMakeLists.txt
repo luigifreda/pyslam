@@ -9,6 +9,12 @@ set(TESTS
     test_numpy_frame
     test_numpy_keyframe
     test_numpy_camera
+    test_camera_model_math
+    test_camera_models
+    test_camera_edges_g2o
+    test_owned_g2o_optimizer
+    test_local_map_limits
+    test_camera_factors_gtsam
     test_numpy_map_state
     test_json_map_point
     test_json_eigen

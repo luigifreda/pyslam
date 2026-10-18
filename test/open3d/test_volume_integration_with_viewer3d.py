@@ -31,7 +31,7 @@ import sys
 from pyslam.config import Config
 
 from pyslam.slam.slam import Slam, SlamState
-from pyslam.slam import PinholeCamera
+from pyslam.slam import camera_from_config
 from pyslam.io.ground_truth import groundtruth_factory
 from pyslam.io.dataset_factory import dataset_factory
 from pyslam.io.dataset_types import SensorType
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     groundtruth = groundtruth_factory(config.dataset_settings)
     gt_traj3d, gt_poses, gt_timestamps = groundtruth.getFull6dTrajectory()
 
-    camera = PinholeCamera(config)
+    camera = camera_from_config(config)
 
     viewer3D = Viewer3D(scale=dataset.scale_viewer_3d)
     viewer3D.set_gt_trajectory(

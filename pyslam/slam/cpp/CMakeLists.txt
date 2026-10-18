@@ -391,6 +391,7 @@ set(SLAM_CPP_CORE_SOURCES
     ${PYSLAM_SLAM_SRC}/map_points.cpp
     ${PYSLAM_SLAM_SRC}/camera_pose.cpp
     ${PYSLAM_SLAM_SRC}/camera.cpp
+    ${PYSLAM_SLAM_SRC}/camera_models.cpp
     ${PYSLAM_SLAM_SRC}/camera_serialization_json.cpp
     ${PYSLAM_SLAM_SRC}/feature_shared_resources.cpp
     ${PYSLAM_SLAM_SRC}/utils/features.cpp    
@@ -422,9 +423,18 @@ set(SLAM_CPP_CORE_HEADERS
     ${PYSLAM_SLAM_SRC}/map.h
     ${PYSLAM_SLAM_SRC}/camera_pose.h
     ${PYSLAM_SLAM_SRC}/camera.h
+    ${PYSLAM_SLAM_SRC}/camera_model_math.h
+    ${PYSLAM_SLAM_SRC}/camera_models.h
+    ${PYSLAM_SLAM_SRC}/camera_edges_g2o.h
+    ${PYSLAM_SLAM_SRC}/camera_factors_gtsam.h
+    ${PYSLAM_SLAM_SRC}/camera_handle.h
+    ${PYSLAM_SLAM_SRC}/camera_rig_geometry.h
+    ${PYSLAM_SLAM_SRC}/camera_projection_edges_g2o.h
+    ${PYSLAM_SLAM_SRC}/camera_projection_factors_gtsam.h
     ${PYSLAM_SLAM_SRC}/feature_shared_resources.h
     ${PYSLAM_SLAM_SRC}/dictionary.h
     ${PYSLAM_SLAM_SRC}/optimizer_g2o.h
+    ${PYSLAM_SLAM_SRC}/owned_g2o_optimizer.h
     ${PYSLAM_SLAM_SRC}/optimizer_gtsam.h
     ${PYSLAM_SLAM_SRC}/optimizer_common.h
     ${PYSLAM_SLAM_SRC}/utils/descriptor_helpers.h
@@ -480,6 +490,8 @@ set(SEMANTICS_CPP_CORE_HEADERS
 
 set(SLAM_CPP_PYBIND_MODULE_SOURCES
     ${PYSLAM_SLAM_SRC}/py_module/cpp_core_module.cpp
+    ${PYSLAM_SLAM_SRC}/py_module/camera_g2o_module.cpp
+    ${PYSLAM_SLAM_SRC}/py_module/camera_gtsam_module.cpp
 )
 
 set(SLAM_CPP_PYBIND_MODULE_HEADERS
@@ -488,6 +500,7 @@ set(SLAM_CPP_PYBIND_MODULE_HEADERS
     ${PYSLAM_SLAM_SRC}/py_module/map_module.h
     ${PYSLAM_SLAM_SRC}/py_module/ckdtree_module.h
     ${PYSLAM_SLAM_SRC}/py_module/camera_module.h
+    ${PYSLAM_SLAM_SRC}/py_module/camera_optimizer_bindings.h
     ${PYSLAM_SLAM_SRC}/py_module/map_point_module.h
     ${PYSLAM_SLAM_SRC}/py_module/feature_shared_resources_module.h
     ${PYSLAM_SLAM_SRC}/py_module/frame_module.h

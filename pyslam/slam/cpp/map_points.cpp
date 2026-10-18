@@ -40,7 +40,11 @@ namespace {
 inline Eigen::Vector3d normalized_ray_in_world(const KeyFramePtr &kf, int idx) {
     const double x = kf->kpsn(idx, 0);
     const double y = kf->kpsn(idx, 1);
-    const Eigen::Vector3d ray_cam(x, y, 1.0);
+    Eigen::Vector3d ray_cam(x, y, 1.0);
+    if (kf->camera->projects_raw_keypoints()) {
+        const Eigen::Vector2d uv = kf->projection_keypoints().row(idx).cast<double>();
+        if (!kf->camera->unproject_bearing(uv, ray_cam, nullptr)) return Eigen::Vector3d::Zero();
+    }
     Eigen::Vector3d ray_world = kf->Rwc() * ray_cam;
     const double norm = ray_world.norm();
     if (norm > 1e-12) {
@@ -116,8 +120,8 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
             const auto [uv1, depth1] = kf1->project_point<double>(points_world[i]);
             const auto [uv2, depth2] = kf2->project_point<double>(points_world[i]);
 
-            const bool is_bad_depths1 = depth1 <= 0.0 || depth1 > far_threshold;
-            const bool is_bad_depths2 = depth2 <= 0.0 || depth2 > far_threshold;
+            const bool is_bad_depths1 = !std::isfinite(depth1) || (camera1->requires_positive_depth() && depth1 <= 0.0) || depth1 > far_threshold;
+            const bool is_bad_depths2 = !std::isfinite(depth2) || (camera2->requires_positive_depth() && depth2 <= 0.0) || depth2 > far_threshold;
             if (is_bad_depths1 || is_bad_depths2) {
                 continue;
             }
@@ -193,22 +197,22 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
             }
 
             bool is_bad_cos_parallax =
-                ((cos_parallax < 0.0) || (cos_parallax > cos_max_parallax)) &&
+                (!std::isfinite(cos_parallax) || (cos_parallax < 0.0) || (cos_parallax > cos_max_parallax)) &&
                 !is_recovered3d_from_stereo;
 
             if (is_bad_cos_parallax) {
                 continue;
             }
 
-            const Eigen::Vector2d diff1 = uv1 - kf1->keypoint_undistorted(idx1);
+            const Eigen::Vector2d diff1 = uv1 - kf1->reprojection_measurement(idx1, false);
             const double inv_sigma2_1 =
                 FeatureSharedResources::inv_level_sigmas2[kf1->octaves[idx1]];
 
             bool is_bad_chis2_1 = false;
             if (is_stereo1) {
-                const double inv_depth =
-                    std::isfinite(stereo_depth1) && stereo_depth1 > 0.0 ? 1.0 / stereo_depth1 : 0.0;
-                const double u_r_pred = uv1.x() - camera1->bf * inv_depth;
+                const double u_r_pred = camera1->projects_raw_keypoints()
+                    ? kf1->project_point<double>(points_world[i], true).first[2]
+                    : uv1.x() - camera1->bf / depth1;
                 const double err_r = u_r_pred - static_cast<double>(kf1->kps_ur[idx1]);
                 const double chi2_stereo = (diff1.squaredNorm() + err_r * err_r) * inv_sigma2_1;
                 is_bad_chis2_1 = chi2_stereo > Parameters::kChi2Stereo;
@@ -221,15 +225,15 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
                 continue;
             }
 
-            const Eigen::Vector2d diff2 = uv2 - kf2->keypoint_undistorted(idx2);
+            const Eigen::Vector2d diff2 = uv2 - kf2->reprojection_measurement(idx2, false);
             const double inv_sigma2_2 =
                 FeatureSharedResources::inv_level_sigmas2[kf2->octaves[idx2]];
 
             bool is_bad_chis2_2 = false;
             if (is_stereo2) {
-                const double inv_depth =
-                    std::isfinite(stereo_depth2) && stereo_depth2 > 0.0 ? 1.0 / stereo_depth2 : 0.0;
-                const double u_r_pred = uv2.x() - camera2->bf * inv_depth;
+                const double u_r_pred = camera2->projects_raw_keypoints()
+                    ? kf2->project_point<double>(points_world[i], true).first[2]
+                    : uv2.x() - camera2->bf / depth2;
                 const double err_r = u_r_pred - static_cast<double>(kf2->kps_ur[idx2]);
                 const double chi2_stereo = (diff2.squaredNorm() + err_r * err_r) * inv_sigma2_2;
                 is_bad_chis2_2 = chi2_stereo > Parameters::kChi2Stereo;
@@ -242,10 +246,13 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
                 continue;
             }
 
+            const bool use_range = camera1->projects_raw_keypoints() || camera2->projects_raw_keypoints();
+            const double range1 = use_range ? (points_world[i] - kf1_Ow).norm() : depth1;
+            const double range2 = use_range ? (points_world[i] - kf2_Ow).norm() : depth2;
             const double scale_depth1 =
-                FeatureSharedResources::scale_factors[kf1->octaves[idx1]] * depth1;
+                FeatureSharedResources::scale_factors[kf1->octaves[idx1]] * range1;
             const double scale_depth2 =
-                FeatureSharedResources::scale_factors[kf2->octaves[idx2]] * depth2;
+                FeatureSharedResources::scale_factors[kf2->octaves[idx2]] * range2;
 
             const double scale_depth1_ratio = scale_depth1 * ratio_scale_consistency;
             const double scale_depth2_ratio = scale_depth2 * ratio_scale_consistency;
@@ -371,7 +378,7 @@ void Map::remove_points_with_big_reproj_err(const std::vector<MapPointPtr> &poin
             }
 
             const auto [proj, _] = frame->project_map_point<double>(p);
-            const Eigen::Vector2d uv = frame->keypoint_undistorted(idx);
+            const Eigen::Vector2d uv = frame->reprojection_measurement(idx, false);
             const Eigen::Vector2d err = proj - uv;
             const double inv_sigma2 = inv_level_sigmas2[frame->octaves[idx]];
             chi2_sum += err.squaredNorm() * inv_sigma2;
@@ -383,7 +390,7 @@ void Map::remove_points_with_big_reproj_err(const std::vector<MapPointPtr> &poin
         }
 
         const double chi2_mean = chi2_sum / static_cast<double>(count);
-        if (chi2_mean > Parameters::kChi2Mono) {
+        if (!std::isfinite(chi2_mean) || chi2_mean > Parameters::kChi2Mono) {
             this->remove_point(p);
         }
     }
@@ -407,7 +414,7 @@ float Map::compute_mean_reproj_error(const std::vector<MapPointPtr> &points_subs
                 continue;
             }
             const auto [proj, _] = frame->project_map_point<double>(p);
-            const Eigen::Vector2d uv = frame->keypoint_undistorted(idx);
+            const Eigen::Vector2d uv = frame->reprojection_measurement(idx, false);
             const Eigen::Vector2d err = proj - uv;
             const double inv_sigma2 =
                 FeatureSharedResources::inv_level_sigmas2[frame->octaves[idx]];

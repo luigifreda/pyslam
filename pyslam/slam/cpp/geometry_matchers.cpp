@@ -18,6 +18,7 @@
  */
 
 #include "geometry_matchers.h"
+#include "camera_rig_geometry.h"
 #include "config_parameters.h"
 #include "feature_shared_resources.h"
 #include "frame.h"
@@ -754,8 +755,8 @@ int ProjectionMatcher::search_and_fuse(const std::vector<MapPointPtr> &points,
 
             // Check reprojection error
             const float invSigma2 = inv_level_sigmas2[kp_level];
-            const auto kpsu = keyframe->kpsu.row(kd_idx);
-            const Eigen::Vector2f err = proj_uv.cast<float>() - kpsu.transpose();
+            const auto observed = keyframe->projection_keypoints().row(kd_idx);
+            const Eigen::Vector2f err = proj_uv.cast<float>() - observed.transpose();
             float chi2 = err.squaredNorm() * invSigma2;
             // kps_ur is empty for monocular keyframes
             const float kp_ur = do_stereo_check ? keyframe->kps_ur[kd_idx] : -1.0f;
@@ -1200,6 +1201,19 @@ std::tuple<std::vector<int>, std::vector<int>, int> EpipolarMatcher::search_fram
     const bool check_orientation = FeatureSharedResources::oriented_features;
     RotationHistogram rot_histo;
 
+    const bool use_bearings =
+        kf1->camera->projects_raw_keypoints() || kf2->camera->projects_raw_keypoints();
+    Eigen::Matrix3d R21 = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d t21 = Eigen::Vector3d::Zero();
+    Eigen::Vector3d epipole_dir2 = Eigen::Vector3d::UnitZ(); // kf1 center seen from kf2
+    if (use_bearings) {
+        R21 = kf2->Rcw() * kf1->Rcw().transpose();
+        t21 = kf2->tcw() - R21 * kf1->tcw();
+        if (t21.norm() > 0.0) {
+            epipole_dir2 = t21.normalized();
+        }
+    }
+
     const auto &level_sigmas2 = FeatureSharedResources::level_sigmas2;
     const auto &scale_factors = FeatureSharedResources::scale_factors;
     const float kMinDistanceFromEpipole2 =
@@ -1229,18 +1243,55 @@ std::tuple<std::vector<int>, std::vector<int>, int> EpipolarMatcher::search_fram
             continue;
         }
 
-        const auto kp1 = kf1->kpsu.row(idx1).transpose();
-        const auto kp2 = kf2->kpsu.row(idx2).transpose();
         const int octaves2 = kf2->octaves[idx2];
-
         const auto kp2_scale_factor = scale_factors[octaves2];
         const auto min_epipole_distance_sq = kMinDistanceFromEpipole2 * kp2_scale_factor;
+        const auto sigma2_kps2 = level_sigmas2[octaves2];
+
+        if (use_bearings) {
+            // Pixel errors of wide-angle models are not preserved by the pinhole image
+            // (kpsu), so measure the epipolar residual on the unit sphere of kf2.
+            Eigen::Vector3d f1, f2;
+            if (!kf1->camera->unproject_bearing(kf1->kps.row(idx1).transpose().cast<double>(), f1,
+                                                nullptr) ||
+                !kf2->camera->unproject_bearing(kf2->kps.row(idx2).transpose().cast<double>(), f2,
+                                                nullptr) ||
+                !(f1.norm() > 0.0) || !(f2.norm() > 0.0)) {
+                continue;
+            }
+            f2.normalize();
+            const double epipole_angle = std::acos(std::min(1.0, std::abs(f2.dot(epipole_dir2))));
+            const double epipole_distance_px = epipole_angle * kf2->camera->fx;
+            if (epipole_distance_px * epipole_distance_px < min_epipole_distance_sq) {
+                continue;
+            }
+            Eigen::Vector3d normal = t21.cross(R21 * f1.normalized());
+            const double normal_norm = normal.norm();
+            if (!(normal_norm > 1e-12)) {
+                continue;
+            }
+            normal /= normal_norm;
+            const double dist_px = kf2->camera->bearing_to_plane_pixel_distance(f2, normal);
+            if (!(dist_px * dist_px <= 3.84 * sigma2_kps2)) {
+                continue;
+            }
+            final_idxs1.push_back(idx1);
+            final_idxs2.push_back(idx2);
+            if (check_orientation) {
+                const int index_match = final_idxs1.size() - 1;
+                rot_histo.push(kf1->angles[idx1] - kf2->angles[idx2], index_match);
+            }
+            continue;
+        }
+
+        const auto kp1 = kf1->kpsu.row(idx1).transpose();
+        const auto kp2 = kf2->kpsu.row(idx2).transpose();
+
         const auto epipole_distance_sq = (kp2 - e2).squaredNorm();
         if (epipole_distance_sq < min_epipole_distance_sq) {
             continue;
         }
 
-        const auto sigma2_kps2 = level_sigmas2[octaves2];
         const auto epipolar_line = F12.transpose() * kp1.homogeneous().cast<double>();
         const double numerator =
             kp2(0) * epipolar_line[0] + kp2(1) * epipolar_line[1] + epipolar_line[2];
@@ -1281,6 +1332,24 @@ std::tuple<std::vector<int>, std::vector<int>, int> EpipolarMatcher::search_fram
 
     num_found_matches = final_idxs1.size();
     return std::tuple(std::move(final_idxs1), std::move(final_idxs2), num_found_matches);
+}
+
+std::tuple<std::vector<int>, std::vector<int>, std::vector<double>>
+EpipolarMatcher::search_stereo_rig(const Camera &camera, MatNx2fRef kps,
+                                   const std::vector<int> &octaves, const cv::Mat &des,
+                                   MatNx2fRef kps_r, const std::vector<int> &octaves_r,
+                                   const cv::Mat &des_r, float max_descriptor_distance,
+                                   float ratio_test, const std::vector<float> &level_sigmas2_in) {
+    const std::vector<float> &level_sigmas2 =
+        level_sigmas2_in.empty() ? FeatureSharedResources::level_sigmas2 : level_sigmas2_in;
+    const auto sigma2_of = [&level_sigmas2](int octave) -> double {
+        return (octave >= 0 && octave < static_cast<int>(level_sigmas2.size()))
+                   ? static_cast<double>(level_sigmas2[octave])
+                   : 1.0;
+    };
+    return camera_model::search_stereo_rig(camera, kps, octaves, des, kps_r, octaves_r, des_r,
+                                           max_descriptor_distance, ratio_test, sigma2_of,
+                                           Parameters::kMinDepth);
 }
 
 } // namespace pyslam

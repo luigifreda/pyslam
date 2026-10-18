@@ -91,6 +91,9 @@ core_classes = [
     "CameraPose",
     "Camera",
     "PinholeCamera",
+    "KannalaBrandt4Camera",
+    "PinholeRadtan8Camera",
+    "DoubleSphereCamera",
     "CameraUtils",
     "Sim3Pose",
     "optimizer_g2o",
@@ -133,6 +136,9 @@ def _import_cpp_core():
             "CameraPose": cpp_core.CameraPose,
             "Camera": cpp_core.Camera,
             "PinholeCamera": cpp_core.PinholeCamera,
+            "KannalaBrandt4Camera": cpp_core.KannalaBrandt4Camera,
+            "PinholeRadtan8Camera": cpp_core.PinholeRadtan8Camera,
+            "DoubleSphereCamera": cpp_core.DoubleSphereCamera,
             "CameraUtils": cpp_core.CameraUtils,
             "Sim3Pose": cpp_core.Sim3Pose,
             "optimizer_g2o": cpp_core.OptimizerG2o,
@@ -179,7 +185,15 @@ def _import_python_core():
         from pyslam.slam.keyframe import KeyFrame
         from pyslam.slam.map import Map, MapStateData
         from pyslam.slam.camera_pose import CameraPose
-        from pyslam.slam.camera import Camera, PinholeCamera, CameraType, CameraUtils
+        from pyslam.slam.camera import (
+            Camera,
+            PinholeCamera,
+            KannalaBrandt4Camera,
+            PinholeRadtan8Camera,
+            DoubleSphereCamera,
+            CameraType,
+            CameraUtils,
+        )
         from pyslam.slam.sim3_pose import Sim3Pose
         from pyslam.io.dataset_types import SensorType
         import pyslam.slam.optimizer_g2o as optimizer_g2o
@@ -201,6 +215,9 @@ def _import_python_core():
             "CameraPose": CameraPose,
             "Camera": Camera,
             "PinholeCamera": PinholeCamera,
+            "KannalaBrandt4Camera": KannalaBrandt4Camera,
+            "PinholeRadtan8Camera": PinholeRadtan8Camera,
+            "DoubleSphereCamera": DoubleSphereCamera,
             "CameraType": CameraType,
             "CameraUtils": CameraUtils,
             "SensorType": SensorType,
@@ -238,7 +255,8 @@ def _import_python_core():
         return None, False
 
 
-# Try to import the C++ core module
+# Load cpp_core only when USE_CPP_CORE is True. The Python core keeps its
+# original computations and does not import this module.
 if USE_CPP_CORE:
     cpp_classes, CPP_AVAILABLE = _import_cpp_core()
 else:

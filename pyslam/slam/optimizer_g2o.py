@@ -45,6 +45,14 @@ from .sim3_pose import Sim3Pose
 from .feature_tracker_shared import FeatureTrackerShared
 from .map_point import MapPoint
 from .keyframe import KeyFrame
+# Python optimizer, used when USE_CPP_CORE is False. camera_factors keeps the
+# original pinhole g2o edges here. USE_CPP_CORE=True selects cpp_core.OptimizerG2o.
+from .camera_factors import (
+    g2o_camera_project_edge,
+    g2o_stereo_camera_edge,
+    g2o_camera_project_pose_edge,
+    reprojection_measurement,
+)
 
 
 # ------------------------------------------------------------------------------------------
@@ -181,7 +189,7 @@ def bundle_adjustment(
             except KeyError:
                 continue
 
-            kf_kpsu_idx = kf.kpsu[idx]
+            kf_kpsu_idx = kf.projection_keypoints()[idx]
             kf_kps_ur_idx = kf.kps_ur[idx] if kf.kps_ur is not None else -1
 
             # print('adding edge between point ', p.id,' and frame ', f.id)
@@ -194,7 +202,7 @@ def bundle_adjustment(
             camera = kf.camera
 
             if is_stereo_obs:
-                edge = g2o.EdgeStereoSE3ProjectXYZ()
+                edge = g2o_stereo_camera_edge(camera)
                 edge.set_vertex(0, v_p)
                 edge.set_vertex(1, v_se3_kf)
                 obs = [kf_kpsu_idx[0], kf_kpsu_idx[1], kf_kps_ur_idx]
@@ -210,19 +218,14 @@ def bundle_adjustment(
                 edge.cy = camera.cy
                 edge.bf = camera.bf
             else:
-                edge = g2o.EdgeSE3ProjectXYZ()
+                edge = g2o_camera_project_edge(camera)
                 edge.set_vertex(0, v_p)
                 edge.set_vertex(1, v_se3_kf)
-                edge.set_measurement(kf_kpsu_idx)
+                edge.set_measurement(reprojection_measurement(kf, idx, False))
 
                 edge.set_information(eye2 * invSigma2)
                 if use_robust_kernel:
                     edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
-
-                edge.fx = camera.fx
-                edge.fy = camera.fy
-                edge.cx = camera.cx
-                edge.cy = camera.cy
 
             opt.add_edge(edge)
             graph_edges[edge] = is_stereo_obs
@@ -442,7 +445,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
             if p is None:
                 continue
 
-            frame_kpsu_idx = frame.kpsu[idx]
+            frame_kpsu_idx = frame.projection_keypoints()[idx]
             frame_kps_ur_idx = frame.kps_ur[idx] if frame.kps_ur is not None else -1
 
             # reset outlier flag
@@ -458,7 +461,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
 
             if is_stereo_obs:
                 # print('adding stereo edge between point ', p.id,' and frame ', frame.id)
-                edge = g2o.EdgeStereoSE3ProjectXYZOnlyPose()
+                edge = g2o_stereo_camera_edge(frame.camera, pose_only=True)
                 obs = [frame_kpsu_idx[0], frame_kpsu_idx[1], frame_kps_ur_idx]  # u,v,ur
                 edge.set_vertex(0, v_se3)  # opt.vertex(0))
                 edge.set_measurement(obs)
@@ -474,18 +477,13 @@ def pose_optimization(frame, verbose=False, rounds=10):
                 edge.Xw = p.pt()[0:3]
             else:
                 # print('adding mono edge between point ', p.id,' and frame ', frame.id)
-                edge = g2o.EdgeSE3ProjectXYZOnlyPose()
+                edge = g2o_camera_project_pose_edge(frame.camera)
 
                 edge.set_vertex(0, v_se3)  # opt.vertex(0))
-                edge.set_measurement(frame_kpsu_idx)
+                edge.set_measurement(reprojection_measurement(frame, idx, False))
 
                 edge.set_information(eye2 * invSigma2)
                 edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
-
-                edge.fx = fx
-                edge.fy = fy
-                edge.cx = cx
-                edge.cy = cy
                 edge.Xw = p.pt()[0:3]
 
             opt.add_edge(edge)
@@ -523,7 +521,15 @@ def pose_optimization(frame, verbose=False, rounds=10):
 
             # is_stereo_obs = frame.kps_ur is not None and frame.kps_ur[idx]>=0
 
-            chi2_check_failure = (chi2 > chi2Stereo) if is_stereo_obs else (chi2 > chi2Mono)
+            # Original Python test is the chi-squared threshold. Raw-model edges
+            # also reject a non-finite residual or a point outside the model domain.
+            # cpp_core pose optimization is selected when USE_CPP_CORE is True.
+            if frame.projects_raw_keypoints():
+                chi2_check_failure = (not np.isfinite(chi2)) or not edge.is_depth_positive() or (
+                    (chi2 > chi2Stereo) if is_stereo_obs else (chi2 > chi2Mono)
+                )
+            else:
+                chi2_check_failure = (chi2 > chi2Stereo) if is_stereo_obs else (chi2 > chi2Mono)
             if chi2_check_failure:
                 frame.outliers[idx] = True
                 edge.set_level(1)
@@ -719,7 +725,7 @@ def local_bundle_adjustment(
             assert kf.get_point_match(p_idx) is p
 
             # print('adding edge between point ', p.id,' and frame ', f.id)
-            kf_kpsu_p_idx = kf.kpsu[p_idx]
+            kf_kpsu_p_idx = kf.projection_keypoints()[p_idx]
             kf_kps_ur_p_idx = kf.kps_ur[p_idx] if kf.kps_ur is not None else -1
 
             is_stereo_obs = kf_kps_ur_p_idx >= 0
@@ -731,7 +737,7 @@ def local_bundle_adjustment(
             camera = kf.camera
 
             if is_stereo_obs:
-                edge = g2o.EdgeStereoSE3ProjectXYZ()
+                edge = g2o_stereo_camera_edge(camera)
                 obs = [kf_kpsu_p_idx[0], kf_kpsu_p_idx[1], kf_kps_ur_p_idx]
                 edge.set_measurement(obs)
 
@@ -740,13 +746,14 @@ def local_bundle_adjustment(
 
                 edge.bf = camera.bf
             else:
-                edge = g2o.EdgeSE3ProjectXYZ()
-                edge.set_measurement(kf_kpsu_p_idx)
+                edge = g2o_camera_project_edge(camera)
+                edge.set_measurement(reprojection_measurement(kf, p_idx, False))
 
                 edge.set_information(eye2 * invSigma2)
                 edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
 
-            edge.fx, edge.fy, edge.cx, edge.cy = camera.fx, camera.fy, camera.cx, camera.cy
+            if is_stereo_obs:
+                edge.fx, edge.fy, edge.cx, edge.cy = camera.fx, camera.fy, camera.cx, camera.cy
 
             edge.set_vertex(0, v_p)
             edge.set_vertex(1, v_se3_kf)
@@ -942,7 +949,7 @@ def lba_optimization_process(
 
                 # print('adding edge between point ', p.id,' and frame ', f.id)
 
-                kf_kpsu_p_idx = kf.kpsu[p_idx]
+                kf_kpsu_p_idx = kf.projection_keypoints()[p_idx]
                 kf_kps_ur_p_idx = kf.kps_ur[p_idx] if kf.kps_ur is not None else -1
 
                 is_stereo_obs = kf_kps_ur_p_idx >= 0
@@ -952,7 +959,7 @@ def lba_optimization_process(
                     invSigma2 *= SemanticMappingShared.get_semantic_weight(kf.kps_sem[p_idx])
 
                 if is_stereo_obs:
-                    edge = g2o.EdgeStereoSE3ProjectXYZ()
+                    edge = g2o_stereo_camera_edge(kf.camera)
                     obs = [kf_kpsu_p_idx[0], kf_kpsu_p_idx[1], kf_kps_ur_p_idx]
                     edge.set_measurement(obs)
 
@@ -961,18 +968,19 @@ def lba_optimization_process(
 
                     edge.bf = kf.camera.bf
                 else:
-                    edge = g2o.EdgeSE3ProjectXYZ()
-                    edge.set_measurement(kf_kpsu_p_idx)
+                    edge = g2o_camera_project_edge(kf.camera)
+                    edge.set_measurement(reprojection_measurement(kf, p_idx, False))
 
                     edge.set_information(eye2 * invSigma2)
                     edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
 
-                edge.fx, edge.fy, edge.cx, edge.cy = (
-                    kf.camera.fx,
-                    kf.camera.fy,
-                    kf.camera.cx,
-                    kf.camera.cy,
-                )
+                if is_stereo_obs:
+                    edge.fx, edge.fy, edge.cx, edge.cy = (
+                        kf.camera.fx,
+                        kf.camera.fy,
+                        kf.camera.cx,
+                        kf.camera.cy,
+                    )
 
                 edge.set_vertex(0, v_p)
                 edge.set_vertex(1, v_se3_kf)

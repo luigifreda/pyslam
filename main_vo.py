@@ -32,7 +32,7 @@ from pyslam.slam.visual_odometry_rgbd import (
     VisualOdometryRgbd,
     VisualOdometryRgbdTensor,
 )
-from pyslam.slam import PinholeCamera
+from pyslam.slam import camera_from_config
 
 from pyslam.io.ground_truth import groundtruth_factory
 from pyslam.io.dataset_factory import dataset_factory
@@ -95,7 +95,7 @@ if __name__ == "__main__":
 
     groundtruth = groundtruth_factory(config.dataset_settings)
 
-    cam = PinholeCamera(config)
+    cam = camera_from_config(config)
 
     num_features = 2000  # how many features do you want to detect and track?
     if (

@@ -18,6 +18,7 @@
  */
 
 #include "camera.h"
+#include "camera_models.h"
 
 #include "utils/messages.h"
 #include "utils/serialization_json.h"
@@ -63,6 +64,7 @@ static SensorType sensor_type_from_json_string(const std::string &sensor_str) {
 
 std::string Camera::to_json() const {
     std::ostringstream oss;
+    oss << std::setprecision(17);
     oss << "{";
     oss << "\"type\": " << static_cast<int>(type) << ", ";
     oss << "\"width\": " << width << ", ";
@@ -97,6 +99,10 @@ std::string Camera::to_json() const {
     oss << "\"K\": " << eigen_matrix_to_json_array(K).dump() << ", ";
     oss << "\"Kinv\": " << eigen_matrix_to_json_array(Kinv).dump() << ", ";
     oss << "\"sensor_type\": \"" << sensor_type_to_json_string(sensor_type) << "\"";
+    if (right_camera) {
+        oss << ", \"right_camera\": " << right_camera->to_json();
+        oss << ", \"T_right_left\": " << eigen_matrix_to_json_array(T_right_left).dump();
+    }
 
     oss << "}";
     return oss.str();
@@ -104,6 +110,15 @@ std::string Camera::to_json() const {
 
 void Camera::init_from_json(const std::string &json_str) {
     nlohmann::json json_data = nlohmann::json::parse(json_str);
+    right_camera.reset();
+    T_right_left.setIdentity();
+    if (json_data.contains("right_camera") && !json_data["right_camera"].is_null()) {
+        auto right = json_data["right_camera"];
+        if (right.is_string()) right = nlohmann::json::parse(right.get<std::string>());
+        right_camera = create_camera_from_json(right);
+        if (!flexible_json_to_eigen_matrix<double, 4, 4>(json_data["T_right_left"], T_right_left))
+            throw std::invalid_argument("Invalid stereo rig transform in camera JSON");
+    }
 
     // Parse basic camera parameters using safe helpers
     type = static_cast<CameraType>(safe_json_get(json_data, "type", 0));
@@ -235,6 +250,26 @@ PinholeCamera PinholeCamera::from_json(const std::string &json_str) {
 
 // ===============================
 
+namespace {
+
+CameraPtr camera_from_type_id(const nlohmann::json &camera_json, int type_id) {
+    const std::string dumped = camera_json.dump();
+    switch (static_cast<CameraType>(type_id)) {
+    case CameraType::KANNALA_BRANDT4:
+        return std::make_shared<KannalaBrandt4Camera>(KannalaBrandt4Camera::from_json(dumped));
+    case CameraType::PINHOLE_RADTAN8:
+        return std::make_shared<PinholeRadtan8Camera>(PinholeRadtan8Camera::from_json(dumped));
+    case CameraType::DOUBLE_SPHERE:
+        return std::make_shared<DoubleSphereCamera>(DoubleSphereCamera::from_json(dumped));
+    case CameraType::PINHOLE:
+    case CameraType::NONE:
+    default:
+        return std::make_shared<PinholeCamera>(PinholeCamera::from_json(dumped));
+    }
+}
+
+} // namespace
+
 // Helper function to create camera from JSON with proper type detection
 CameraPtr create_camera_from_json(const nlohmann::json &camera_json) {
     if (camera_json.is_null()) {
@@ -242,21 +277,29 @@ CameraPtr create_camera_from_json(const nlohmann::json &camera_json) {
     }
 
     try {
-        // Check camera type from JSON
-        if (camera_json.contains("camera_type")) {
-            std::string camera_type = camera_json["camera_type"].get<std::string>();
+        if (camera_json.contains("camera_type") && camera_json["camera_type"].is_string()) {
+            const std::string camera_type = camera_json["camera_type"].get<std::string>();
             if (camera_type == "PinholeCamera") {
-                return std::make_shared<PinholeCamera>(
-                    PinholeCamera::from_json(camera_json.dump()));
+                return camera_from_type_id(camera_json, static_cast<int>(CameraType::PINHOLE));
             }
-            // Add support for other camera types here as they are implemented
-            else {
-                throw std::runtime_error("Unsupported camera type: " + camera_type);
+            if (camera_type == "KannalaBrandt4Camera") {
+                return camera_from_type_id(camera_json,
+                                           static_cast<int>(CameraType::KANNALA_BRANDT4));
             }
-        } else {
-            // Fallback: assume PinholeCamera if no type specified
-            return std::make_shared<PinholeCamera>(PinholeCamera::from_json(camera_json.dump()));
+            if (camera_type == "PinholeRadtan8Camera") {
+                return camera_from_type_id(camera_json,
+                                           static_cast<int>(CameraType::PINHOLE_RADTAN8));
+            }
+            if (camera_type == "DoubleSphereCamera") {
+                return camera_from_type_id(camera_json, static_cast<int>(CameraType::DOUBLE_SPHERE));
+            }
+            throw std::runtime_error("Unsupported camera type: " + camera_type);
         }
+        if (camera_json.contains("type") && camera_json["type"].is_number_integer()) {
+            return camera_from_type_id(camera_json, camera_json["type"].get<int>());
+        }
+        // Maps written before the type field existed are linear pinhole cameras.
+        return camera_from_type_id(camera_json, static_cast<int>(CameraType::PINHOLE));
     } catch (const std::exception &e) {
         throw std::runtime_error("Failed to create camera from JSON: " + std::string(e.what()));
     }

@@ -139,7 +139,7 @@ class Config:
         self.dataset_settings = self.config[self.dataset_type]
         sensor_type_str = self.dataset_settings["sensor_type"].lower()
         self.sensor_type = get_sensor_type(sensor_type_str)
-        self.dataset_path = self.dataset_settings["base_path"]
+        self.dataset_path = os.path.expanduser(self.dataset_settings["base_path"])
         self.dataset_settings["base_path"] = os.path.join(self.root_folder, self.dataset_path)
         # print('dataset_settings: ', self.dataset_settings)
         str_dataset_settings_type = self.dataset_settings["type"].lower()
@@ -177,6 +177,9 @@ class Config:
                 except yaml.YAMLError as exc:
                     print(exc)
         self.cam_settings = self.system_settings
+        if str(self.dataset_settings.get("type", "")).lower() in ("tum_vi", "tumvi", "tum-vi"):
+            from pyslam.io.tum_vi_dataset import prepare_calibration
+            prepare_calibration(self)
 
     def get_system_state_settings(self):
         self.system_state_settings = self.config["SYSTEM_STATE"]
@@ -266,7 +269,7 @@ class Config:
             if "Camera.k3" in self.cam_settings:
                 k3 = self.cam_settings.get("Camera.k3", 0)
             self._DistCoef = np.array([k1, k2, p1, p2, k3])
-            if self.sensor_type == SensorType.STEREO:
+            if self.sensor_type == SensorType.STEREO and "Stereo.right" not in self.cam_settings:
                 self._DistCoef = np.array([0, 0, 0, 0, 0])
                 Printer.orange(
                     "[Config] WARNING: Using stereo camera, images are automatically rectified, and DistCoef is set to [0,0,0,0,0]"
@@ -501,7 +504,7 @@ class Config:
         if isinstance(self.dataset_settings, dict):
             sensor_type = self.dataset_settings.get("sensor_type")
         if sensor_type is not None:
-            self.sensor_type = str(sensor_type).lower()
+            self.sensor_type = get_sensor_type(sensor_type)
 
         system_settings = data.get("system_settings")
         if system_settings is not None:
@@ -518,6 +521,8 @@ class Config:
 
         # Invalidate cached derived properties to ensure consistency with new settings
         for attr in (
+            "_tum_vi_maps",
+            "_tum_vi_rectification",
             "_K",
             "_Kinv",
             "_DistCoef",
@@ -537,6 +542,9 @@ class Config:
         ):
             if hasattr(self, attr):
                 delattr(self, attr)
+        if isinstance(self.dataset_settings, dict) and str(self.dataset_settings.get("type", "")).lower() in ("tum_vi", "tumvi", "tum-vi"):
+            from pyslam.io.tum_vi_dataset import prepare_calibration
+            prepare_calibration(self)
 
     def to_json(self):
         return {

@@ -31,19 +31,62 @@
 #include <Eigen/Geometry>
 
 #include "camera.h"
+#include "camera_models.h"
 #include "camera_pose.h"
+#include "py_module/camera_optimizer_bindings.h"
 #include "casters/nlohmann_json_type_casters.h"
 #include "dictionary.h"
 #include "utils/numpy_helpers.h"
 
 namespace py = pybind11;
 
+namespace {
+
+pyslam::ConfigDict config_dict_from_object(const py::object &obj) {
+    if (obj.is_none()) {
+        return pyslam::ConfigDict{};
+    }
+    py::dict config_dict;
+    if (py::isinstance<py::dict>(obj)) {
+        config_dict = py::cast<py::dict>(obj);
+    } else {
+        config_dict = py::cast<py::dict>(obj.attr("to_json")());
+    }
+    pyslam::ConfigDict cfg;
+    for (auto item : config_dict) {
+        cfg.emplace(py::cast<std::string>(item.first), py::cast<pyslam::Value>(item.second));
+    }
+    return cfg;
+}
+
+template <typename CameraT> auto bind_distortion_camera(py::module &m, const char *name) {
+    return py::class_<CameraT, pyslam::Camera, std::shared_ptr<CameraT>>(m, name)
+        .def(py::init<>())
+        .def(py::init([](const py::object &obj) {
+                 return std::make_unique<CameraT>(config_dict_from_object(obj));
+             }),
+             py::arg("config"))
+        .def_static("from_json", &CameraT::from_json, py::arg("json_str"))
+        .def(py::pickle([](const CameraT &self) { return self.state_tuple(); },
+                        [](py::tuple state) {
+                            auto camera = std::make_shared<CameraT>();
+                            camera->restore_from_state(state);
+                            return camera;
+                        }))
+        .def("__getstate__", &CameraT::state_tuple);
+}
+
+} // namespace
+
 void bind_camera(py::module &m) {
 
     // Register enums FIRST, before they are used in class bindings
     py::enum_<pyslam::CameraType>(m, "CameraType")
         .value("NONE", pyslam::CameraType::NONE)
-        .value("PINHOLE", pyslam::CameraType::PINHOLE);
+        .value("PINHOLE", pyslam::CameraType::PINHOLE)
+        .value("KANNALA_BRANDT4", pyslam::CameraType::KANNALA_BRANDT4)
+        .value("PINHOLE_RADTAN8", pyslam::CameraType::PINHOLE_RADTAN8)
+        .value("DOUBLE_SPHERE", pyslam::CameraType::DOUBLE_SPHERE);
 
     py::enum_<pyslam::SensorType>(m, "SensorType")
         .value("MONOCULAR", pyslam::SensorType::MONOCULAR)
@@ -202,6 +245,17 @@ void bind_camera(py::module &m) {
         .def_readwrite("fovx", &pyslam::Camera::fovx)
         .def_readwrite("fovy", &pyslam::Camera::fovy)
         .def_readwrite("sensor_type", &pyslam::Camera::sensor_type)
+        .def_readwrite("right_camera", &pyslam::Camera::right_camera)
+        .def_readwrite("T_right_left", &pyslam::Camera::T_right_left)
+        .def("is_native_stereo", &pyslam::Camera::is_native_stereo)
+        .def("triangulate_stereo", &pyslam::Camera::triangulate_stereo,
+             py::arg("left"), py::arg("right"), py::arg("max_error") = 2.5)
+        .def("project_stereo_with_jacobian", [](const pyslam::Camera &camera, const Eigen::Vector3d &X) {
+            Eigen::Vector3d uv;
+            Eigen::Matrix3d J;
+            const bool valid = camera.project_stereo_with_jacobian(X, uv, &J);
+            return py::make_tuple(uv, valid, J);
+        })
         .def_readwrite("depth_factor", &pyslam::Camera::depth_factor)
         .def_readwrite("depth_threshold", &pyslam::Camera::depth_threshold)
         .def_property(
@@ -268,6 +322,32 @@ void bind_camera(py::module &m) {
                 return self.undistort_points(uvs);
             },
             py::arg("uvs"))
+        .def(
+            "unproject_points",
+            [](const pyslam::Camera &self, pyslam::MatNx2fRef uvs) {
+                return self.unproject_points(uvs);
+            },
+            py::arg("uvs"))
+        .def(
+            "unproject_points",
+            [](const pyslam::Camera &self, pyslam::MatNx2dRef uvs) {
+                return self.unproject_points(uvs);
+            },
+            py::arg("uvs"))
+        .def(
+            "unproject_points_3d",
+            [](const pyslam::Camera &self, pyslam::MatNx2fRef uvs, pyslam::VecNfRef depths) {
+                return self.unproject_points_3d(uvs, depths);
+            },
+            py::arg("uvs"), py::arg("depths"))
+        .def(
+            "unproject_points_3d",
+            [](const pyslam::Camera &self, pyslam::MatNx2dRef uvs, pyslam::VecNdRef depths) {
+                return self.unproject_points_3d(uvs, depths);
+            },
+            py::arg("uvs"), py::arg("depths"))
+        .def("requires_positive_depth", &pyslam::Camera::requires_positive_depth)
+        .def("projects_raw_keypoints", &pyslam::Camera::projects_raw_keypoints)
         .def("is_stereo", &pyslam::Camera::is_stereo)
         .def("to_json", [](const pyslam::PinholeCamera &self) {
             try {
@@ -301,6 +381,48 @@ void bind_camera(py::module &m) {
              py::arg("znear") = 0.01, py::arg("zfar") = 100.0)
         .def("set_fovx", &pyslam::Camera::set_fovx, py::arg("fovx"))
         .def("set_fovy", &pyslam::Camera::set_fovy, py::arg("fovy"))
+        .def(
+            "project_with_jacobian",
+            [](const pyslam::Camera &self, pyslam::Vec3dRef xcs) {
+                pyslam::Vec2d uv;
+                Eigen::Matrix<double, 2, 3> jacobian;
+                const bool valid = self.project_with_jacobian(xcs, uv, &jacobian);
+                return std::make_tuple(uv, valid, jacobian);
+            },
+            py::arg("xcs").noconvert())
+        .def(
+            "unproject_bearing",
+            [](const pyslam::Camera &self, pyslam::Vec2dRef uv) {
+                pyslam::Vec3d bearing;
+                Eigen::Matrix<double, 3, 2> jacobian;
+                const bool valid = self.unproject_bearing(uv, bearing, &jacobian);
+                return std::make_tuple(bearing, valid, jacobian);
+            },
+            py::arg("uv").noconvert())
+        .def(
+            "project_into",
+            [](const pyslam::Camera &self, pyslam::MatNx3dRef xcs, Eigen::Ref<pyslam::MatNx2d> uv,
+               Eigen::Ref<pyslam::VecNd> depth, Eigen::Ref<pyslam::VecNd> valid) {
+                self.project_into(xcs, uv, depth, valid);
+            },
+            py::arg("xcs").noconvert(), py::arg("uv").noconvert(), py::arg("depth").noconvert(),
+            py::arg("valid").noconvert())
+        .def(
+            "unproject_bearings_into",
+            [](const pyslam::Camera &self, pyslam::MatNx2dRef uvs, Eigen::Ref<pyslam::MatNx3d> bearings,
+               Eigen::Ref<pyslam::VecNd> valid) { self.unproject_bearings_into(uvs, bearings, valid); },
+            py::arg("uvs").noconvert(), py::arg("bearings").noconvert(), py::arg("valid").noconvert())
+        .def(
+            "g2o_reprojection_error_jacobians",
+            [](const pyslam::Camera &self, pyslam::Vec3dRef xcs, const Eigen::Matrix3d &Rcw) {
+                Eigen::Matrix<double, 2, 6> J_pose;
+                Eigen::Matrix<double, 2, 3> J_point;
+                pyslam::Vec2d uv;
+                const bool valid =
+                    self.g2o_reprojection_error_jacobians(xcs, Rcw, J_pose, J_point, &uv);
+                return std::make_tuple(J_pose, J_point, uv, valid);
+            },
+            py::arg("xcs").noconvert(), py::arg("Rcw").noconvert())
         .def("to_json", &pyslam::Camera::to_json)
         .def("init_from_json", &pyslam::Camera::init_from_json, py::arg("json_str"))
         .def(py::pickle([](const pyslam::Camera &self) { return self.state_tuple(); },
@@ -416,4 +538,23 @@ void bind_camera(py::module &m) {
         //.def("__setstate__", [](pyslam::PinholeCamera &self, py::tuple t) { self.restore_from_state(t); })
         .def("__getstate__", &pyslam::PinholeCamera::state_tuple);
 
+    bind_distortion_camera<pyslam::KannalaBrandt4Camera>(m, "KannalaBrandt4Camera")
+        .def(py::init<int, int, double, double, double, double, double, double, double, double>(),
+             py::arg("width"), py::arg("height"), py::arg("fx"), py::arg("fy"), py::arg("cx"),
+             py::arg("cy"), py::arg("k1"), py::arg("k2"), py::arg("k3"), py::arg("k4"));
+
+    bind_distortion_camera<pyslam::PinholeRadtan8Camera>(m, "PinholeRadtan8Camera")
+        .def(py::init<int, int, double, double, double, double, double, double, double, double,
+                      double, double, double, double>(),
+             py::arg("width"), py::arg("height"), py::arg("fx"), py::arg("fy"), py::arg("cx"),
+             py::arg("cy"), py::arg("k1"), py::arg("k2"), py::arg("p1"), py::arg("p2"),
+             py::arg("k3"), py::arg("k4"), py::arg("k5"), py::arg("k6"));
+
+    bind_distortion_camera<pyslam::DoubleSphereCamera>(m, "DoubleSphereCamera")
+        .def(py::init<int, int, double, double, double, double, double, double>(), py::arg("width"),
+             py::arg("height"), py::arg("fx"), py::arg("fy"), py::arg("cx"), py::arg("cy"),
+             py::arg("xi"), py::arg("alpha"));
+
+    bind_camera_g2o_edges(m);
+    bind_camera_gtsam_factors(m);
 } // bind_camera

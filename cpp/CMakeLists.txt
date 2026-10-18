@@ -339,3 +339,86 @@ target_include_directories(color_utils PRIVATE
 pybind11_add_module(hamming 
 hamming/hamming_module.cpp)
 target_link_libraries(hamming PRIVATE)
+
+#=======================================
+# Camera models used by the Python core.
+# Formulas stay in pyslam/slam/cpp/camera_model_math.h. The camera type lives in
+# one shared library so the factor modules share its type info. g2o and gtsam
+# are separate modules: no translation unit includes both, and importing
+# camera_models does not load either optimizer library.
+#=======================================
+
+set(CAMERA_MODELS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/camera_models")
+
+add_library(camera_model_core SHARED camera_models/camera_model.cpp)
+target_include_directories(camera_model_core PUBLIC
+    ${CAMERA_MODELS_DIR}
+    ${PYSLAM_SLAM_CPP_SRC}
+    ${EIGEN3_INCLUDE_DIR}
+    ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(camera_model_core PUBLIC ${OpenCV_LIBS})
+set_target_properties(camera_model_core PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
+
+function(camera_models_module_rpath target)
+    set_target_properties(${target} PROPERTIES
+        BUILD_RPATH "\$ORIGIN"
+        INSTALL_RPATH "\$ORIGIN")
+endfunction()
+
+pybind11_add_module(camera_models camera_models/camera_models_module.cpp)
+target_include_directories(camera_models PRIVATE
+    ${CAMERA_MODELS_DIR}
+    ${PYSLAM_SLAM_CPP_SRC}
+    ${EIGEN3_INCLUDE_DIR}
+    ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(camera_models PRIVATE camera_model_core ${OpenCV_LIBS})
+camera_models_module_rpath(camera_models)
+
+set(G2O_ROOT "${PYSLAM_ROOT}/thirdparty/g2opy")
+set(G2O_INCLUDE_DIRS "${G2O_ROOT};${G2O_ROOT}/build")
+file(GLOB CAMERA_MODELS_G2O_LIBRARIES "${G2O_ROOT}/lib/*.a")
+list(FILTER CAMERA_MODELS_G2O_LIBRARIES EXCLUDE REGEX "g2o.cython.*")
+if(CAMERA_MODELS_G2O_LIBRARIES)
+    pybind11_add_module(camera_models_g2o camera_models/camera_models_g2o_module.cpp)
+    target_include_directories(camera_models_g2o PRIVATE
+        ${CAMERA_MODELS_DIR}
+        ${PYSLAM_SLAM_CPP_SRC}
+        ${G2O_INCLUDE_DIRS}
+        ${EIGEN3_INCLUDE_DIR}
+        ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(camera_models_g2o PRIVATE
+        camera_model_core
+        ${CAMERA_MODELS_G2O_LIBRARIES}
+        ${OpenCV_LIBS})
+    camera_models_module_rpath(camera_models_g2o)
+else()
+    message(WARNING "camera_models_g2o was not built (g2o not found).")
+endif()
+
+set(GTSAM_ROOT "${PYSLAM_ROOT}/thirdparty/gtsam_local")
+set(GTSAM_DIR "${GTSAM_ROOT}/install/lib/cmake/GTSAM")
+find_package(GTSAM QUIET CONFIG)
+set(GTSAM_FACTORS_INCLUDE_DIRS "${PYSLAM_ROOT}/thirdparty/gtsam_factors/include")
+if(GTSAM_FOUND)
+    pybind11_add_module(camera_models_gtsam camera_models/camera_models_gtsam_module.cpp)
+    target_include_directories(camera_models_gtsam PRIVATE
+        ${CAMERA_MODELS_DIR}
+        ${PYSLAM_SLAM_CPP_SRC}
+        ${GTSAM_INCLUDE_DIR}
+        ${GTSAM_FACTORS_INCLUDE_DIRS}
+        ${EIGEN3_INCLUDE_DIR}
+        ${OpenCV_INCLUDE_DIRS})
+    target_link_directories(camera_models_gtsam PRIVATE "${GTSAM_ROOT}/install/lib")
+    target_link_libraries(camera_models_gtsam PRIVATE camera_model_core gtsam ${OpenCV_LIBS})
+    set_target_properties(camera_models_gtsam PROPERTIES
+        BUILD_RPATH "\$ORIGIN;${GTSAM_ROOT}/install/lib"
+        INSTALL_RPATH "\$ORIGIN;${GTSAM_ROOT}/install/lib")
+    if(NOT APPLE)
+        # libgtsam has no RPATH of its own: only DT_RPATH (not DT_RUNPATH) lets the loader
+        # resolve its libmetis-gtsam dependency without importing the gtsam package first.
+        target_link_options(camera_models_gtsam PRIVATE "-Wl,--disable-new-dtags")
+    endif()
+else()
+    message(WARNING "camera_models_gtsam was not built (gtsam not found).")
+endif()

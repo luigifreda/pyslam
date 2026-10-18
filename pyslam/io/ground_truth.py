@@ -70,6 +70,7 @@ class GroundTruthType(SerializableEnum):
     NEURAL_RGBD = 11
     ROVER = 12
     CLIO = 13
+    TUM_VI = 14
 
 
 def groundtruth_factory(settings, cam_settings=None):
@@ -93,6 +94,9 @@ def groundtruth_factory(settings, cam_settings=None):
         start_frame_id = int(settings["start_frame_id"])
 
     print("using groundtruth: ", type)
+    if str(type).lower() in ("tum_vi", "tumvi", "tum-vi"):
+        from .tum_vi_ground_truth import TumViGroundTruth
+        return TumViGroundTruth(settings)
     if type == "kitti":
         return KittiGroundTruth(
             path, name, associations, start_frame_id, type=GroundTruthType.KITTI

@@ -22,7 +22,9 @@ TESTS_DIR="${BUILD_DIR}/tests_cpp"
 NUMPY_TESTS=("test_numpy_cv_mat" "test_numpy_map_point" "test_numpy_frame" "test_numpy_keyframe" "test_numpy_camera" "test_numpy_map_state")
 JSON_TESTS=("test_json_map_point" "test_json_eigen" "test_json_serialization" "test_json_frame" "test_json_keyframe" "test_json_map" "test_json_camera")
 KDTREE_TESTS=("test_kdtree_basic" "test_kdtree_validation")
-GENERIC_TESTS=("test_image_management")
+GENERIC_TESTS=("test_image_management" "test_camera_model_math" "test_camera_models" "test_camera_edges_g2o" "test_camera_factors_gtsam")
+GENERIC_TESTS+=("test_owned_g2o_optimizer")
+GENERIC_TESTS+=("test_local_map_limits")
 
 # Test tracking
 PASSED_TESTS=()

@@ -46,6 +46,7 @@ class DatasetType(SerializableEnum):
     NEURAL_RGBD = 16
     ROVER = 17
     CLIO = 18
+    TUM_VI = 19
 
 
 @register_class

@@ -18,6 +18,8 @@
 """
 
 from enum import Enum
+import os
+import sys
 import numpy as np
 import cv2
 import math
@@ -42,6 +44,9 @@ from typing import TYPE_CHECKING
 class CameraType(Enum):  # keep it consistent with C++ CameraType
     NONE = 0
     PINHOLE = 1
+    KANNALA_BRANDT4 = 2
+    PINHOLE_RADTAN8 = 3
+    DOUBLE_SPHERE = 4
 
 
 # Convert fov [rad] to focal length in pixels
@@ -214,6 +219,8 @@ class CameraBase:
         self.v_min = None
         self.v_max = None
         self.initialized = False
+        self.right_camera = None
+        self.T_right_left = np.eye(4)
 
 
 class Camera(CameraBase):
@@ -309,6 +316,9 @@ class Camera(CameraBase):
     def is_stereo(self):
         return self.bf is not None and self.sensor_type != SensorType.MONOCULAR
 
+    def is_native_stereo(self):
+        return self.right_camera is not None
+
     # project a 3D point or an array of 3D points (w.r.t. camera frame), of shape [Nx3]
     # out: Nx2 image points, [Nx1] array of map point depths
     def project(self, xcs):
@@ -322,6 +332,8 @@ class Camera(CameraBase):
 
     def to_json(self):
         return {
+            "right_camera": self.right_camera.to_json() if self.right_camera is not None else None,
+            "T_right_left": self.T_right_left.tolist(),
             "type": int(self.type.value),
             "width": int(self.width),
             "height": int(self.height),
@@ -357,6 +369,9 @@ class Camera(CameraBase):
         if isinstance(json_str, str):
             json_str = json.loads(json_str)
         self.type = CameraType(int(json_str["type"]))
+        right = json_str.get("right_camera")
+        self.right_camera = camera_from_json(right) if right else None
+        self.T_right_left = np.asarray(json_str.get("T_right_left", np.eye(4)), dtype=np.float64)
         self.width = int(json_str["width"])
         self.height = int(json_str["height"])
         self.fx = float(json_str["fx"])
@@ -365,7 +380,7 @@ class Camera(CameraBase):
         self.cy = float(json_str["cy"])
         # Handle D (distortion coefficients) - can be a string (Python) or array (C++)
         self.D = deserialize_array_flexible(json_str["D"])
-        self.fps = int(json_str["fps"])
+        self.fps = int(json_str["fps"]) if json_str["fps"] is not None else None
         bf_str = json_str["bf"]
         b_str = json_str["b"]
         self.bf = float(bf_str) if bf_str is not None else None
@@ -492,6 +507,8 @@ class PinholeCamera(Camera):
 
     # project a 3D point or an array of 3D points (w.r.t. camera frame), of shape [Nx3]
     # out: Nx2 image points, [Nx1] array of map point depths
+    # Original Python/Numba projection. USE_CPP_CORE=False uses this class.
+    # USE_CPP_CORE=True selects cpp_core.PinholeCamera instead.
     def project(self, xcs):  # numba version
         # Ensure xcs is always 2D
         if xcs.ndim == 1:
@@ -508,6 +525,21 @@ class PinholeCamera(Camera):
             xcs = xcs.reshape(1, 3)
         xcs = xcs.astype(np.float64)
         return CameraUtils.project_stereo_numba(xcs, self.K, self.bf)
+
+    def project_with_jacobian(self, point):
+        """Linear projection and d(u, v) / d(Xc). Invalid when z <= 0."""
+        x, y, z = np.asarray(point, dtype=np.float64).reshape(3)
+        if not np.isfinite([x, y, z]).all() or z <= 0.0:
+            return np.zeros(2), False, np.zeros((2, 3))
+        inv_z = 1.0 / z
+        uv = np.array([self.fx * x * inv_z + self.cx, self.fy * y * inv_z + self.cy])
+        jacobian = np.array(
+            [
+                [self.fx * inv_z, 0.0, -self.fx * x * inv_z * inv_z],
+                [0.0, self.fy * inv_z, -self.fy * y * inv_z * inv_z],
+            ]
+        )
+        return uv, bool(z > 0.0), jacobian
 
     # unproject single 2D point uv (pixels on image plane) to 2D normalized point (representing 3D point on z=1 plane)
     def unproject(self, uv):
@@ -576,3 +608,464 @@ class PinholeCamera(Camera):
         # print('camera u_max: ', self.u_max)
         # print('camera v_min: ', self.v_min)
         # print('camera v_max: ', self.v_max)
+
+
+def _as_c_contiguous_f64(array, name):
+    values = np.asarray(array)
+    if values.dtype != np.float64 or not values.flags["C_CONTIGUOUS"]:
+        raise ValueError(f"{name} must be a C-contiguous float64 array")
+    return values
+
+
+def _distortion_vector(values, size):
+    coeffs = np.zeros(size, dtype=np.float64)
+    if values is None:
+        return coeffs
+    incoming = np.asarray(values, dtype=np.float64).reshape(-1)
+    count = min(size, incoming.size)
+    coeffs[:count] = incoming[:count]
+    return coeffs
+
+
+def import_camera_models():
+    """Projection backend for the Python core. This is not cpp_core."""
+    try:
+        import camera_models
+    except ImportError:
+        lib = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "cpp", "lib"))
+        if lib not in sys.path:
+            sys.path.insert(0, lib)
+        import camera_models
+    return camera_models
+
+
+class _CppCameraModel(Camera):
+    """Nonlinear camera. Projection is implemented once, in camera_model_math.h.
+
+    USE_CPP_CORE=False builds these Python objects and calls the camera_models
+    module in cpp/. USE_CPP_CORE=True selects the cpp_core camera classes instead.
+    The two modules are not imported together by this class.
+    """
+
+    _cpp_class_name = ""
+    _distortion_size = 0
+
+    def __init__(self, config=None):
+        super().__init__(config)
+        self.sensor_type = getattr(self, "sensor_type", SensorType.MONOCULAR)
+
+    def _apply_common_fields(self, *, fx, fy, cx, cy, width, height, distortion):
+        self.fx = float(fx)
+        self.fy = float(fy)
+        self.cx = float(cx)
+        self.cy = float(cy)
+        self.width = int(width)
+        self.height = int(height)
+        self.D = _distortion_vector(distortion, self._distortion_size)
+        self.fps = 0
+        self.bf = None
+        self.b = None
+        self.depth_factor = 1.0
+        self.depth_threshold = float("inf")
+        self.u_min, self.u_max = 0.0, float(self.width)
+        self.v_min, self.v_max = 0.0, float(self.height)
+        self.initialized = True
+        self.fovx = focal2fov(self.fx, self.width)
+        self.fovy = focal2fov(self.fy, self.height)
+        self.set_intrinsic_matrices()
+        self._cpp_cached = None
+
+    def _cpp_camera(self):
+        camera_models = import_camera_models()
+
+        right_cpp = (self.right_camera._cpp_camera() if hasattr(self.right_camera, "_cpp_camera")
+                     else self.right_camera)
+
+        signature = (
+            float(self.fx),
+            float(self.fy),
+            float(self.cx),
+            float(self.cy),
+            tuple(float(value) for value in np.asarray(self.D, dtype=np.float64).reshape(-1)),
+            self.width, self.height, self.bf, self.sensor_type,
+            id(right_cpp), tuple(self.T_right_left.reshape(-1)),
+        )
+        if getattr(self, "_cpp_cached", None) is None or getattr(self, "_cpp_signature", None) != signature:
+            camera = getattr(camera_models, self._cpp_class_name)()
+            camera.width = int(self.width)
+            camera.height = int(self.height)
+            camera.fx = signature[0]
+            camera.fy = signature[1]
+            camera.cx = signature[2]
+            camera.cy = signature[3]
+            camera.D = list(signature[4])
+            camera.type = getattr(camera_models.CameraType, self.type.name)
+            camera.set_intrinsic_matrices()
+            camera.sensor_type = getattr(camera_models.SensorType, self.sensor_type.name)
+            camera.bf = float(self.bf) if self.bf is not None else -1.0
+            camera.b = float(self.b) if self.b is not None else -1.0
+            camera.right_camera = right_cpp
+            camera.T_right_left = self.T_right_left
+            self._cpp_cached = camera
+            self._cpp_signature = signature
+        return self._cpp_cached
+
+    def project_into(self, xcs, uv, depth, valid):
+        """Project into caller-owned C-contiguous float64 buffers."""
+        xcs = _as_c_contiguous_f64(xcs, "xcs").reshape(-1, 3)
+        uv = _as_c_contiguous_f64(uv, "uv")
+        depth = _as_c_contiguous_f64(depth, "depth")
+        valid = _as_c_contiguous_f64(valid, "valid")
+        self._cpp_camera().project_into(xcs, uv, depth, valid)
+
+    def project_stereo(self, xcs):
+        points = np.ascontiguousarray(np.asarray(xcs, dtype=np.float64).reshape(-1, 3))
+        uvur = np.empty((points.shape[0], 3), dtype=np.float64)
+        depth = np.empty((points.shape[0],), dtype=np.float64)
+        self._cpp_camera().project_stereo_into(points, uvur, depth)
+        return uvur, depth
+
+    def project_stereo_with_jacobian(self, point):
+        return self._cpp_camera().project_stereo_with_jacobian(np.asarray(point, dtype=np.float64))
+
+    def triangulate_stereo(self, left, right, max_error=2.5):
+        left = np.ascontiguousarray(np.asarray(left, dtype=np.float64).reshape(-1, 2))
+        right = np.ascontiguousarray(np.asarray(right, dtype=np.float64).reshape(-1, 2))
+        points = np.empty((left.shape[0], 3), dtype=np.float64)
+        valid = np.empty((left.shape[0],), dtype=np.float64)
+        self._cpp_camera().triangulate_stereo_into(left, right, float(max_error), points, valid)
+        return points, valid
+
+    def unproject_points_3d(self, uvs, depths):
+        pixels = np.ascontiguousarray(np.asarray(uvs, dtype=np.float64).reshape(-1, 2))
+        depth_values = np.ascontiguousarray(np.asarray(depths, dtype=np.float64).reshape(-1))
+        points = np.empty((pixels.shape[0], 3), dtype=np.float64)
+        self._cpp_camera().unproject_points_3d_into(pixels, depth_values, points)
+        return points
+
+    def unproject_3d(self, u, v, depth):
+        return self.unproject_points_3d(np.array([[u, v]], dtype=np.float64), np.array([depth]))[0].reshape(3, 1)
+
+    def unproject_bearings_into(self, uvs, bearings, valid):
+        """Unproject into caller-owned C-contiguous float64 buffers."""
+        uvs = _as_c_contiguous_f64(uvs, "uvs").reshape(-1, 2)
+        bearings = _as_c_contiguous_f64(bearings, "bearings")
+        valid = _as_c_contiguous_f64(valid, "valid")
+        self._cpp_camera().unproject_bearings_into(uvs, bearings, valid)
+
+    def requires_positive_depth(self):
+        return True
+
+    def projects_raw_keypoints(self):
+        return True
+
+    def undistort_points(self, uvs):
+        values = np.ascontiguousarray(np.asarray(uvs, dtype=np.float64).reshape(-1, 2))
+        out = np.empty_like(values)
+        self._cpp_camera().undistort_points_into(values, out)
+        return out
+
+    def unproject_points(self, uvs):
+        bearings, valid = self.unproject_bearings(uvs)
+        bearings = np.atleast_2d(np.asarray(bearings, dtype=np.float64))
+        valid = np.atleast_1d(np.asarray(valid, dtype=np.float64))
+        z = bearings[:, 2]
+        normalized = np.full((bearings.shape[0], 2), np.nan, dtype=np.float64)
+        ok = (valid > 0.0) & (np.abs(z) > 1e-12)
+        normalized[ok, 0] = bearings[ok, 0] / z[ok]
+        normalized[ok, 1] = bearings[ok, 1] / z[ok]
+        return normalized
+
+    def is_in_image(self, uv, z):
+        in_bounds = (
+            (uv[0] >= self.u_min)
+            and (uv[0] < self.u_max)
+            and (uv[1] >= self.v_min)
+            and (uv[1] < self.v_max)
+        )
+        if self.requires_positive_depth():
+            return in_bounds and z > 0
+        return in_bounds and np.isfinite(z)
+
+    def are_in_image(self, uvs, zs):
+        uvs = np.asarray(uvs)
+        zs = np.asarray(zs, dtype=np.float64).reshape(-1)
+        in_bounds = (
+            (uvs[:, 0] >= self.u_min)
+            & (uvs[:, 0] < self.u_max)
+            & (uvs[:, 1] >= self.v_min)
+            & (uvs[:, 1] < self.v_max)
+        )
+        if self.requires_positive_depth():
+            return in_bounds & (zs > 0)
+        return in_bounds & np.isfinite(zs)
+
+    def project(self, xcs):
+        points = np.asarray(xcs, dtype=np.float64)
+        single = points.ndim == 1
+        if single:
+            points = points.reshape(1, 3)
+        points = np.ascontiguousarray(points)
+        uv = np.empty((points.shape[0], 2), dtype=np.float64)
+        depth = np.empty((points.shape[0],), dtype=np.float64)
+        valid = np.empty((points.shape[0],), dtype=np.float64)
+        self.project_into(points, uv, depth, valid)
+        depth = np.where(valid > 0.0, depth, np.nan)
+        if single:
+            return uv[0], float(depth[0])
+        return uv, depth
+
+    def unproject_bearings(self, uvs):
+        pixels = np.asarray(uvs, dtype=np.float64)
+        single = pixels.ndim == 1
+        if single:
+            pixels = pixels.reshape(1, 2)
+        pixels = np.ascontiguousarray(pixels)
+        bearings = np.empty((pixels.shape[0], 3), dtype=np.float64)
+        valid = np.empty((pixels.shape[0],), dtype=np.float64)
+        self.unproject_bearings_into(pixels, bearings, valid)
+        if single:
+            return bearings[0], bool(valid[0] > 0.0)
+        return bearings, valid
+
+    def project_with_jacobian(self, point):
+        point = np.ascontiguousarray(np.asarray(point, dtype=np.float64).reshape(3))
+        return self._cpp_camera().project_with_jacobian(point)
+
+    def unproject_bearing(self, uv):
+        pixel = np.ascontiguousarray(np.asarray(uv, dtype=np.float64).reshape(2))
+        return self._cpp_camera().unproject_bearing(pixel)
+
+
+class KannalaBrandt4Camera(_CppCameraModel):
+    """Kannala-Brandt fisheye with distortion coefficients k1..k4."""
+
+    _cpp_class_name = "KannalaBrandt4Camera"
+    _distortion_size = 4
+
+    def __init__(self, config=None, **kwargs):
+        super().__init__(config)
+        self.type = CameraType.KANNALA_BRANDT4
+        self.is_distorted = True
+        if config is None:
+            if kwargs:
+                self._apply_common_fields(
+                    fx=kwargs["fx"],
+                    fy=kwargs["fy"],
+                    cx=kwargs["cx"],
+                    cy=kwargs["cy"],
+                    width=kwargs["width"],
+                    height=kwargs["height"],
+                    distortion=kwargs.get("k", (0.0, 0.0, 0.0, 0.0)),
+                )
+            return
+        settings = _camera_settings(config)
+        self.D = _distortion_vector(
+            [
+                settings.get("Camera.k1", 0.0),
+                settings.get("Camera.k2", 0.0),
+                settings.get("Camera.k3", 0.0),
+                settings.get("Camera.k4", 0.0),
+            ],
+            4,
+        )
+        self.u_min, self.u_max = 0.0, float(self.width)
+        self.v_min, self.v_max = 0.0, float(self.height)
+        self.initialized = True
+
+    def requires_positive_depth(self):
+        return False
+
+
+class PinholeRadtan8Camera(_CppCameraModel):
+    """Pinhole camera with the OpenCV rational distortion model."""
+
+    _cpp_class_name = "PinholeRadtan8Camera"
+    _distortion_size = 8
+
+    def __init__(self, config=None, **kwargs):
+        super().__init__(config)
+        self.type = CameraType.PINHOLE_RADTAN8
+        if config is None:
+            if kwargs:
+                self._apply_common_fields(
+                    fx=kwargs["fx"],
+                    fy=kwargs["fy"],
+                    cx=kwargs["cx"],
+                    cy=kwargs["cy"],
+                    width=kwargs["width"],
+                    height=kwargs["height"],
+                    distortion=kwargs.get("distortion", np.zeros(8)),
+                )
+                self.is_distorted = float(np.linalg.norm(self.D)) > 1e-10
+            return
+        settings = _camera_settings(config)
+        self.D = _distortion_vector(
+            [
+                settings.get("Camera.k1", 0.0),
+                settings.get("Camera.k2", 0.0),
+                settings.get("Camera.p1", 0.0),
+                settings.get("Camera.p2", 0.0),
+                settings.get("Camera.k3", 0.0),
+                settings.get("Camera.k4", 0.0),
+                settings.get("Camera.k5", 0.0),
+                settings.get("Camera.k6", 0.0),
+            ],
+            8,
+        )
+        self.is_distorted = float(np.linalg.norm(self.D)) > 1e-10
+        self.u_min, self.u_max = 0.0, float(self.width)
+        self.v_min, self.v_max = 0.0, float(self.height)
+        self.initialized = True
+
+
+class DoubleSphereCamera(_CppCameraModel):
+    """Double-sphere camera. Distortion storage is [xi, alpha]."""
+
+    _cpp_class_name = "DoubleSphereCamera"
+    _distortion_size = 2
+
+    def __init__(self, config=None, **kwargs):
+        super().__init__(config)
+        self.type = CameraType.DOUBLE_SPHERE
+        self.is_distorted = True
+        if config is None:
+            if kwargs:
+                self._apply_common_fields(
+                    fx=kwargs["fx"],
+                    fy=kwargs["fy"],
+                    cx=kwargs["cx"],
+                    cy=kwargs["cy"],
+                    width=kwargs["width"],
+                    height=kwargs["height"],
+                    distortion=(kwargs.get("xi", 0.0), kwargs.get("alpha", 0.5)),
+                )
+            else:
+                self.D = np.array([0.0, 0.5], dtype=np.float64)
+            return
+        settings = _camera_settings(config)
+        self.D = _distortion_vector(
+            [settings.get("Camera.xi", 0.0), settings.get("Camera.alpha", 0.5)], 2
+        )
+        self.u_min, self.u_max = 0.0, float(self.width)
+        self.v_min, self.v_max = 0.0, float(self.height)
+        self.initialized = True
+
+    def requires_positive_depth(self):
+        return False
+
+
+_CAMERA_MODEL_CLASSES = {
+    "pinhole": "PinholeCamera",
+    "kannalabrandt4": "KannalaBrandt4Camera",
+    "kannalabrandt4camera": "KannalaBrandt4Camera",
+    "kb4": "KannalaBrandt4Camera",
+    "pinholeradtan8": "PinholeRadtan8Camera",
+    "pinholeradtan8camera": "PinholeRadtan8Camera",
+    "radtan8": "PinholeRadtan8Camera",
+    "rational": "PinholeRadtan8Camera",
+    "rationalradial": "PinholeRadtan8Camera",
+    "doublesphere": "DoubleSphereCamera",
+    "doublespherecamera": "DoubleSphereCamera",
+    "ds": "DoubleSphereCamera",
+}
+
+_CAMERA_MODEL_IDS = {
+    0: "PinholeCamera",
+    1: "PinholeCamera",
+    2: "KannalaBrandt4Camera",
+    3: "PinholeRadtan8Camera",
+    4: "DoubleSphereCamera",
+}
+
+
+def camera_model_class_name(camera_type):
+    """Map Camera.type to a class name. A missing value stays the linear pinhole."""
+    if camera_type is None:
+        return "PinholeCamera"
+    if isinstance(camera_type, CameraType):
+        camera_type = int(camera_type.value)
+    if isinstance(camera_type, (int, np.integer)):
+        try:
+            return _CAMERA_MODEL_IDS[int(camera_type)]
+        except KeyError as error:
+            raise ValueError(f"Unknown Camera.type id {camera_type}") from error
+    text = str(camera_type).strip().lower().replace("-", "").replace("_", "").replace(" ", "")
+    if text.isdigit():
+        return camera_model_class_name(int(text))
+    try:
+        return _CAMERA_MODEL_CLASSES[text]
+    except KeyError as error:
+        known = "pinhole, kannala_brandt4, pinhole_radtan8, double_sphere"
+        raise ValueError(f"Unknown Camera.type '{camera_type}'. Expected one of: {known}") from error
+
+
+def _camera_settings(config):
+    settings = getattr(config, "cam_settings", None)
+    if settings is None and isinstance(config, dict):
+        settings = config.get("cam_settings", config)
+    return settings or {}
+
+
+def _is_stereo_config(config):
+    sensor = getattr(config, "sensor_type", None)
+    if sensor == SensorType.STEREO:
+        return True
+    dataset = getattr(config, "dataset_settings", None)
+    if dataset is None and isinstance(config, dict):
+        dataset = config.get("dataset_settings", {})
+    return str((dataset or {}).get("sensor_type", "")).lower() == "stereo"
+
+
+def camera_from_config(config, constructors=None):
+    """Build the camera named by Camera.type.
+
+    Omitted Camera.type keeps the current pinhole: keypoints are undistorted and
+    projection stays linear. kannala_brandt4 reads Camera.k1..k4, pinhole_radtan8
+    reads Camera.k1, k2, p1, p2, k3..k6, and double_sphere reads Camera.xi and
+    Camera.alpha. Non-pinhole stereo requires Stereo.right and Stereo.T_right_left.
+    """
+    settings = _camera_settings(config)
+    class_name = camera_model_class_name(settings.get("Camera.type"))
+    native_stereo = class_name != "PinholeCamera" and _is_stereo_config(config)
+    if native_stereo and "Stereo.right" not in settings:
+        raise ValueError(
+            "Non-pinhole stereo requires Stereo.right and Stereo.T_right_left; "
+            "provide a calibrated rig or rectify the images to a pinhole pair."
+        )
+    if constructors is None:
+        constructors = {
+            "PinholeCamera": PinholeCamera,
+            "KannalaBrandt4Camera": KannalaBrandt4Camera,
+            "PinholeRadtan8Camera": PinholeRadtan8Camera,
+            "DoubleSphereCamera": DoubleSphereCamera,
+        }
+    camera = constructors[class_name](config)
+    if native_stereo:
+        T = np.asarray(settings.get("Stereo.T_right_left"), dtype=np.float64)
+        if T.shape != (4, 4) or not np.all(np.isfinite(T)) or not np.allclose(T[3], [0, 0, 0, 1]):
+            raise ValueError("Stereo.T_right_left must be a finite homogeneous 4x4 transform")
+        if not np.allclose(T[:3, :3].T @ T[:3, :3], np.eye(3), atol=1e-5) or np.linalg.det(T[:3, :3]) < 0.0 or np.linalg.norm(T[:3, 3]) <= 1e-9:
+            raise ValueError("Stereo.T_right_left must have a rotation and nonzero baseline")
+        right_settings = settings["Stereo.right"]
+        right_name = camera_model_class_name(right_settings.get("Camera.type"))
+        camera.right_camera = constructors[right_name]({
+            "cam_settings": right_settings, "dataset_settings": {"sensor_type": "mono"}
+        })
+        camera.T_right_left = T
+    return camera
+
+
+def camera_from_json(json_str):
+    """Build the camera subclass stored in a serialized camera dictionary."""
+    payload = json.loads(json_str) if isinstance(json_str, str) else json_str
+    camera_type = CameraType(int(payload.get("type", CameraType.PINHOLE.value)))
+    constructors = {
+        CameraType.PINHOLE: PinholeCamera,
+        CameraType.KANNALA_BRANDT4: KannalaBrandt4Camera,
+        CameraType.PINHOLE_RADTAN8: PinholeRadtan8Camera,
+        CameraType.DOUBLE_SPHERE: DoubleSphereCamera,
+    }
+    camera = constructors.get(camera_type, PinholeCamera)(None)
+    camera.init_from_json(payload)
+    return camera

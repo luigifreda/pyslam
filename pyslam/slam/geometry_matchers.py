@@ -715,7 +715,7 @@ def _search_and_fuse(
         check_stereo_flags = np.zeros(len(keyframe.kpsu), dtype=bool)
 
     octaves = keyframe.octaves
-    kpsu = keyframe.kpsu
+    observed = keyframe.projection_keypoints()
     kps_ur = keyframe.kps_ur if do_stereo_check else None
     des = keyframe.des
 
@@ -770,7 +770,7 @@ def _search_and_fuse(
 
             # check the reprojection error
             invSigma2 = inv_level_sigmas2[kp_level]
-            err = proj[:2] - kpsu[kd_idx]
+            err = proj[:2] - observed[kd_idx]
             chi2 = np.dot(err, err) * invSigma2
             if check_stereo_flags[kd_idx]:
                 chi2 += errs_ur2[h] * invSigma2
@@ -1119,6 +1119,72 @@ def _search_by_sim3(
 # search keypoint matches (for triangulations) between f1 and f2
 # search for matches between unmatched keypoints (without a corresponding map point)
 # in input we have already some pose estimates for f1 and f2
+def _pinhole_epipolar_mask(kf1, kf2, idxs1, idxs2, F12, e2, scale_factors, level_sigmas2):
+    """Original Python epipolar test on undistorted pixels.
+
+    Python core, used when USE_CPP_CORE is False. USE_CPP_CORE=True selects
+    cpp_core.EpipolarMatcher, which keeps its own test.
+    """
+    kps1 = kf1.kpsu[idxs1]
+    kps2 = kf2.kpsu[idxs2]
+    octaves2 = kf2.octaves[idxs2]
+
+    epipole_distances_sq = np.sum((kps2 - e2) ** 2, axis=1)
+    good = epipole_distances_sq >= kMinDistanceFromEpipole2 * scale_factors[octaves2]
+
+    epipolar_lines = (F12.T @ np.column_stack([kps1, np.ones(len(kps1))]).T).T  # [a, b, c]
+    numerators = (
+        epipolar_lines[:, 0] * kps2[:, 0] + epipolar_lines[:, 1] * kps2[:, 1] + epipolar_lines[:, 2]
+    )
+    denominators = epipolar_lines[:, 0] ** 2 + epipolar_lines[:, 1] ** 2
+    valid_denominators = denominators > 1e-20
+    dists_sq = np.full(len(numerators), np.inf)
+    dists_sq[valid_denominators] = (
+        numerators[valid_denominators] ** 2 / denominators[valid_denominators]
+    )
+    return good & (dists_sq < 3.84 * level_sigmas2[octaves2])
+
+
+def _bearing_epipolar_mask(kf1, kf2, idxs1, idxs2, scale_factors, level_sigmas2):
+    """Epipolar checks on the unit sphere, expressed in kf2 pixels.
+
+    Wide-angle models do not preserve pixel errors in their pinhole image (kpsu), so
+    the residual is the angle between the kf2 ray and the epipolar plane, scaled by the
+    local projection derivative across that plane.
+    """
+    bearings1, valid1 = kf1.camera.unproject_bearings(np.ascontiguousarray(kf1.kps[idxs1], dtype=np.float64))
+    bearings2, valid2 = kf2.camera.unproject_bearings(np.ascontiguousarray(kf2.kps[idxs2], dtype=np.float64))
+    bearings1 = np.atleast_2d(bearings1)
+    bearings2 = np.atleast_2d(bearings2)
+    norms1 = np.linalg.norm(bearings1, axis=1)
+    norms2 = np.linalg.norm(bearings2, axis=1)
+    good = (np.atleast_1d(valid1) > 0) & (np.atleast_1d(valid2) > 0) & (norms1 > 0) & (norms2 > 0)
+    bearings1 = bearings1 / np.where(norms1 > 0, norms1, 1.0)[:, None]
+    bearings2 = bearings2 / np.where(norms2 > 0, norms2, 1.0)[:, None]
+
+    R21 = kf2.Rcw() @ kf1.Rcw().T
+    t21 = kf2.tcw().reshape(3) - R21 @ kf1.tcw().reshape(3)
+    octaves2 = kf2.octaves[idxs2]
+
+    t_norm = np.linalg.norm(t21)
+    epipole_dir = t21 / t_norm if t_norm > 0 else np.array([0.0, 0.0, 1.0])
+    epipole_angles = np.arccos(np.clip(np.abs(bearings2 @ epipole_dir), 0.0, 1.0))
+    good &= (epipole_angles * kf2.camera.fx) ** 2 >= kMinDistanceFromEpipole2 * scale_factors[octaves2]
+
+    normals = np.cross(t21, bearings1 @ R21.T)
+    normal_norms = np.linalg.norm(normals, axis=1)
+    good &= normal_norms > 1e-12
+    normals = normals / np.where(normal_norms > 0, normal_norms, 1.0)[:, None]
+
+    eps = 1e-6
+    uv0, _ = kf2.camera.project(np.ascontiguousarray(bearings2))
+    uv1, _ = kf2.camera.project(np.ascontiguousarray(bearings2 + eps * normals))
+    pixels_per_radian = np.linalg.norm((uv1 - uv0) / eps, axis=1)
+    dists = np.abs(np.sum(normals * bearings2, axis=1)) * pixels_per_radian
+    good &= np.isfinite(dists) & (dists**2 <= 3.84 * level_sigmas2[octaves2])
+    return good
+
+
 def _search_frame_for_triangulation(
     kf1: KeyFrame,
     kf2: KeyFrame,
@@ -1208,58 +1274,16 @@ def _search_frame_for_triangulation(
     valid_idxs2 = valid_idxs2[good_descriptor]
     descriptor_dists = descriptor_dists[good_descriptor]
 
-    # Vectorized keypoint extraction
-    kps1_valid = kf1.kpsu[valid_idxs1]
-    kps2_valid = kf2.kpsu[valid_idxs2]
-    octaves2_valid = kf2.octaves[valid_idxs2]
-
-    # Vectorized epipole distance check
-    kp2_scale_factors = scale_factors[octaves2_valid]
-    deltas = kps2_valid - e2
-    epipole_distances_sq = np.sum(deltas**2, axis=1)
-    min_epipole_distances_sq = kMinDistanceFromEpipole2 * kp2_scale_factors
-    good_epipole_distance = epipole_distances_sq >= min_epipole_distances_sq
-
-    if not np.any(good_epipole_distance):
-        return [], [], 0
-
-    # Further filter by epipole distance
-    valid_idxs1 = valid_idxs1[good_epipole_distance]
-    valid_idxs2 = valid_idxs2[good_epipole_distance]
-    kps1_valid = kps1_valid[good_epipole_distance]
-    kps2_valid = kps2_valid[good_epipole_distance]
-    octaves2_valid = octaves2_valid[good_epipole_distance]
-
-    # Vectorized epipolar constraint check
-    sigma2_kps2 = level_sigmas2[octaves2_valid]
-
-    # Vectorized epipolar line computation
-    kps1_homogeneous = np.column_stack([kps1_valid, np.ones(len(kps1_valid))])
-    epipolar_lines = (F12.T @ kps1_homogeneous.T).T  # [a, b, c] for each line
-
-    # Vectorized distance computation
-    numerators = (
-        epipolar_lines[:, 0] * kps2_valid[:, 0]
-        + epipolar_lines[:, 1] * kps2_valid[:, 1]
-        + epipolar_lines[:, 2]
-    )
-    denominators = epipolar_lines[:, 0] ** 2 + epipolar_lines[:, 1] ** 2
-
-    # Handle zero denominators
-    valid_denominators = denominators > 1e-20
-    if not np.any(valid_denominators):
-        return [], [], 0
-
-    # Compute distances only for valid denominators
-    dists_sq = np.zeros(len(numerators))
-    dists_sq[valid_denominators] = (numerators[valid_denominators] ** 2) / denominators[
-        valid_denominators
-    ]
-
-    # Chi-square threshold check
-    chi2_threshold = 3.84 * sigma2_kps2
-    good_epipolar = dists_sq < chi2_threshold
-
+    # Pinhole keeps the original Python test. Raw models use the bearing test.
+    # cpp_core search is a separate implementation, selected by USE_CPP_CORE=True.
+    if kf1.projects_raw_keypoints() or kf2.projects_raw_keypoints():
+        good_epipolar = _bearing_epipolar_mask(
+            kf1, kf2, valid_idxs1, valid_idxs2, scale_factors, level_sigmas2
+        )
+    else:
+        good_epipolar = _pinhole_epipolar_mask(
+            kf1, kf2, valid_idxs1, valid_idxs2, F12, e2, scale_factors, level_sigmas2
+        )
     if not np.any(good_epipolar):
         return [], [], 0
 

@@ -26,6 +26,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "camera.h"
 #include "geometry_matchers.h"
 
 namespace py = pybind11;
@@ -264,5 +265,21 @@ void bind_geometry_matchers(py::module &m) {
             },
             py::arg("kf1"), py::arg("kf2"), py::arg("idxs1") = py::cast(std::vector<int>()),
             py::arg("idxs2") = py::cast(std::vector<int>()),
-            py::arg("max_descriptor_distance") = py::none(), py::arg("is_monocular") = true);
+            py::arg("max_descriptor_distance") = py::none(), py::arg("is_monocular") = true)
+        .def_static(
+            "search_stereo_rig",
+            [](const pyslam::Camera &camera, pyslam::MatNx2fRef kps,
+               const std::vector<int> &octaves, const cv::Mat &des, pyslam::MatNx2fRef kps_r,
+               const std::vector<int> &octaves_r, const cv::Mat &des_r,
+               float max_descriptor_distance, float ratio_test,
+               const std::vector<float> &level_sigmas2) {
+                py::gil_scoped_release release;
+                return pyslam::EpipolarMatcher::search_stereo_rig(
+                    camera, kps, octaves, des, kps_r, octaves_r, des_r, max_descriptor_distance,
+                    ratio_test, level_sigmas2);
+            },
+            py::arg("camera"), py::arg("kps"), py::arg("octaves"), py::arg("des"),
+            py::arg("kps_r"), py::arg("octaves_r"), py::arg("des_r"),
+            py::arg("max_descriptor_distance"), py::arg("ratio_test"),
+            py::arg("level_sigmas2") = std::vector<float>());
 }

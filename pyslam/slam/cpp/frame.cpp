@@ -22,6 +22,7 @@
 #include "camera_pose.h"
 #include "config_parameters.h"
 #include "feature_shared_resources.h"
+#include "geometry_matchers.h"
 #include "map_point.h"
 #include "utils/color_helpers.h"
 #include "utils/drawing.h"
@@ -641,14 +642,15 @@ Frame::Frame(const CameraPtr &camera, const cv::Mat &img, const cv::Mat &img_rig
 const std::shared_ptr<cKDTree2f> &Frame::kd() {
     std::lock_guard<std::mutex> lock(_lock_kd);
     if (!_kd) {
-        if (kpsu.rows() > 0) {
+        const MatNx2f &coords = projection_keypoints();
+        if (coords.rows() > 0) {
 #if 0
             // Use the copying constructor to create an owning KD-tree
-            // This prevents memory corruption when kpsu data changes
-            MatNx2f kpsu_copy = kpsu;
-            _kd = std::make_shared<cKDTree2f>(kpsu_copy);
+            // This prevents memory corruption when the keypoint data changes
+            MatNx2f coords_copy = coords;
+            _kd = std::make_shared<cKDTree2f>(coords_copy);
 #else
-            _kd = std::make_shared<cKDTree2f>(kpsu);
+            _kd = std::make_shared<cKDTree2f>(coords);
 #endif
         }
     }
@@ -1044,6 +1046,16 @@ void Frame::compute_stereo_from_rgbd(const cv::Mat &depth) {
 }
 
 void Frame::compute_stereo_matches(const cv::Mat &img, const cv::Mat &img_right) {
+    if (camera->is_native_stereo()) {
+        const auto [idxs_left, idxs_right, rig_depths] = EpipolarMatcher::search_stereo_rig(
+            *camera, kps, octaves, des, kps_r, octaves_r, des_r,
+            0.75f * Parameters::kMaxDescriptorDistance, Parameters::kFeatureMatchDefaultRatioTest);
+        for (size_t i = 0; i < idxs_left.size(); ++i) {
+            depths[idxs_left[i]] = static_cast<float>(rig_depths[i]);
+            kps_ur[idxs_left[i]] = kps_r(idxs_right[i], 0);
+        }
+        return;
+    }
     constexpr bool kRowMatching = true;
     const float kRatioTest = Parameters::kFeatureMatchDefaultRatioTest;
     const float min_z = camera->b;
@@ -1788,11 +1800,11 @@ void Frame::manage_features(const cv::Mat &img, const cv::Mat &img_right, const 
             octaves[i] = std::get<5>(kp);
         }
 
-        // Continue with undistortion and normalization
+        // kpsu is the pinhole image of each ray. Models whose project() predicts
+        // the detected pixel unproject that pixel; pinhole unprojects kpsu.
         if (camera && kps.rows() > 0) {
-            // Convert to undistorted coordinates
             kpsu = camera->undistort_points(kps);
-            kpsn = camera->unproject_points(kpsu);
+            kpsn = camera->unproject_points(camera->projects_raw_keypoints() ? kps : kpsu);
         }
 
         // Initialize point arrays

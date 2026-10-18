@@ -19,6 +19,8 @@
 
 #include "camera.h"
 
+#include "camera_model_math.h"
+#include "camera_rig_geometry.h"
 #include "utils/messages.h"
 #include "utils/serialization_json.h"
 
@@ -30,6 +32,7 @@
 #include <iomanip>
 #include <limits>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 
 namespace pyslam {
@@ -245,7 +248,7 @@ Camera::Camera(const ConfigDict &config)
 
     // For stereo cameras, distortion coefficients are set to zeros
     // (images are rectified, so no distortion)
-    if (sensor_type == SensorType::STEREO) {
+    if (sensor_type == SensorType::STEREO && !cam_settings.has("Stereo.right")) {
         D = {0.0, 0.0, 0.0, 0.0, 0.0};
         MSG_WARN("Using stereo camera, images are automatically rectified, "
                  "and DistCoef is set to [0,0,0,0,0]");
@@ -301,7 +304,7 @@ Camera::Camera(const ConfigDict &config)
 Camera::Camera(const Camera &other)
     : CameraBase(other), fovx(other.fovx), fovy(other.fovy), sensor_type(other.sensor_type),
       depth_factor(other.depth_factor), depth_threshold(other.depth_threshold), K(other.K),
-      Kinv(other.Kinv) {}
+      Kinv(other.Kinv), right_camera(other.right_camera), T_right_left(other.T_right_left) {}
 
 Camera &Camera::operator=(const Camera &other) {
     if (this != &other) {
@@ -313,6 +316,8 @@ Camera &Camera::operator=(const Camera &other) {
         depth_threshold = other.depth_threshold;
         K = other.K;
         Kinv = other.Kinv;
+        right_camera = other.right_camera;
+        T_right_left = other.T_right_left;
     }
     return *this;
 }
@@ -320,7 +325,8 @@ Camera &Camera::operator=(const Camera &other) {
 Camera::Camera(Camera &&other) noexcept
     : CameraBase(std::move(other)), fovx(other.fovx), fovy(other.fovy),
       sensor_type(other.sensor_type), depth_factor(other.depth_factor),
-      depth_threshold(other.depth_threshold), K(std::move(other.K)), Kinv(std::move(other.Kinv)) {}
+      depth_threshold(other.depth_threshold), K(std::move(other.K)), Kinv(std::move(other.Kinv)),
+      right_camera(std::move(other.right_camera)), T_right_left(other.T_right_left) {}
 
 Camera &Camera::operator=(Camera &&other) noexcept {
     if (this != &other) {
@@ -332,8 +338,38 @@ Camera &Camera::operator=(Camera &&other) noexcept {
         depth_threshold = other.depth_threshold;
         K = std::move(other.K);
         Kinv = std::move(other.Kinv);
+        right_camera = std::move(other.right_camera);
+        T_right_left = other.T_right_left;
     }
     return *this;
+}
+
+std::pair<MatNx3d, VecNd> Camera::triangulate_stereo(MatNx2dRef left, MatNx2dRef right, double max_error) const {
+    if (!right_camera || left.rows() != right.rows())
+        throw std::invalid_argument("triangulate_stereo requires a rig and paired pixel arrays");
+    MatNx3d points = MatNx3d::Zero(left.rows(), 3);
+    VecNd valid = VecNd::Zero(left.rows());
+    for (int i = 0; i < left.rows(); ++i) {
+        Vec3d X;
+        if (!triangulate_stereo_point(left.row(i).transpose(), right.row(i).transpose(), max_error, X))
+            continue;
+        points.row(i) = X.transpose();
+        valid[i] = 1.0;
+    }
+    return {std::move(points), std::move(valid)};
+}
+
+bool Camera::triangulate_stereo_point(const Vec2d &ul, const Vec2d &ur, double max_error,
+                                      Vec3d &X) const {
+    return camera_model::triangulate_stereo_point(*this, ul, ur, max_error, X);
+}
+
+double Camera::bearing_to_plane_pixel_distance(const Vec3d &bearing, const Vec3d &unit_normal) const {
+    return camera_model::bearing_to_plane_pixel_distance(*this, bearing, unit_normal);
+}
+
+bool Camera::project_stereo_with_jacobian(Vec3dRef Xc, Vec3d &uvur, Eigen::Matrix3d *J) const {
+    return camera_model::project_stereo_with_jacobian(*this, Vec3d(Xc), uvur, J);
 }
 
 void Camera::set_intrinsic_matrices() {
@@ -376,7 +412,11 @@ template <typename Scalar> void Camera::set_cv_matrices() {
     static_cast<Scalar>(fx), 0.0, static_cast<Scalar>(cx), 
     0.0, static_cast<Scalar>(fy), static_cast<Scalar>(cy), 
     0.0, 0.0, 1.0);
-    if (D.size() == 5) {
+    if (D.size() >= 8) {
+        D_cv = (cv::Mat_<Scalar>(8, 1) << static_cast<Scalar>(D[0]), static_cast<Scalar>(D[1]),
+                static_cast<Scalar>(D[2]), static_cast<Scalar>(D[3]), static_cast<Scalar>(D[4]),
+                static_cast<Scalar>(D[5]), static_cast<Scalar>(D[6]), static_cast<Scalar>(D[7]));
+    } else if (D.size() == 5) {
         D_cv = (cv::Mat_<Scalar>(5, 1) << static_cast<Scalar>(D[0]), static_cast<Scalar>(D[1]),
                 static_cast<Scalar>(D[2]), static_cast<Scalar>(D[3]), static_cast<Scalar>(D[4]));
     } else if (D.size() >= 4) {
@@ -423,6 +463,139 @@ void Camera::set_fovx(double fovx) {
 void Camera::set_fovy(double fovy) {
     fy = fov2focal(fovy, height);
     this->fovy = fovy;
+}
+
+namespace {
+
+template <typename Scalar>
+void check_batch_size(int count, int uv_rows, int depth_size, int valid_size, const char *name) {
+    if (uv_rows != count || depth_size != count || valid_size != count) {
+        throw std::invalid_argument(std::string(name) +
+                                    ": output buffers must have one row per input point");
+    }
+}
+
+template <typename Scalar>
+void project_into_impl(const Camera &cam, MatNx3Ref<Scalar> xcs, Eigen::Ref<MatNx2<Scalar>> uv,
+                       Eigen::Ref<VecN<Scalar>> depth, Eigen::Ref<VecN<Scalar>> valid) {
+    const int count = static_cast<int>(xcs.rows());
+    check_batch_size<Scalar>(count, static_cast<int>(uv.rows()), static_cast<int>(depth.size()),
+                             static_cast<int>(valid.size()), "Camera::project_into");
+    for (int i = 0; i < count; ++i) {
+        Vec3<Scalar> X;
+        X << xcs(i, 0), xcs(i, 1), xcs(i, 2);
+        Vec2<Scalar> projected;
+        const bool ok =
+            cam.project_with_jacobian(X, projected, static_cast<Eigen::Matrix<Scalar, 2, 3> *>(nullptr));
+        uv(i, 0) = projected[0];
+        uv(i, 1) = projected[1];
+        depth(i) = X[2];
+        valid(i) = ok ? Scalar(1) : Scalar(0);
+    }
+}
+
+template <typename Scalar>
+void unproject_bearings_impl(const Camera &cam, MatNx2Ref<Scalar> uvs,
+                             Eigen::Ref<MatNx3<Scalar>> bearings, Eigen::Ref<VecN<Scalar>> valid) {
+    const int count = static_cast<int>(uvs.rows());
+    if (static_cast<int>(bearings.rows()) != count || static_cast<int>(valid.size()) != count) {
+        throw std::invalid_argument(
+            "Camera::unproject_bearings_into: output buffers must have one row per input point");
+    }
+    for (int i = 0; i < count; ++i) {
+        Vec2<Scalar> uv;
+        uv << uvs(i, 0), uvs(i, 1);
+        Vec3<Scalar> bearing;
+        const bool ok =
+            cam.unproject_bearing(uv, bearing, static_cast<Eigen::Matrix<Scalar, 3, 2> *>(nullptr));
+        bearings(i, 0) = bearing[0];
+        bearings(i, 1) = bearing[1];
+        bearings(i, 2) = bearing[2];
+        valid(i) = ok ? Scalar(1) : Scalar(0);
+    }
+}
+
+} // namespace
+
+bool Camera::project_with_jacobian(Vec3dRef Xc, Vec2d &uv,
+                                   Eigen::Matrix<double, 2, 3> *J_uv_Xc) const {
+    return camera_model::project_pinhole(fx, fy, cx, cy, Vec3d(Xc), uv, J_uv_Xc);
+}
+
+bool Camera::project_with_jacobian(Vec3fRef Xc, Vec2f &uv,
+                                   Eigen::Matrix<float, 2, 3> *J_uv_Xc) const {
+    return camera_model::project_pinhole(static_cast<float>(fx), static_cast<float>(fy),
+                                         static_cast<float>(cx), static_cast<float>(cy), Vec3f(Xc),
+                                         uv, J_uv_Xc);
+}
+
+bool Camera::unproject_bearing(Vec2dRef uv, Vec3d &bearing,
+                               Eigen::Matrix<double, 3, 2> *J_bearing_uv) const {
+    return camera_model::unproject_pinhole_bearing(fx, fy, cx, cy, Vec2d(uv), bearing, J_bearing_uv);
+}
+
+bool Camera::unproject_bearing(Vec2fRef uv, Vec3f &bearing,
+                               Eigen::Matrix<float, 3, 2> *J_bearing_uv) const {
+    return camera_model::unproject_pinhole_bearing(static_cast<float>(fx), static_cast<float>(fy),
+                                                   static_cast<float>(cx), static_cast<float>(cy),
+                                                   Vec2f(uv), bearing, J_bearing_uv);
+}
+
+void Camera::project_into(MatNx3dRef xcs, Eigen::Ref<MatNx2d> uv, Eigen::Ref<VecNd> depth,
+                          Eigen::Ref<VecNd> valid) const {
+    project_into_impl<double>(*this, xcs, uv, depth, valid);
+}
+
+void Camera::project_into(MatNx3fRef xcs, Eigen::Ref<MatNx2f> uv, Eigen::Ref<VecNf> depth,
+                          Eigen::Ref<VecNf> valid) const {
+    project_into_impl<float>(*this, xcs, uv, depth, valid);
+}
+
+void Camera::unproject_bearings_into(MatNx2dRef uvs, Eigen::Ref<MatNx3d> bearings,
+                                     Eigen::Ref<VecNd> valid) const {
+    unproject_bearings_impl<double>(*this, uvs, bearings, valid);
+}
+
+void Camera::unproject_bearings_into(MatNx2fRef uvs, Eigen::Ref<MatNx3f> bearings,
+                                     Eigen::Ref<VecNf> valid) const {
+    unproject_bearings_impl<float>(*this, uvs, bearings, valid);
+}
+
+bool Camera::reprojection_error_jacobians(Vec3dRef Xc, const Eigen::Matrix<double, 3, 6> &dXc_dpose,
+                                          const Eigen::Matrix3d &dXc_dpoint,
+                                          Eigen::Matrix<double, 2, 6> &J_error_pose,
+                                          Eigen::Matrix<double, 2, 3> &J_error_point,
+                                          Vec2d *uv) const {
+    Vec2d projected;
+    Eigen::Matrix<double, 2, 3> J_uv_Xc;
+    const bool valid = project_with_jacobian(Xc, projected, &J_uv_Xc);
+    if (uv) {
+        *uv = projected;
+    }
+    if (!valid) J_uv_Xc.setZero();
+    camera_model::reprojection_error_jacobians(J_uv_Xc, dXc_dpose, dXc_dpoint, J_error_pose,
+                                               J_error_point);
+    return valid;
+}
+
+bool Camera::g2o_reprojection_error_jacobians(Vec3dRef Xc, const Eigen::Matrix3d &Rcw,
+                                              Eigen::Matrix<double, 2, 6> &J_error_pose,
+                                              Eigen::Matrix<double, 2, 3> &J_error_point,
+                                              Vec2d *uv) const {
+    Vec2d projected;
+    Eigen::Matrix<double, 2, 3> J_uv_Xc;
+    const bool valid = project_with_jacobian(Xc, projected, &J_uv_Xc);
+    if (uv) {
+        *uv = projected;
+    }
+    if (!valid) {
+        J_error_pose.setZero();
+        J_error_point.setZero();
+        return false;
+    }
+    camera_model::g2o_reprojection_error_jacobians(J_uv_Xc, Vec3d(Xc), Rcw, J_error_pose,
+                                                   J_error_point);
+    return valid;
 }
 
 // ================================================================

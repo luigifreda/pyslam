@@ -41,6 +41,16 @@ from .sim3_pose import Sim3Pose
 from .feature_tracker_shared import FeatureTrackerShared
 from .map_point import MapPoint
 from .keyframe import KeyFrame
+# Python optimizer, used when USE_CPP_CORE is False. camera_factors keeps the
+# original pinhole gtsam factors here. USE_CPP_CORE=True selects cpp_core.OptimizerGTSAM.
+from .camera_factors import (
+    camera_projection_factor,
+    stereo_camera_projection_factor,
+    stereo_camera_resectioning_factor,
+    camera_resectioning_factor,
+    reprojection_measurement,
+)
+from functools import partial
 
 
 kMinDepth = Parameters.kMinDepth
@@ -197,7 +207,7 @@ def bundle_adjustment(
             except KeyError:
                 continue
 
-            kf_kpsu_idx = kf.kpsu[idx]
+            kf_kpsu_idx = kf.projection_keypoints()[idx]
             kf_kps_ur_idx = kf.kps_ur[idx] if kf.kps_ur is not None else -1
 
             is_stereo_obs = kf_kps_ur_idx >= 0
@@ -211,20 +221,19 @@ def bundle_adjustment(
             noise_model.set_robust_model_active(use_robust_kernel)
 
             if is_stereo_obs:
-                calib = gtsam.Cal3_S2Stereo(
-                    kf.camera.fx, kf.camera.fy, 0, kf.camera.cx, kf.camera.cy, kf.camera.b
-                )
                 measurement = gtsam.StereoPoint2(
                     kf_kpsu_idx[0], kf_kps_ur_idx, kf_kpsu_idx[1]
                 )  # uL, uR, v
-                factor = gtsam_factors.WeightedGenericStereoProjectionFactor3D(
-                    measurement, noise_model, pose_key, point_key, calib
+                factor = stereo_camera_projection_factor(
+                    measurement, noise_model, pose_key, point_key, kf.camera
                 )
             else:
-                calib = gtsam.Cal3_S2(kf.camera.fx, kf.camera.fy, 0, kf.camera.cx, kf.camera.cy)
-                measurement = gtsam.Point2(kf_kpsu_idx[0], kf_kpsu_idx[1])
-                factor = gtsam_factors.WeightedGenericProjectionFactorCal3_S2(
-                    measurement, noise_model, pose_key, point_key, calib
+                factor = camera_projection_factor(
+                    reprojection_measurement(kf, idx, False),
+                    noise_model,
+                    pose_key,
+                    point_key,
+                    kf.camera,
                 )
 
             graph.add(factor)
@@ -669,12 +678,8 @@ class PoseOptimizerGTSAM:
         self.thHuberMono = math.sqrt(5.991)  # chi-square 2 DOFS
         self.thHuberStereo = math.sqrt(7.815)  # chi-square 3 DOFS
 
-        self.add_mono_factor = resectioning_mono_factor
-        self.add_stereo_factor = resectioning_stereo_factor
-        if platform.system() == "Darwin":
-            # NOTE: Under macOS I found some interface issues with the pybindings of the resectioning factors.
-            self.add_mono_factor = resectioning_mono_factor_py
-            self.add_stereo_factor = resectioning_stereo_factor_py
+        self.add_mono_factor = partial(camera_resectioning_factor, calibration=self.K_mono)
+        self.add_stereo_factor = partial(stereo_camera_resectioning_factor, calibration=self.K_stereo)
 
     def add_pose_node(self):
         frame_Twc = self.frame.Twc()
@@ -693,7 +698,7 @@ class PoseOptimizerGTSAM:
                 if p is None:
                     continue
 
-                frame_kpsu_idx = self.frame.kpsu[idx]
+                frame_kpsu_idx = self.frame.projection_keypoints()[idx]
                 frame_kps_ur_idx = self.frame.kps_ur[idx] if self.frame.kps_ur is not None else -1
 
                 # reset outlier flag
@@ -714,7 +719,7 @@ class PoseOptimizerGTSAM:
                     factor, host_factor = self.add_stereo_factor(
                         noise_model,
                         X(0),
-                        self.K_stereo,
+                        self.frame.camera,
                         gtsam.StereoPoint2(frame_kpsu_idx[0], frame_kps_ur_idx, frame_kpsu_idx[1]),
                         gtsam.Point3(*p.pt()),
                     )
@@ -722,8 +727,8 @@ class PoseOptimizerGTSAM:
                     factor, host_factor = self.add_mono_factor(
                         noise_model,
                         X(0),
-                        self.K_mono,
-                        gtsam.Point2(frame_kpsu_idx[0], frame_kpsu_idx[1]),
+                        self.frame.camera,
+                        reprojection_measurement(self.frame, idx, False),
                         gtsam.Point3(*p.pt()),
                     )
 
@@ -1194,7 +1199,7 @@ def local_bundle_adjustment(
 
             assert kf.get_point_match(p_idx) is p
 
-            kf_kpsu_p_idx = kf.kpsu[p_idx]
+            kf_kpsu_p_idx = kf.projection_keypoints()[p_idx]
             kf_kps_ur_p_idx = kf.kps_ur[p_idx] if kf.kps_ur is not None else -1
 
             is_stereo_obs = kf_kps_ur_p_idx >= 0
@@ -1209,18 +1214,19 @@ def local_bundle_adjustment(
             camera = kf.camera
 
             if is_stereo_obs:
-                calib = gtsam.Cal3_S2Stereo(camera.fx, camera.fy, 0, camera.cx, camera.cy, camera.b)
                 measurement = gtsam.StereoPoint2(
                     kf_kpsu_p_idx[0], kf_kps_ur_p_idx, kf_kpsu_p_idx[1]
                 )  # uL, uR, v
-                factor = gtsam_factors.WeightedGenericStereoProjectionFactor3D(
-                    measurement, noise_model, pose_key, point_key, calib
+                factor = stereo_camera_projection_factor(
+                    measurement, noise_model, pose_key, point_key, kf.camera
                 )
             else:
-                calib = gtsam.Cal3_S2(camera.fx, camera.fy, 0, camera.cx, camera.cy)
-                measurement = gtsam.Point2(kf_kpsu_p_idx[0], kf_kpsu_p_idx[1])
-                factor = gtsam_factors.WeightedGenericProjectionFactorCal3_S2(
-                    measurement, noise_model, pose_key, point_key, calib
+                factor = camera_projection_factor(
+                    reprojection_measurement(kf, p_idx, False),
+                    noise_model,
+                    pose_key,
+                    point_key,
+                    camera,
                 )
 
             graph.add(factor)

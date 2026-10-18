@@ -63,6 +63,22 @@ if not kVerbose:
         pass
 
 
+def _predicted_right_u(kf, points3d):
+    """Right-image u predicted by a raw camera model."""
+    return kf.project_points(points3d, do_stereo_project=True)[0][:, 2]
+
+
+def _python_stereo_right_u(kf, idxs, uvs):
+    """Original Python pinhole right coordinate, u - bf / z_obs.
+
+    Used by the Python core when USE_CPP_CORE is False. USE_CPP_CORE=True
+    selects cpp_core.Map, which owns the corresponding residual.
+    """
+    depths = kf.depths[idxs]
+    safe_depths = np.where(depths == 0, np.inf, depths)
+    return uvs[:, 0] - kf.camera.bf / safe_depths
+
+
 class ReloadedSessionMapInfo:
     def __init__(self, num_keyframes, num_points, max_point_id, max_frame_id, max_keyframe_id):
         self.num_keyframes = num_keyframes
@@ -487,10 +503,17 @@ class Map(object):
         if do_check:
 
             # project points
+            # Original Python admission rejects z <= 0. Raw models keep backward
+            # rays and only reject a non-finite projection. cpp_core.Map applies
+            # its own check when USE_CPP_CORE is True.
             uvs1, proj_depths1 = kf1.project_points(points3d)
-            bad_depths1 = proj_depths1 <= 0
+            bad_depths1 = (
+                ~np.isfinite(proj_depths1) if kf1.projects_raw_keypoints() else proj_depths1 <= 0
+            )
             uvs2, proj_depths2 = kf2.project_points(points3d)
-            bad_depths2 = proj_depths2 <= 0
+            bad_depths2 = (
+                ~np.isfinite(proj_depths2) if kf2.projects_raw_keypoints() else proj_depths2 <= 0
+            )
 
             if far_points_threshold is not None:
                 # print(f'Map: adding points: far_points_threshold: {far_points_threshold}')
@@ -509,11 +532,14 @@ class Map(object):
             is_mono2 = np.logical_not(is_stereo2)
 
             # compute back-projected rays (unit vectors)
-            rays1 = np.dot(kf1.Rwc(), add_ones(kf1.kpsn[idxs1]).T).T
+            # Original Python rays use normalized pinhole coordinates kpsn.
+            # Raw models unproject the detected pixel. USE_CPP_CORE=True runs
+            # the same choice inside cpp_core.
+            rays1 = np.dot(kf1.Rwc(), (kf1.camera.unproject_bearings(kf1.kps[idxs1])[0] if kf1.projects_raw_keypoints() else add_ones(kf1.kpsn[idxs1])).T).T
             norm_rays1 = np.linalg.norm(rays1, axis=-1, keepdims=True)
             rays1 /= norm_rays1
 
-            rays2 = np.dot(kf2.Rwc(), add_ones(kf2.kpsn[idxs2]).T).T
+            rays2 = np.dot(kf2.Rwc(), (kf2.camera.unproject_bearings(kf2.kps[idxs2])[0] if kf2.projects_raw_keypoints() else add_ones(kf2.kpsn[idxs2])).T).T
             norm_rays2 = np.linalg.norm(rays2, axis=-1, keepdims=True)
             rays2 /= norm_rays2
 
@@ -580,13 +606,17 @@ class Map(object):
                 np.logical_or(cos_parallaxs < 0, cos_parallaxs > cos_max_parallax),
                 np.logical_not(recovered3d_from_stereo),
             )
+            # Raw models can produce a non-finite parallax. The original Python
+            # pinhole check is the cosine test above.
+            if kf1.projects_raw_keypoints() or kf2.projects_raw_keypoints():
+                bad_cos_parallaxs |= ~np.isfinite(cos_parallaxs)
 
             # compute reprojection errors and check chi2
             bad_chis2_1 = None
             bad_chis2_2 = None
 
             # compute mono reproj errors on kf1
-            errs1_mono_vec = uvs1 - kf1.kpsu[idxs1]
+            errs1_mono_vec = uvs1 - kf1.projection_keypoints()[idxs1]
             errs1 = np.where(
                 is_mono1[:, np.newaxis], errs1_mono_vec, np.zeros_like(errs1_mono_vec)
             )  # mono errors
@@ -606,14 +636,15 @@ class Map(object):
             # compute stereo reproj errors on kf1
             if kf1.kps_ur is not None:
                 kp1_ur = kf1.kps_ur[idxs1]  # kp right coords if available
-                depths1 = kf1.depths[idxs1]
-                safe_depths1 = np.where(
-                    depths1 == 0, np.inf, depths1
-                )  # to prevent division by zero
+                right_u1 = (
+                    _predicted_right_u(kf1, points3d)
+                    if kf1.projects_raw_keypoints()
+                    else _python_stereo_right_u(kf1, idxs1, uvs1)
+                )
                 errs1_stereo_vec = np.concatenate(
                     (
                         errs1_mono_vec,
-                        (uvs1[:, 0] - kf1.camera.bf / safe_depths1 - kp1_ur)[:, np.newaxis],
+                        (right_u1 - kp1_ur)[:, np.newaxis],
                     ),
                     axis=1,
                 )  # stereo errors
@@ -634,7 +665,7 @@ class Map(object):
                 bad_chis2_1 = chis2_1_mono > Parameters.kChi2Mono
 
             # compute mono reproj errors on kf1
-            errs2_mono_vec = uvs2 - kf2.kpsu[idxs2]  # mono errors
+            errs2_mono_vec = uvs2 - kf2.projection_keypoints()[idxs2]  # mono errors
             errs2 = np.where(is_mono2[:, np.newaxis], errs2_mono_vec, np.zeros(2))  # mono errors
             errs2_sqr = np.sum(errs2 * errs2, axis=1)  # squared reprojection errors
             kps2_levels = kf2.octaves[idxs2]
@@ -645,14 +676,15 @@ class Map(object):
                 kp2_ur = (
                     kf2.kps_ur[idxs2] if kf2.kps_ur is not None else [-1] * len(idxs2)
                 )  # kp right coords if available
-                depths2 = kf2.depths[idxs2]
-                safe_depths2 = np.where(
-                    depths2 == 0, np.inf, depths2
-                )  # to prevent division by zero
+                right_u2 = (
+                    _predicted_right_u(kf2, points3d)
+                    if kf2.projects_raw_keypoints()
+                    else _python_stereo_right_u(kf2, idxs2, uvs2)
+                )
                 errs2_stereo_vec = np.concatenate(
                     (
                         errs2_mono_vec,
-                        (uvs2[:, 0] - kf2.camera.bf / safe_depths2 - kp2_ur)[:, np.newaxis],
+                        (right_u2 - kp2_ur)[:, np.newaxis],
                     ),
                     axis=1,
                 )  # stereo errors
@@ -679,14 +711,26 @@ class Map(object):
                 Parameters.kScaleConsistencyFactor
                 * FeatureTrackerShared.feature_manager.scale_factor
             )
+            # Wide-angle scale consistency needs camera-to-point range: axial
+            # depth changes under rotation even when the viewing distance does not.
+            depth_scale1 = (
+                np.linalg.norm(points3d - kf1.Ow().reshape(1, 3), axis=1)
+                if kf1.projects_raw_keypoints() or kf2.projects_raw_keypoints()
+                else proj_depths1
+            )
+            depth_scale2 = (
+                np.linalg.norm(points3d - kf2.Ow().reshape(1, 3), axis=1)
+                if kf1.projects_raw_keypoints() or kf2.projects_raw_keypoints()
+                else proj_depths2
+            )
             scale_factors_x_depths1 = (
-                FeatureTrackerShared.feature_manager.scale_factors[kps1_levels] * proj_depths1
+                FeatureTrackerShared.feature_manager.scale_factors[kps1_levels] * depth_scale1
             )
             scale_factors_x_depths1_x_ratio_scale_consistency = (
                 scale_factors_x_depths1 * ratio_scale_consistency
             )
             scale_factors_x_depths2 = (
-                FeatureTrackerShared.feature_manager.scale_factors[kps2_levels] * proj_depths2
+                FeatureTrackerShared.feature_manager.scale_factors[kps2_levels] * depth_scale2
             )
             scale_factors_x_depths2_x_ratio_scale_consistency = (
                 scale_factors_x_depths2 * ratio_scale_consistency
@@ -810,16 +854,20 @@ class Map(object):
                 # compute reprojection error
                 chi2s = []
                 for f, idx in p.observations():
-                    uv = f.kpsu[idx]
+                    uv = f.projection_keypoints()[idx]
                     proj, z = f.project_map_point(p)
                     invSigma2 = inv_level_sigmas2[f.octaves[idx]]
                     err = proj - uv
                     chi2s.append(np.inner(err, err) * invSigma2)
                 # cull
                 # mean_chi2 = np.mean(chi2s)
-                if (
-                    np.mean(chi2s) > Parameters.kChi2Mono
-                ):  # chi-square 2 DOFs  (Hartley Zisserman pg 119)
+                # Original Python cull is the mean chi-squared test. Raw models
+                # also drop a non-finite residual. cpp_core.Map is selected when
+                # USE_CPP_CORE is True.
+                raw_observation = any(f.projects_raw_keypoints() for f, _idx in p.observations())
+                if (raw_observation and not np.all(np.isfinite(chi2s))) or np.mean(
+                    chi2s
+                ) > Parameters.kChi2Mono:  # chi-square 2 DOFs  (Hartley Zisserman pg 119)
                     culled_pt_count += 1
                     # print('removing point: ',p.id, 'from frames: ', [f.id for f in p.keyframes])
                     self.remove_point(p)
@@ -836,7 +884,7 @@ class Map(object):
             for p in points:
                 # compute reprojection error
                 for f, idx in p.observations():
-                    uv = f.kpsu[idx]
+                    uv = f.projection_keypoints()[idx]
                     proj, _ = f.project_map_point(p)
                     invSigma2 = inv_level_sigmas2[f.octaves[idx]]
                     err = proj - uv
@@ -1258,7 +1306,9 @@ class LocalCovisibilityMap(LocalMapBase):
             self.keyframes = OrderedSet()
             self.keyframes.add(kf_ref)
             neighbor_kfs = [kf for kf in kf_ref.get_covisible_keyframes() if not kf.is_bad()]
-            self.keyframes.update(neighbor_kfs)
+            # Keep the strongest covisible neighbors. Other observers remain
+            # fixed reference keyframes in update_from_keyframes().
+            self.keyframes.update(neighbor_kfs[:Parameters.kMaxNumOfKeyframesInLocalMap - 1])
             return self.keyframes
 
     def get_best_neighbors(self, kf_ref, N=20):
