@@ -33,6 +33,10 @@ from pyslam.utilities.logging import Printer
 from pyslam.utilities.serialization import SerializableEnum, register_class, SerializationJSON
 from pyslam.utilities.strings import levenshtein_distance
 from .dataset_types import DatasetType, SensorType, DatasetEnvironmentType, MinimalDatasetConfig
+from .image_prefetcher import ImagePrefetcher, make_stream
+
+# Returned by Dataset._serve_prefetched when this stream is not being prefetched.
+_PREFETCH_MISS = object()
 
 from typing import TYPE_CHECKING
 
@@ -81,6 +85,63 @@ class Dataset(object):
         self.has_gt_semantics = False  # false by default and can be changed to true by certain datasets (replica, scannet, etc.)
         self.ignore_label = None  # ignored if none
         self.minimal_config = MinimalDatasetConfig()
+        self._prefetcher = None
+
+    def start_prefetch(self, streams, capacity=6):
+        """Decode `streams` on a background thread. The built-in loaders stay in place when this is off."""
+        self.close()
+        if os.environ.get("PYSLAM_DISABLE_IMAGE_PREFETCH") == "1":
+            return
+        if not streams:
+            return
+        try:
+            self._prefetcher = ImagePrefetcher(streams, capacity=capacity)
+        except (ImportError, OSError) as error:
+            Printer.yellow(f"Image prefetch unavailable ({error}); using the built-in loaders")
+            self._prefetcher = None
+
+    def close(self):
+        prefetcher = getattr(self, "_prefetcher", None)
+        self._prefetcher = None
+        if prefetcher is not None:
+            prefetcher.close()
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def _assign_timestamps(self, frame_id):
+        timestamps = self.timestamps
+        if timestamps is not None and 0 <= frame_id < len(timestamps):
+            self._timestamp = float(timestamps[frame_id])
+            if frame_id + 1 < len(timestamps):
+                self._next_timestamp = float(timestamps[frame_id + 1])
+            elif self.Ts is not None:
+                self._next_timestamp = self._timestamp + self.Ts
+            else:
+                self._next_timestamp = self._timestamp
+        elif self.Ts is not None:
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts
+
+    def _serve_prefetched(self, stream, frame_id, update_ok=True):
+        prefetcher = self._prefetcher
+        if prefetcher is None or not prefetcher.has_stream(stream):
+            return _PREFETCH_MISS
+        length = prefetcher.stream_length(stream)
+        if frame_id < 0 or frame_id >= length:
+            if update_ok:
+                self.is_ok = False
+            self._timestamp = None
+            self._next_timestamp = None
+            return None
+        image = prefetcher.get(stream, frame_id)
+        self._assign_timestamps(frame_id)
+        if update_ok:
+            self.is_ok = image is not None
+        return image
 
     def sensorType(self):
         return self.sensor_type
@@ -109,6 +170,10 @@ class Dataset(object):
                 self.is_ok = False
             return None
         try:
+            if self._prefetcher is not None and self._prefetcher.has_stream("image"):
+                img = self._serve_prefetched("image", frame_id)
+                if img is not _PREFETCH_MISS:
+                    return img
             img = self.getImage(frame_id)
             if img is None:
                 return None
@@ -133,6 +198,10 @@ class Dataset(object):
         if self.num_frames is not None and frame_id >= self.num_frames:
             return None
         try:
+            if self._prefetcher is not None and self._prefetcher.has_stream("image_right"):
+                img = self._serve_prefetched("image_right", frame_id)
+                if img is not _PREFETCH_MISS:
+                    return img
             img = self.getImageRight(frame_id)
             if img is None:
                 return None
@@ -354,30 +423,36 @@ class FolderDataset(Dataset):
                 raise FileNotFoundError(f"Timestamps file does not exist: {timestamps_path}")
             self.timestamps = self._read_timestamps(timestamps_path)
             Printer.green("read timestamps from " + timestamps_path)
+        self._folder_timestamp_pairs = []
+        if self.timestamps is None:
+            current = 0.0
+            for index, image_file in enumerate(self.listing):
+                next_file = self.listing[index + 1] if index + 1 < self.maxlen else None
+                pair = folder_image_timestamps(image_file, next_file, self.Ts, current)
+                self._folder_timestamp_pairs.append(pair)
+                current = pair[0]
+        self.start_prefetch([make_stream("image", self.listing)])
+
+    def _assign_timestamps(self, frame_id):
+        if self.timestamps is not None:
+            Dataset._assign_timestamps(self, frame_id)
+            return
+        if frame_id < 0 or frame_id >= len(self.listing):
+            self._timestamp = None
+            self._next_timestamp = None
+            return
+        self._timestamp, self._next_timestamp = self._folder_timestamp_pairs[frame_id]
 
     def getImage(self, frame_id):
-        if self.i == self.maxlen:
+        if frame_id < 0 or frame_id >= self.maxlen:
             return None
-        image_file = self.listing[self.i]
+        image_file = self.listing[frame_id]
         img = cv2.imread(image_file)
-        if self.timestamps is not None:
-            # read timestamps from timestamps file
-            self._timestamp = float(self.timestamps[self.i])
-            if self.i < len(self.timestamps) - 1:
-                self._next_timestamp = float(self.timestamps[self.i + 1])
-            else:
-                self._next_timestamp = self._timestamp + self.Ts
-        else:
-            next_image_file = (
-                self.listing[self.i + 1] if self.i + 1 < self.maxlen else None
-            )
-            self._timestamp, self._next_timestamp = folder_image_timestamps(
-                image_file, next_image_file, self.Ts, self._timestamp
-            )
+        self._assign_timestamps(frame_id)
         if img is None:
             raise IOError("error reading file: ", image_file)
         # Increment internal counter.
-        self.i = self.i + 1
+        self.i = frame_id + 1
         return np.ascontiguousarray(img)
 
 
@@ -543,6 +618,7 @@ class KittiDataset(Dataset):
         self.max_frame_id = len(self.timestamps)
         self.num_frames = self.max_frame_id
         print("Processing KITTI Sequence of lenght: ", len(self.timestamps))
+        self._start_kitti_prefetch()
 
     def set_is_color(self, val):
         self.is_color = val
@@ -550,6 +626,25 @@ class KittiDataset(Dataset):
             print("dataset in color!")
             self.image_left_path = "/image_2/"
             self.image_right_path = "/image_3/"
+        else:
+            self.image_left_path = "/image_0/"
+            self.image_right_path = "/image_1/"
+        self._start_kitti_prefetch()
+
+    def _start_kitti_prefetch(self):
+        root = self.path + "/sequences/" + str(self.name)
+        left = [
+            root + self.image_left_path + str(frame_id).zfill(6) + ".png"
+            for frame_id in range(self.max_frame_id)
+        ]
+        streams = [make_stream("image", left)]
+        if self.sensor_type == SensorType.STEREO:
+            right = [
+                root + self.image_right_path + str(frame_id).zfill(6) + ".png"
+                for frame_id in range(self.max_frame_id)
+            ]
+            streams.append(make_stream("image_right", right))
+        self.start_prefetch(streams)
 
     def getImage(self, frame_id):
         img = None
@@ -619,11 +714,21 @@ class TumDataset(Dataset):
         self.base_path = self.path + "/" + self.name + "/"
         self.associations_path = self.path + "/" + self.name + "/" + associations
         with open(self.associations_path) as f:
-            self.associations_data = f.readlines()
+            self.associations_data = [line for line in f if line.strip() and not line.lstrip().startswith("#")]
             self.max_frame_id = len(self.associations_data)
             self.num_frames = self.max_frame_id
         if self.associations_data is None:
             sys.exit("ERROR while reading associations file!")
+        rows = [line.strip().split() for line in self.associations_data]
+        self.timestamps = np.array(
+            [float(row[0]) if row else 0.0 for row in rows], dtype=np.float64
+        )
+        image_paths = [self.base_path + row[1] if len(row) > 1 else "" for row in rows]
+        streams = [make_stream("image", image_paths)]
+        if self.sensor_type == SensorType.RGBD:
+            depth_paths = [self.base_path + row[3] if len(row) > 3 else "" for row in rows]
+            streams.append(make_stream("depth", depth_paths, imread_flag=cv2.IMREAD_UNCHANGED))
+        self.start_prefetch(streams)
 
     def getImage(self, frame_id):
         img = None
@@ -647,6 +752,9 @@ class TumDataset(Dataset):
     def getDepth(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
             return None  # force a monocular camera if required (to get a monocular tracking even if depth is available)
+        prefetched = self._serve_prefetched("depth", frame_id + self.start_frame_id)
+        if prefetched is not _PREFETCH_MISS:
+            return prefetched
         frame_id += self.start_frame_id
         img = None
         if frame_id < self.max_frame_id:
@@ -738,6 +846,35 @@ class ScannetDataset(Dataset):
         self.max_frame_id = len(self.color_paths)
         self.num_frames = self.max_frame_id
         print(f"Number of frames: {self.max_frame_id}")
+        color_paths = [
+            self.base_path + f"/color/{frame_id}.jpg" for frame_id in range(self.max_frame_id)
+        ]
+        streams = [
+            make_stream(
+                "image",
+                color_paths,
+                ops=[
+                    {
+                        "type": "resize",
+                        "width": int(self.image_size[0]),
+                        "height": int(self.image_size[1]),
+                    }
+                ],
+            )
+        ]
+        if self.sensor_type == SensorType.RGBD:
+            depth_paths = [
+                self.base_path + f"/depth/{frame_id}.png" for frame_id in range(self.max_frame_id)
+            ]
+            streams.append(
+                make_stream(
+                    "depth",
+                    depth_paths,
+                    imread_flag=cv2.IMREAD_UNCHANGED,
+                    ops=[{"type": "scale_float", "factor": float(self.depthmap_factor)}],
+                )
+            )
+        self.start_prefetch(streams)
 
     def load_scannet_to_nyu40(self, config):
         if "scannetv2_labels_combined_path" in config.dataset_settings:
@@ -787,6 +924,9 @@ class ScannetDataset(Dataset):
     def getDepth(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
             return None  # force a monocular camera if required (to get a monocular tracking even if depth is available)
+        prefetched = self._serve_prefetched("depth", frame_id + self.start_frame_id)
+        if prefetched is not _PREFETCH_MISS:
+            return prefetched
         frame_id += self.start_frame_id
         img = None
         if frame_id < self.max_frame_id:
@@ -929,6 +1069,21 @@ class EurocDataset(Dataset):
             )
         self.debug_rectification = False  # DEBUGGING
         print("Processing Euroc Sequence of lenght: ", len(self.timestamps))
+        if not self.debug_rectification:
+            root = self.path + "/" + self.name
+            left_ops = []
+            right_ops = []
+            if self.sensor_type == SensorType.STEREO:
+                left_ops.append({"type": "remap", "map1": self.M1l, "map2": self.M2l})
+                right_ops.append({"type": "remap", "map1": self.M1r, "map2": self.M2r})
+            left = [root + self.image_left_path + str(name) for name in self.filenames]
+            streams = [make_stream("image", left, ops=left_ops)]
+            if self.sensor_type == SensorType.STEREO:
+                right = [
+                    root + self.image_right_path + str(name) for name in self.filenames_right
+                ]
+                streams.append(make_stream("image_right", right, ops=right_ops))
+            self.start_prefetch(streams)
 
     def read_data(self, csv_file):
         timestamps_and_filenames = []
@@ -1041,6 +1196,18 @@ class ReplicaDataset(Dataset):
         self.max_frame_id = len(self.color_paths)
         self.num_frames = self.max_frame_id
         print(f"Number of frames: {self.max_frame_id}")
+        color_paths = [
+            self.base_path + f"results/frame{str(frame_id).zfill(6)}.jpg"
+            for frame_id in range(self.max_frame_id)
+        ]
+        streams = [make_stream("image", color_paths)]
+        if self.sensor_type == SensorType.RGBD:
+            depth_paths = [
+                self.base_path + f"results/depth{str(frame_id).zfill(6)}.png"
+                for frame_id in range(self.max_frame_id)
+            ]
+            streams.append(make_stream("depth", depth_paths, imread_flag=cv2.IMREAD_UNCHANGED))
+        self.start_prefetch(streams)
 
     def getImage(self, frame_id):
         img = None
@@ -1059,6 +1226,9 @@ class ReplicaDataset(Dataset):
     def getDepth(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
             return None  # force a monocular camera if required (to get a monocular tracking even if depth is available)
+        prefetched = self._serve_prefetched("depth", frame_id + self.start_frame_id)
+        if prefetched is not _PREFETCH_MISS:
+            return prefetched
         frame_id += self.start_frame_id
         img = None
         if frame_id < self.max_frame_id:
@@ -1113,6 +1283,45 @@ class TartanairDataset(Dataset):
         self.left_depth_path = self.base_path + "/depth_left"
         self.right_depth_path = self.base_path + "/depth_right"
         print(f"Number of frames: {self.max_frame_id}")
+        frames = range(self.max_frame_id)
+        streams = [
+            make_stream(
+                "image",
+                [self.left_color_path + f"/{str(frame_id).zfill(6)}_left.png" for frame_id in frames],
+            )
+        ]
+        if self.sensor_type == SensorType.STEREO:
+            streams.append(
+                make_stream(
+                    "image_right",
+                    [
+                        self.right_color_path + f"/{str(frame_id).zfill(6)}_right.png"
+                        for frame_id in frames
+                    ],
+                )
+            )
+        if self.sensor_type != SensorType.MONOCULAR:
+            streams.append(
+                make_stream(
+                    "depth",
+                    [
+                        self.left_depth_path + f"/{str(frame_id).zfill(6)}_left_depth.npy"
+                        for frame_id in frames
+                    ],
+                    loader="npy",
+                )
+            )
+            streams.append(
+                make_stream(
+                    "depth_right",
+                    [
+                        self.right_depth_path + f"/{str(frame_id).zfill(6)}_right_depth.npy"
+                        for frame_id in frames
+                    ],
+                    loader="npy",
+                )
+            )
+        self.start_prefetch(streams)
 
     def getImage(self, frame_id):
         img = None
@@ -1131,6 +1340,9 @@ class TartanairDataset(Dataset):
     def getDepth(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
             return None  # force a monocular camera if required (to get a monocular tracking even if depth is available)
+        prefetched = self._serve_prefetched("depth", frame_id + self.start_frame_id)
+        if prefetched is not _PREFETCH_MISS:
+            return prefetched
         frame_id += self.start_frame_id
         img = None
         if frame_id < self.max_frame_id:
@@ -1161,6 +1373,9 @@ class TartanairDataset(Dataset):
     def getDepthRight(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
             return None  # force a monocular camera if required (to get a monocular tracking even if depth is available)
+        prefetched = self._serve_prefetched("depth_right", frame_id + self.start_frame_id)
+        if prefetched is not _PREFETCH_MISS:
+            return prefetched
         frame_id += self.start_frame_id
         img = None
         if frame_id < self.max_frame_id:
@@ -1256,6 +1471,13 @@ class SevenScenesDataset(Dataset):
 
         self.num_frames = self.max_frame_id
         print(f"Number of frames: {self.max_frame_id}")
+        streams = [make_stream("image", self.color_paths)]
+        if self.sensor_type == SensorType.RGBD:
+            depth_paths = [
+                color_path.replace(".color.png", ".depth.png") for color_path in self.color_paths
+            ]
+            streams.append(make_stream("depth", depth_paths, imread_flag=cv2.IMREAD_UNCHANGED))
+        self.start_prefetch(streams)
 
         # Depth map factor: depth is in millimeters, convert to meters
         # DepthMapFactor in settings is 1000.0, so depth_in_meters = depth_pixels / 1000.0
@@ -1333,6 +1555,9 @@ class SevenScenesDataset(Dataset):
     def getDepth(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
             return None  # force a monocular camera if required
+        prefetched = self._serve_prefetched("depth", frame_id + self.start_frame_id)
+        if prefetched is not _PREFETCH_MISS:
+            return prefetched
         frame_id += self.start_frame_id
         img = None
         if frame_id < self.max_frame_id:
@@ -1481,6 +1706,14 @@ class NeuralRGBDDataset(Dataset):
         # Depth map factor: depth values are typically in meters for this dataset
         # Adjust if needed based on actual data format
         self.depthmap_factor = 1.0
+        streams = [make_stream("image", self.image_paths)]
+        if self.sensor_type == SensorType.RGBD:
+            depth_paths = [
+                os.path.join(self.depth_path, f"depth{frame_id}.png")
+                for frame_id in range(self.max_frame_id)
+            ]
+            streams.append(make_stream("depth", depth_paths, imread_flag=cv2.IMREAD_UNCHANGED))
+        self.start_prefetch(streams)
 
     def getImage(self, frame_id):
         img = None
@@ -1499,6 +1732,9 @@ class NeuralRGBDDataset(Dataset):
     def getDepth(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
             return None  # force a monocular camera if required
+        prefetched = self._serve_prefetched("depth", frame_id + self.start_frame_id)
+        if prefetched is not _PREFETCH_MISS:
+            return prefetched
         frame_id += self.start_frame_id
         img = None
         if frame_id < self.max_frame_id:
@@ -1629,6 +1865,16 @@ class ClioDataset(Dataset):
 
         print(f"Number of frames: {self.max_frame_id}")
         print(f"CLIO playback fps: {self.fps:.2f} (frame period: {self.Ts:.4f}s)")
+        streams = [make_stream("image", self.image_paths)]
+        if self.sensor_type == SensorType.RGBD:
+            depth_paths = []
+            for frame_id, frame_name in enumerate(self.frame_ids):
+                depth_file = os.path.join(self.depth_path, f"depth_{frame_name}.png")
+                if not os.path.isfile(depth_file) and frame_id < len(self.depth_paths):
+                    depth_file = self.depth_paths[frame_id]
+                depth_paths.append(depth_file)
+            streams.append(make_stream("depth", depth_paths, imread_flag=cv2.IMREAD_UNCHANGED))
+        self.start_prefetch(streams)
 
     def getImage(self, frame_id):
         img = None
@@ -1647,6 +1893,9 @@ class ClioDataset(Dataset):
     def getDepth(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
             return None
+        prefetched = self._serve_prefetched("depth", frame_id + self.start_frame_id)
+        if prefetched is not _PREFETCH_MISS:
+            return prefetched
         frame_id += self.start_frame_id
         img = None
         if frame_id < self.max_frame_id:
@@ -1695,11 +1944,21 @@ class RoverDataset(Dataset):
         self.base_path = self.path + "/" + self.name + "/" + camera_name + "/"
         self.associations_path = self.base_path + "/" + associations
         with open(self.associations_path) as f:
-            self.associations_data = f.readlines()
+            self.associations_data = [line for line in f if line.strip() and not line.lstrip().startswith("#")]
             self.max_frame_id = len(self.associations_data)
             self.num_frames = self.max_frame_id
         if self.associations_data is None:
             sys.exit("ERROR while reading associations file!")
+        rows = [line.strip().split() for line in self.associations_data]
+        self.timestamps = np.array(
+            [float(row[0]) if row else 0.0 for row in rows], dtype=np.float64
+        )
+        image_paths = [self.base_path + row[1] if len(row) > 1 else "" for row in rows]
+        streams = [make_stream("image", image_paths)]
+        if self.sensor_type == SensorType.RGBD:
+            depth_paths = [self.base_path + row[3] if len(row) > 3 else "" for row in rows]
+            streams.append(make_stream("depth", depth_paths, imread_flag=cv2.IMREAD_UNCHANGED))
+        self.start_prefetch(streams)
 
     def getImage(self, frame_id):
         img = None
@@ -1723,6 +1982,9 @@ class RoverDataset(Dataset):
     def getDepth(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
             return None  # force a monocular camera if required (to get a monocular tracking even if depth is available)
+        prefetched = self._serve_prefetched("depth", frame_id + self.start_frame_id)
+        if prefetched is not _PREFETCH_MISS:
+            return prefetched
         frame_id += self.start_frame_id
         img = None
         if frame_id < self.max_frame_id:

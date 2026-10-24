@@ -28,6 +28,7 @@ import numpy as np
 
 from .dataset import Dataset
 from .dataset_types import DatasetType, SensorType, DatasetEnvironmentType
+from .image_prefetcher import make_stream
 
 
 def camera_records(sequence, camera):
@@ -224,6 +225,36 @@ class TumViDataset(Dataset):
             int(config.cam_settings["Camera.width"]),
             int(config.cam_settings["Camera.height"]),
         )
+        streams = [
+            make_stream(
+                "image",
+                self.left,
+                imread_flag=cv2.IMREAD_GRAYSCALE,
+                ops=self._prefetch_ops(0),
+                expected_size=self.size,
+            )
+        ]
+        if stereo:
+            streams.append(
+                make_stream(
+                    "image_right",
+                    self.right,
+                    imread_flag=cv2.IMREAD_GRAYSCALE,
+                    ops=self._prefetch_ops(1),
+                    expected_size=self.size,
+                )
+            )
+        self.start_prefetch(streams)
+
+    def _prefetch_ops(self, side):
+        ops = []
+        if self.clahe is not None:
+            ops.append({"type": "clahe", "clip": 3.0, "tile": 8})
+        if self.maps is not None:
+            map1, map2 = self.maps[side]
+            ops.append({"type": "remap", "map1": map1, "map2": map2})
+        ops.append({"type": "gray_to_rgb"})
+        return ops
 
     def _image(self, frame_id, side):
         if frame_id < 0 or frame_id >= self.num_frames:

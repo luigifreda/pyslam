@@ -976,6 +976,8 @@ The following datasets are supported:
 
 Use the download scripts available in the folder `scripts` to download some of the following datasets.
 
+File-based datasets automatically prefetch decoded images using the optional C++ `data_thread_reader` module. See [Dataset image prefetching](./cpp/modules/data_thread_reader/README.md) for supported readers, build instructions, memory behavior, and the `PYSLAM_DISABLE_IMAGE_PREFETCH=1` switch.
+
 #### KITTI Datasets
 
 pySLAM code expects the following structure in the specified KITTI path folder (specified in the section `KITTI_DATASET` of the file `config.yaml`). : 
@@ -1059,7 +1061,7 @@ To download the dataset follow the instructions at https://github.com/dazinovic/
 
 #### Rover dataset 
 
-To download the dataset follow the instructions at https://iis-esslingen.github.io/rover/. Select the section `ROVER_DATASET: settings:` in the file `config.yaml`. A calibration file for the `d435i` camera is already available: `settings/ROVER_d435i.yaml`. Additional camera models support model-aware sparse tracking and RGB-D; see [Camera models](./docs/cameras.md#integration-status) for conventions and limits.
+To download the dataset follow the instructions at https://iis-esslingen.github.io/rover/. Select the section `ROVER_DATASET: settings:` in the file `config.yaml`. A calibration file for the `d435i` camera is already available: `settings/ROVER_d435i.yaml`. Additional camera models support model-aware sparse tracking and RGB-D; see [Camera models](./cpp/modules/camera_models/README.md#integration-status) for conventions and limits.
 
 #### ScanNet Datasets
 
@@ -1116,9 +1118,9 @@ TUM-VI visual mono and stereo are available with native Kannala–Brandt images 
 
 The folder `settings` contains the camera settings files which can be used for testing the code. These are the same used in the framework [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2). You can easily modify one of those files for creating your own new calibration file (for your new datasets).
 
-A file that does not set `Camera.type` keeps the linear pinhole: `Camera.k1` … `Camera.k3` are used to undistort keypoints, and projection stays `K * (x/z, y/z)`. Set `Camera.type` to `kannala_brandt4`, `pinhole_radtan8`, or `double_sphere` to project detected pixels with that model. Rectified stereo retains pinhole geometry; native TUM-VI stereo uses the calibrated fisheye rig. Sim(3) uses undistorted coordinates. See [Camera models](./docs/cameras.md) for parameters and pixel conventions.
+A file that does not set `Camera.type` keeps the linear pinhole: `Camera.k1` … `Camera.k3` are used to undistort keypoints, and projection stays `K * (x/z, y/z)`. Set `Camera.type` to `kannala_brandt4`, `pinhole_radtan8`, or `double_sphere` to project detected pixels with that model. Rectified stereo retains pinhole geometry; native TUM-VI stereo uses the calibrated fisheye rig. Sim(3) uses undistorted coordinates. See [Camera models](./cpp/modules/camera_models/README.md) for parameters and pixel conventions.
 
-New-model sparse tracking uses native analytic factors and consistent raw-pixel measurements. See the [integration status](./docs/cameras.md#integration-status), [where the code lives](./docs/cameras.md#where-the-code-lives), and [TUM-VI stereo modes](./docs/tum-vi.md).
+New-model sparse tracking uses native analytic factors and consistent raw-pixel measurements. See the [integration status](./cpp/modules/camera_models/README.md#integration-status), [where the code lives](./cpp/modules/camera_models/README.md#where-the-code-lives), and [TUM-VI stereo modes](./docs/tum-vi.md).
 
 In order to calibrate your camera, you can use the scripts in the folder `calibration`. In particular: 
 1. Use the script `grab_chessboard_images.py` to collect a sequence of images where the chessboard can be detected (set the chessboard size therein, you can use the calibration pattern `calib_pattern.pdf` in the same folder) 
@@ -1260,5 +1262,5 @@ Many improvements and additional features are currently under development:
 - [ ] Integration of direct methods in the tracker
 - [x] XSt3r-based methods integration [WIP]
 - [x] Evaluation scripts 
-- [x] Additional camera models and native/rectified TUM-VI stereo (see [camera models](./docs/cameras.md) and [TUM-VI](./docs/tum-vi.md))
+- [x] Additional camera models and native/rectified TUM-VI stereo (see [camera models](./cpp/modules/camera_models/README.md) and [TUM-VI](./docs/tum-vi.md))
 - [ ] Integrate pypose library
