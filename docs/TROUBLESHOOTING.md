@@ -255,7 +255,7 @@ If you encounter an error like the following one after installation:
 ```bash
 ModuleNotFoundError: No module named haming not found
 ```
-or, similarly, one of the following modules `haming`, `glutils`, `sim3solver`, `trajectory_tools`, etc that are built inside the `cpp` folder is missing, follow these steps.
+or, similarly, one of the following modules `hamming`, `glutils`, `sim3solver`, `trajectory_tools`, etc is missing, follow these steps. Their sources are under `cpp/modules`. The compiled modules are still written to `cpp/lib`.
 - Verify the C++ build outputs: Check that the compiled .so libraries exist under `<pyslam>/cpp/lib`:
   ```bash
   cpp

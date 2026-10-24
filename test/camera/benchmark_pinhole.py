@@ -207,11 +207,16 @@ def run(args):
     report = {
         "baseline_commit": commit,
         "candidate_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-        "candidate_worktree_diff_stat": subprocess.check_output(["git", "diff", "--stat", "--", "pyslam/slam"], cwd=ROOT, text=True),
+        "candidate_worktree_diff_stat": subprocess.check_output(
+            ["git", "diff", "--stat", "--", "pyslam/slam", "cpp/core/slam"], cwd=ROOT, text=True),
         "candidate_source_sha256": {
             str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
-            for pattern in ("camera*.py", "optimizer*.py", "cpp/camera*.cpp", "cpp/camera*.h", "cpp/optimizer*.cpp")
-            for path in sorted((ROOT / "pyslam/slam").glob(pattern))
+            for root, patterns in (
+                (ROOT / "pyslam/slam", ("camera*.py", "optimizer*.py")),
+                (ROOT / "cpp/core/slam", ("camera*.cpp", "camera*.h", "optimizer*.cpp")),
+            )
+            for pattern in patterns
+            for path in sorted(root.glob(pattern))
         },
         "environment": {"python": platform.python_version(), "platform": platform.platform(),
                         "numpy": np.__version__, "opencv": cv2.__version__},

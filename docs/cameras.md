@@ -102,11 +102,11 @@ Pinhole cameras keep the original rectified-row matcher and fundamental-matrix t
 
 ## Where the code lives
 
-`USE_CPP_CORE` chooses the SLAM classes. It does not choose the projection formulas. Both backends include `pyslam/slam/cpp/camera_model_math.h`, which depends only on Eigen. That header is the only copy of the pinhole, Kannala–Brandt4, rational-pinhole, and double-sphere polynomials and of `d(u, v) / d(Xc)`.
+`USE_CPP_CORE` chooses the SLAM classes. It does not choose the projection formulas. Both backends include `cpp/core/slam/camera_model_math.h`, which depends only on Eigen. That header is the only copy of the pinhole, Kannala–Brandt4, rational-pinhole, and double-sphere polynomials and of `d(u, v) / d(Xc)`.
 
-`USE_CPP_CORE = True` imports the `cpp_core` classes from `pyslam.slam`. Those cameras, their g2o edges, and their gtsam factors are the types in `pyslam/slam/cpp/`. Entry points build them with `camera_from_config(config)`.
+`USE_CPP_CORE = True` imports the `cpp_core` classes from `pyslam.slam`. Those cameras, their g2o edges, and their gtsam factors are the types in `cpp/core/slam/`. Entry points build them with `camera_from_config(config)`.
 
-`USE_CPP_CORE = False` keeps the Python classes. Pinhole batch projection stays on the original Numba path, and pinhole observations keep the original native g2o and gtsam factors. Kannala–Brandt4, rational pinhole, and double sphere call the modules under `cpp/camera_models/`. Importing `camera_models` does not load `cpp_core`, g2o, or gtsam.
+`USE_CPP_CORE = False` keeps the Python classes. Pinhole batch projection stays on the original Numba path, and pinhole observations keep the original native g2o and gtsam factors. Kannala–Brandt4, rational pinhole, and double sphere call the modules under `cpp/modules/camera_models/`. Importing `camera_models` does not load `cpp_core`, g2o, or gtsam.
 
 | Module | Loaded when | Contents |
 | --- | --- | --- |
@@ -119,24 +119,24 @@ The camera object itself is `libcamera_model_core.so`. The two factor modules li
 
 Batch projection, undistortion, unprojection, and rig triangulation write into caller-owned NumPy buffers (`project_into` and the other `*_into` methods). The bindings take those arrays with `noconvert()`, so a C-contiguous `float64` buffer is used in place. Stereo-rig search views the `float32` keypoints, `int32` octaves, `float32` octave scales, and descriptor matrices the same way. The match-index lists are allocated after the search, once their length is known.
 
-The rig geometry, the stereo-rig search, the g2o edges, and the gtsam factors are written once, as header-only templates over the camera type in `pyslam/slam/cpp/`. `cpp_core` instantiates them for `pyslam::Camera` and `camera_models` for `camera_models::CameraModel`; each side only adds type aliases and bindings. The templates hold the camera through `CameraHandle`, which is non-owning for a raw pointer and owning for a `shared_ptr`, so both ownership styles share one edge type.
+The rig geometry, the stereo-rig search, the g2o edges, and the gtsam factors are written once, as header-only templates over the camera type in `cpp/core/slam/`. `cpp_core` instantiates them for `pyslam::Camera` and `camera_models` for `camera_models::CameraModel`; each side only adds type aliases and bindings. The templates hold the camera through `CameraHandle`, which is non-owning for a raw pointer and owning for a `shared_ptr`, so both ownership styles share one edge type.
 
 g2o and gtsam headers are never included in the same translation unit. The g2o templates and the gtsam templates are in separate headers, `cpp_core` binds its edges and its factors in two separate source files, and the C++ factor tests are split the same way.
 
 | Piece | Path |
 | --- | --- |
-| Projection math and Jacobians | `pyslam/slam/cpp/camera_model_math.h` |
-| Rig projection, rig triangulation, bearing-to-plane distance, stereo-rig search (shared) | `pyslam/slam/cpp/camera_rig_geometry.h` |
-| g2o edges (shared, no gtsam) | `pyslam/slam/cpp/camera_projection_edges_g2o.h` |
-| gtsam factors and `python_noise_model` (shared, no g2o) | `pyslam/slam/cpp/camera_projection_factors_gtsam.h` |
-| Camera reference held by edges and factors | `pyslam/slam/cpp/camera_handle.h` |
-| Python-core camera, shared by the factor modules | `cpp/camera_models/camera_model.h`, `libcamera_model_core.so` |
-| Python-core projection bindings | `cpp/camera_models/camera_models_module.cpp` |
-| Python-core g2o edges (aliases) | `cpp/camera_models/camera_model_g2o_factors.h`, `camera_models_g2o_module.cpp` |
-| Python-core gtsam factors (aliases) | `cpp/camera_models/camera_model_gtsam_factors.h`, `camera_models_gtsam_module.cpp` |
-| `cpp_core` camera classes | `pyslam/slam/cpp/camera_models.h` |
-| `cpp_core` g2o edges (aliases) | `pyslam/slam/cpp/camera_edges_g2o.h`, `py_module/camera_g2o_module.cpp` |
-| `cpp_core` gtsam factors (aliases, stereo factor helpers) | `pyslam/slam/cpp/camera_factors_gtsam.h`, `py_module/camera_gtsam_module.cpp` |
+| Projection math and Jacobians | `cpp/core/slam/camera_model_math.h` |
+| Rig projection, rig triangulation, bearing-to-plane distance, stereo-rig search (shared) | `cpp/core/slam/camera_rig_geometry.h` |
+| g2o edges (shared, no gtsam) | `cpp/core/slam/camera_projection_edges_g2o.h` |
+| gtsam factors and `python_noise_model` (shared, no g2o) | `cpp/core/slam/camera_projection_factors_gtsam.h` |
+| Camera reference held by edges and factors | `cpp/core/slam/camera_handle.h` |
+| Python-core camera, shared by the factor modules | `cpp/modules/camera_models/camera_model.h`, `libcamera_model_core.so` |
+| Python-core projection bindings | `cpp/modules/camera_models/camera_models_module.cpp` |
+| Python-core g2o edges (aliases) | `cpp/modules/camera_models/camera_model_g2o_factors.h`, `camera_models_g2o_module.cpp` |
+| Python-core gtsam factors (aliases) | `cpp/modules/camera_models/camera_model_gtsam_factors.h`, `camera_models_gtsam_module.cpp` |
+| `cpp_core` camera classes | `cpp/core/slam/camera_models.h` |
+| `cpp_core` g2o edges (aliases) | `cpp/core/slam/camera_edges_g2o.h`, `py_module/camera_g2o_module.cpp` |
+| `cpp_core` gtsam factors (aliases, stereo factor helpers) | `cpp/core/slam/camera_factors_gtsam.h`, `py_module/camera_gtsam_module.cpp` |
 | Triangulation-search epipolar mask (Python core) | `pyslam/slam/geometry_matchers.py` |
 | Python classes and `camera_from_config` | `pyslam/slam/camera.py` |
 | Edge/factor selection for the Python optimizers | `pyslam/slam/camera_factors.py` |
@@ -182,9 +182,9 @@ In Python, `pyslam.slam.camera.camera_from_json(payload)` selects the serialized
 
 ## Tests
 
-`pyslam/slam/cpp/tests_cpp/test_camera_model_math.cpp` checks the analytic Jacobians against finite differences. `test_camera_models.cpp` checks round trips, undistortion, visibility, the bearing-to-plane pixel distance, and rig triangulation (including a ray beyond 90°). `test_camera_edges_g2o.cpp` checks that a pinhole edge matches the native g2o edge and that the Kannala–Brandt edge Jacobians match finite differences; `test_camera_factors_gtsam.cpp` does the same for the gtsam factors. The two files are separate so that neither includes both libraries.
+`cpp/core/slam/tests_cpp/test_camera_model_math.cpp` checks the analytic Jacobians against finite differences. `test_camera_models.cpp` checks round trips, undistortion, visibility, the bearing-to-plane pixel distance, and rig triangulation (including a ray beyond 90°). `test_camera_edges_g2o.cpp` checks that a pinhole edge matches the native g2o edge and that the Kannala–Brandt edge Jacobians match finite differences; `test_camera_factors_gtsam.cpp` does the same for the gtsam factors. The two files are separate so that neither includes both libraries.
 
-`pyslam/slam/cpp/tests_py/test_camera_models.py` checks the Python bindings, the OpenCV projection, and the calibrations in `settings/`. For every settings file the omitted camera type must stay a linear pinhole, including files whose distortion coefficients are nonzero. That test also times pinhole batch projection against the existing Numba path and compares a pinhole bundle adjustment against `EdgeSE3ProjectXYZ`. It covers `search_stereo_rig` on a synthetic KB4 rig (true matches and depths, off-curve and beyond-infinity distractors, octave gap, ambiguous duplicates, one-to-one) and the Python bearing epipolar mask.
+`cpp/core/slam/tests_py/test_camera_models.py` checks the Python bindings, the OpenCV projection, and the calibrations in `settings/`. For every settings file the omitted camera type must stay a linear pinhole, including files whose distortion coefficients are nonzero. That test also times pinhole batch projection against the existing Numba path and compares a pinhole bundle adjustment against `EdgeSE3ProjectXYZ`. It covers `search_stereo_rig` on a synthetic KB4 rig (true matches and depths, off-curve and beyond-infinity distractors, octave gap, ambiguous duplicates, one-to-one) and the Python bearing epipolar mask.
 
 `test/camera/test_camera_models_modules.py` covers the Python-core path (`USE_CPP_CORE=False`): importing `camera_models`, `camera_models_g2o`, or `camera_models_gtsam` loads only its own optimizer library; a Python KB4 rig binds to a `camera_models` camera; `search_stereo_rig` recovers synthetic matches and depths; and the g2o pose edges and gtsam resectioning factors (mono and stereo) pull a perturbed pose back to the true one. It also checks that a gtsam graph of these factors can be cloned.
 
@@ -193,7 +193,7 @@ Additional integration and pinhole compatibility checks are in `test/camera/test
 Run from the repository root using the pySLAM Python environment and a rebuilt C++ core:
 
 ```bash
-python pyslam/slam/cpp/tests_py/test_camera_models.py
+python cpp/core/slam/tests_py/test_camera_models.py
 python test/camera/test_camera_regressions.py -v
 python test/camera/test_tum_vi.py -v
 python test/camera/test_camera_models_modules.py -v
@@ -213,8 +213,8 @@ python test/camera/benchmark_pinhole.py \
   --baseline-ref 96019cfafcfc099ac9866884d7143a9ed1451a0d \
   --optimizers-only --output /tmp/pinhole-optimizers.json
 # Native C++ edges/factors against the original g2o/GTSAM implementations:
-pyslam/slam/cpp/build/tests_cpp/test_camera_edges_g2o --benchmark
-pyslam/slam/cpp/build/tests_cpp/test_camera_factors_gtsam --benchmark
+cpp/core/slam/build/tests_cpp/test_camera_edges_g2o --benchmark
+cpp/core/slam/build/tests_cpp/test_camera_factors_gtsam --benchmark
 ```
 
 Timing ratios use the median of adjacent candidate/baseline sample ratios. The JSON also retains independent duration medians, their ratio, and all raw samples, so CPU-frequency/load drift can be inspected.
@@ -236,6 +236,15 @@ done
 ```
 
 Run comparisons serially on an otherwise idle machine. Concurrent SLAM processes compete for CPU and memory and can distort timing ratios. The harness fixes OpenCV to one thread and seeds OpenCV, NumPy, and Python RNGs. Its timings include synchronous local mapping, so they must not be compared directly with another system's asynchronous tracking-only timings.
+
+For playback scheduling, pass `--local-mapping threaded --loop-closure` to either
+replay command. These runs include asynchronous mapping and loop-detection work,
+but exclude GUI rendering and real-time pacing; thread scheduling also makes map
+construction less repeatable. Compare matching modes and inspect image-loading
+time as well as tracking time. Initial frames can include Numba compilation, so
+use the per-frame NPZ timings to distinguish startup costs from steady operation.
+TUM ATE uses the original mocap samples rather than frame associations, which can
+repeat a ground-truth timestamp for consecutive images.
 
 On Linux, the replay and component benchmark share an exclusive process lock. A
 watchdog interrupts a run above 8 GiB resident memory or below 8 GiB available

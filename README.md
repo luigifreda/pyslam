@@ -1,6 +1,6 @@
 <p align="center"><img src="./images/pyslam-logo.png" height="160"></p>
 
-# pySLAM v2.10.8
+# pySLAM v2.11.0
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -12,7 +12,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include *DepthPro*, *DepthAnythingV2*, *DepthAnythingV3*, *RAFT-Stereo*, *CREStereo*, etc.  
 - A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as *DeepLabv3*, *Segformer*, *CLIP*, *DETIC*, *EOV-SEG*, *ODISE*, *RFDETR*, *YOLO*, etc.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
-- A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between _high-performance/speed_ and _high-flexibility_ modes. The Python and C++ implementations are interoperable: maps saved by one can be loaded by the other. Further details [here](pyslam/slam/cpp/README.md).
+- A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between _high-performance/speed_ and _high-flexibility_ modes. The Python and C++ implementations are interoperable: maps saved by one can be loaded by the other. Further details [here](cpp/core/slam/README.md).
 - A modular pipeline for **feed-forward inference of 3D scenes from multiple images**. Supports models like *DUSt3R*, *Mast3r*, *MV-DUSt3R*, *VGGT*, *Robust VGGT*, *DepthFromAnythingV3*, and *Fast3R*. Further details [here](pyslam/scene_from_views/README.md).
 - Built-in support for over **[10 dataset types](#datasets)**.
   
@@ -52,7 +52,7 @@ See the demo **video** for release v2.10.0
 
 <!-- TOC -->
 
-- [pySLAM v2.10.8](#pyslam-v2108)
+- [pySLAM v2.11.0](#pyslam-v2110)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
@@ -138,15 +138,17 @@ See the demo **video** for release v2.10.0
 ## Overview
  
 ```bash
-├── cpp         # Pybind11 C++ bindings to slam utilities 
-│   ├── hamming     # SIMD-optimized Hamming distance calculator for uint8 binary descriptors with zero-copy Python bindings.
-│   ├── glutils     # OpenGL utilities for drawing points, cameras, etc.
-│   ├── solvers     # PnP and Sim3 solvers for camera pose estimation 
-│   ├── volumetric  # Volumetric mapping with parallel block-based voxel hashing, templates, carving, and semantics support.
-│   ├── trajectory  # Trajectory alignment helpers
-├── data       # Sample input/output data
-├── docs       # Documentation files
-├── pyslam     # Core Python package
+├── cpp
+│   ├── modules          # utility extensions: hamming, glutils, solvers, volumetric, camera_models, ...
+│   │   └── tests        # smoke tests for those extensions
+│   ├── casters          # shared OpenCV pybind11 type casters
+│   ├── core
+│   │   ├── slam         # sparse-SLAM C++ core, exposed as the cpp_core module
+│   │   └── semantics    # semantic-mapping sources compiled into cpp_core
+│   └── lib              # built Python extension modules
+├── data                 # Sample input/output data
+├── docs                 # Documentation files
+├── pyslam               # Core Python package
 │   ├── dense
 │   ├── depth_estimation
 │   ├── evaluation
@@ -155,15 +157,14 @@ See the demo **video** for release v2.10.0
 │   ├── loop_closing
 │   ├── scene_from_views # Unified 3D scene reconstruction from multiple views
 │   ├── semantics
-│       ├── cpp  # C++ core for semantics  
 │   ├── slam
-│       ├── cpp  # C++ core for sparse slam  
+│   │   └── cpp          # Python facade that imports cpp_core
 │   ├── utilities
 │   ├── viz
-├── scripts     # Shell utility scripts
-├── settings    # Dataset/configuration files
-├── test        # Tests and usage examples
-├── thirdparty  # External dependencies
+├── scripts              # Shell utility scripts
+├── settings             # Dataset/configuration files
+├── test                 # Tests and usage examples
+├── thirdparty           # External dependencies
 ```
 
 ### Main Scripts
@@ -442,7 +443,7 @@ The SLAM back-end hosts a volumetric reconstruction pipeline. This is disabled b
 - `TSDF` (Truncated Signed Distance Function): It is able to return in output either a pointcloud or a mesh. 
 - `GAUSSIAN_SPLATTING` (Incremental Gaussian splatting).
  
-See [pyslam/dense/volumetric_integrator_types.py](pyslam/dense/volumetric_integrator_types.py). Note that you need CUDA in order to run `GAUSSIAN_SPLATTING` method. Further information about the volumetric grid models is available [here](./cpp/volumetric/README.md).
+See [pyslam/dense/volumetric_integrator_types.py](pyslam/dense/volumetric_integrator_types.py). Note that you need CUDA in order to run `GAUSSIAN_SPLATTING` method. Further information about the volumetric grid models is available [here](./cpp/modules/volumetric/README.md).
 
 At present, the volumetric reconstruction pipeline works with:
 - RGBD datasets 
@@ -622,7 +623,7 @@ Known **limitations** in volumetric semantic mapping:
 
 The system provides a modular sparse-SLAM core, implemented in both C++ and Python, allowing users to switch between high-performance/speed and high-flexibility modes.
 
-The C++ core reimplements the sparse SLAM originally implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11. The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names (see this [table](./pyslam/slam/cpp/README.md#table-of-corresponding-files)). When feasible, the bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++.
+The C++ core reimplements the sparse SLAM originally implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11. The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names (see this [table](./cpp/core/slam/README.md#table-of-corresponding-files)). When feasible, the bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++.
 
 - To enable the C++ sparse-SLAM core, set `USE_CPP_CORE = True` in `pyslam/config_parameters.py`. 
 - To rebuild the C++ core module, run
@@ -635,7 +636,7 @@ While this may be self-evident, it is important to keep in mind that when `USE_C
 - The Python implementation of the sparse SLAM core is effectively bypassed, and any modifications to it will have no effect at runtime.
 - All functional changes to the sparse SLAM C++ codebase must be rebuilt using `./build_cpp_core.sh` (as explained above) in order to take effect.
 
-See [here](./pyslam/slam/cpp/README.md) for further details.
+See [here](./cpp/core/slam/README.md) for further details.
 
 ---
 
@@ -911,7 +912,7 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 
 ### Supported volumetric mapping methods
 
-* A C++ template-based voxel grid implementation leverages parallel spatial hashing, supporting both direct voxel hashing and indirect voxel-block hashing strategies. Parallel execution is managed using TBB, and the design accommodates both simple and semantic voxels. Further information about the volumetric grid models is available [here](./cpp/volumetric/README.md).
+* A C++ template-based voxel grid implementation leverages parallel spatial hashing, supporting both direct voxel hashing and indirect voxel-block hashing strategies. Parallel execution is managed using TBB, and the design accommodates both simple and semantic voxels. Further information about the volumetric grid models is available [here](./cpp/modules/volumetric/README.md).
 * [TSDF](https://arxiv.org/pdf/2110.00511) (Truncated Signed Distance Function) with voxel block grid (parallel spatial hashing)
 * Incremental 3D Gaussian Splatting. See [here](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) and [MonoGS](https://arxiv.org/abs/2312.06741) for a description of its backend.
 

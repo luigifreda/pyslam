@@ -108,7 +108,7 @@ elif [ "$FIX_MODE" = true ]; then
         for file in "${FILES[@]}"; do
             if [ -f "$file" ] && [[ "$file" == *.cpp ]]; then
                 echo "Linting $file"
-                $CLANG_TIDY_CMD "$file" -- -std=c++17 -I"$PROJECT_ROOT/pyslam/slam/cpp" -I"$PROJECT_ROOT/thirdparty/eigen" || true
+                $CLANG_TIDY_CMD "$file" -- -std=c++17 -I"$PROJECT_ROOT/cpp/core/slam" -I"$PROJECT_ROOT/thirdparty/eigen" || true
             fi
         done
     fi

@@ -17,7 +17,8 @@ import sys
 
 def compare(reference, candidate, max_ratio=1.20, ate_relative=0.20, ate_absolute=0.02):
     """Gate throughput, tracking coverage, and ATE independently."""
-    for key in ("dataset", "name", "sensor", "start", "processed_frames", "alignment"):
+    for key in ("dataset", "name", "sensor", "start", "processed_frames", "alignment",
+                "local_mapping", "loop_closure"):
         if reference.get(key) != candidate.get(key):
             raise ValueError(f"Cannot compare different replay configurations: {key}")
     for report in (reference, candidate):
@@ -53,6 +54,9 @@ def main():
     parser.add_argument('--output', required=True, type=Path, help='Directory for reports and logs')
     parser.add_argument('--frames', type=int, default=300)
     parser.add_argument('--repeats', type=int, default=3)
+    parser.add_argument('--local-mapping', choices=('synchronous', 'threaded'),
+                        default='synchronous')
+    parser.add_argument('--loop-closure', action='store_true')
     parser.add_argument('--max-ratio', type=float, default=1.20)
     args = parser.parse_args()
     if args.frames < 1 or args.repeats < 1 or args.max_ratio <= 1:
@@ -74,7 +78,10 @@ def main():
                 command = [sys.executable, str(harness), '--pyslam-root', str(root),
                            '--dataset', case['dataset'], '--base-path', case['base_path'],
                            '--name', case['name'], '--sensor-type', case['sensor_type'],
-                           '--frames', str(args.frames), '--output', str(output)]
+                           '--frames', str(args.frames), '--output', str(output),
+                           '--local-mapping', args.local_mapping]
+                if args.loop_closure:
+                    command.append('--loop-closure')
                 if case.get('settings'):
                     command += ['--settings', case['settings']]
                 for override in case.get('overrides', []):

@@ -113,7 +113,7 @@ if __name__ == "__main__":
     # "VOXEL_SEMANTIC_PROBABILISTIC_GRID", best for semantic mapping (to be used with semantic mapping activated)
     # "TSDF", allows mesh extraction as output
     # "GAUSSIAN_SPLATTING", requires CUDA
-    #  see pyslam/dense/volumetric_integrator_types.py and cpp/volumetric/README.md
+    #  see pyslam/dense/volumetric_integrator_types.py and cpp/modules/volumetric/README.md
     volumetric_integrator_type = VolumetricIntegratorType.TSDF
     Parameters.kVolumetricIntegrationUseDepthEstimator = (
         slam.sensor_type == SensorType.STEREO

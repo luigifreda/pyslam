@@ -249,7 +249,7 @@ class VolumetricIntegratinOrientedBoundingBox3D:
         box_matrix: np.ndarray,
         box_size: np.ndarray,
     ):
-        # precision consistency with the C++ code in cpp/glutils/globject.h and cpp/volumetric/bounding_boxes_3d.h
+        # precision consistency with the C++ code in cpp/modules/glutils/globject.h and cpp/modules/volumetric/bounding_boxes_3d.h
         matrix = np.asarray(box_matrix, dtype=np.float64)
         if matrix.shape == (4, 4):
             # OpenGL consumes column-major matrices; pybind/eigen expose column-major data.

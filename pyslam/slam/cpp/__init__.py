@@ -50,9 +50,10 @@ from pyslam.utilities.logging import Printer
 USE_PYTHON_FALLBACK = False
 USE_CPP_CORE = Parameters.USE_CPP_CORE
 
-# Add the C++ module lib directory to path
+# The extension is built next to the C++ sources in cpp/core/slam/lib.
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-CPP_LIB_DIR = os.path.join(THIS_DIR, "lib")
+REPO_ROOT = os.path.abspath(os.path.join(THIS_DIR, "..", "..", ".."))
+CPP_LIB_DIR = os.path.join(REPO_ROOT, "cpp", "core", "slam", "lib")
 if os.path.exists(CPP_LIB_DIR):
     sys.path.insert(0, CPP_LIB_DIR)
 else:

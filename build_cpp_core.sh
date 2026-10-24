@@ -25,7 +25,7 @@ print_blue '================================================'
 print_blue "Building pySLAM C++ core"
 print_blue '================================================'
 
-cd "$ROOT_DIR/pyslam/slam/cpp"
+cd "$ROOT_DIR/cpp/core/slam"
 ./build.sh
 
 cd "$STARTING_DIR"

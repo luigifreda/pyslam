@@ -47,7 +47,7 @@ class Parameters:
     # ================================================================
     # C++ core
     # ================================================================
-    # True: cpp_core classes from pyslam/slam/cpp.
+    # True: cpp_core classes from cpp/core/slam.
     # False: the Python classes. Their original computations stay in the Python
     # modules and do not load cpp_core. Other pybind modules are independent of this flag.
     # Override without editing this file: PYSLAM_USE_CPP=false (e.g. if cpp_core
@@ -306,7 +306,7 @@ class Parameters:
     #                             "VOXEL_SEMANTIC_PROBABILISTIC_GRID", best for semantic mapping (to be used with semantic mapping activated)
     #                             "TSDF", allows mesh extraction as output
     #                             "GAUSSIAN_SPLATTING", requires CUDA
-    #                              see pyslam/dense/volumetric_integrator_types.py and cpp/volumetric/README.md
+    #                              see pyslam/dense/volumetric_integrator_types.py and cpp/modules/volumetric/README.md
     kVolumetricIntegrationType = "VOXEL_GRID"
     kVolumetricIntegrationDebugAndPrintToFile = True
     #

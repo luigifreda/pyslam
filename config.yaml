@@ -102,7 +102,7 @@ EUROC_DATASET:
 TUM_VI_DATASET:
   type: tum_vi
   sensor_type: stereo  # mono or stereo; use stereo_mode: native for raw KB4 mono
-  base_path: /media/luigi/T7/datasets/tum_vi_dataset
+  base_path: /home/luigi/Work/datasets/tum_vi_dataset
   name: dataset-room1_512_16
   # native: original KB4 images and calibrated two-camera triangulation.
   # rectified: cached fisheye remapping followed by existing pinhole stereo.
