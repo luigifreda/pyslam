@@ -708,7 +708,7 @@ if [[ -d opencv/install ]]; then
                 print_red "  With conda Python, import cpp_core often segfaults. Fix:"
                 print_red "    conda install -y -c conda-forge tbb tbb-devel"
                 print_red "    rm -rf \"$ROOT_DIR/thirdparty/opencv/build\" \"$ROOT_DIR/thirdparty/opencv/install\""
-                print_red "    Run ./scripts/install_opencv_local.sh again, then rebuild cpp_core (pyslam/slam/cpp/build.sh)."
+                print_red "    Run ./scripts/install_opencv_local.sh again, then rebuild cpp_core (cpp/core/slam/build.sh)."
             fi
             break
         done

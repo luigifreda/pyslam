@@ -73,6 +73,8 @@ rm -Rf thirdparty/orbslam2_features/lib
 
 rm -Rf cpp/build  
 rm -Rf cpp/lib 
+rm -Rf cpp/core/slam/build
+rm -Rf cpp/core/slam/lib
 
 if [ -d "thirdparty/opencv-python" ]; then
     rm -Rf "thirdparty/opencv-python"

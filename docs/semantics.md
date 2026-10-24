@@ -220,7 +220,7 @@ The following list summarizes known limitations of volumetric semantic mapping:
 - **Performance**: Probabilistic fusion is more accurate but more compute-intensive than confidence counters.
 - **Memory**: Voxel blocks reduce memory at large scales (`kVolumetricIntegrationUseVoxelBlocks=True`).
 
-Further information about volumetric integration models and implementation details are available in [cpp/volumetric/README.md](../cpp/volumetric/README.md).
+Further information about volumetric integration models and implementation details are available in [cpp/modules/volumetric/README.md](../cpp/modules/volumetric/README.md).
 
 --- 
 

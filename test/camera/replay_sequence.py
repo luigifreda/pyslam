@@ -1,7 +1,8 @@
 """Bounded, deterministic replay of a recorded sequence; writes timings and trajectory error.
 
 Works for any dataset section in config.yaml (KITTI, EuRoC, TUM, TUM-VI, ...). Local mapping
-runs synchronously, so its cost is included in each tracking call; loop closure, semantics
+runs synchronously by default, so its cost is included in each tracking call;
+--local-mapping threaded mirrors playback scheduling. Loop closure, semantics
 and dense mapping are off unless requested. Use --pyslam-root to replay with another pySLAM
 checkout (e.g. a pinhole-only baseline) for regression comparisons. Run each configuration in
 a fresh process.
@@ -52,6 +53,9 @@ def parse_args():
     parser.add_argument("--frames", type=int, default=0, help="0 means the whole sequence")
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--loop-closure", action="store_true", help="enable DBoW3 loop closing")
+    parser.add_argument("--local-mapping", choices=("synchronous", "threaded"),
+                        default="synchronous",
+                        help="threaded mirrors playback; synchronous keeps comparisons deterministic")
     parser.add_argument("--max-align-dt", type=float, default=0.1)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--max-rss-gib", type=float, default=8.)
@@ -83,7 +87,8 @@ def load_config(args, Config):
     log_folder = args.output.resolve().with_suffix('.logs')
     log_folder.mkdir(parents=True, exist_ok=True)
     settings["GLOBAL_PARAMETERS"] = dict(settings.get("GLOBAL_PARAMETERS") or {},
-        kLocalMappingOnSeparateThread=False, kUseLoopClosing=args.loop_closure,
+        kLocalMappingOnSeparateThread=args.local_mapping == "threaded",
+        kUseLoopClosing=args.loop_closure,
         kLogsFolder=str(log_folder),
         kDoSparseSemanticMappingAndSegmentation=False, kDoVolumetricIntegration=False)
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as handle:
@@ -105,6 +110,15 @@ def summarize(samples):
     return dict(median=1000 * float(np.median(samples)),
                 p95=1000 * float(np.percentile(samples, 95)),
                 mean=1000 * float(np.mean(samples)))
+
+
+def groundtruth_samples(gt):
+    # TUM's frame associations can reuse a mocap sample for adjacent images.
+    # Evaluate against the raw mocap stream so interpolation sees unique times.
+    if gt.type.name in ("TUM", "ICL_NUIM"):
+        samples = np.loadtxt(gt.filename, dtype=np.float64, ndmin=2)
+        return samples[:, 1:4] * gt.scale, samples[:, 0]
+    return gt.getFull3dTrajectory()
 
 
 def run(args, guard):
@@ -136,7 +150,7 @@ def run(args, guard):
     report = dict(pyslam_root=str(args.pyslam_root), dataset=args.dataset, name=args.name,
                   sensor=sensor.name, overrides=args.set, cpp_core=Parameters.USE_CPP_CORE,
                   start=args.start, processed_frames=count, total_frames=dataset.num_frames,
-                  local_mapping="synchronous", loop_closure=args.loop_closure)
+                  local_mapping=args.local_mapping, loop_closure=args.loop_closure)
     report['environment'] = dict(python=platform.python_version(), platform=platform.platform(),
                                  numpy=np.__version__, opencv=cv2.__version__,
                                  opencv_threads=cv2.getNumThreads(),
@@ -152,8 +166,13 @@ def run(args, guard):
         report["commit"], report["worktree_diff_stat"] = None, None
     report['source_sha256'] = {
         str(path.relative_to(args.pyslam_root)): hashlib.sha256(path.read_bytes()).hexdigest()
-        for pattern in ('*.py', 'cpp/*.cpp', 'cpp/*.h', 'cpp/lib/cpp_core*.so')
-        for path in sorted((args.pyslam_root / 'pyslam/slam').glob(pattern))}
+        for root, patterns in (
+            (args.pyslam_root / 'pyslam/slam', ('*.py',)),
+            (args.pyslam_root / 'cpp/core/slam', ('*.cpp', '*.h', 'lib/cpp_core*.so')),
+            (args.pyslam_root / 'pyslam/slam/cpp', ('*.cpp', '*.h', 'lib/cpp_core*.so')),
+        )
+        for pattern in patterns
+        for path in sorted(root.glob(pattern))}
 
     tracker = copy.deepcopy(FeatureTrackerConfigs.ORB2)
     tracker["num_features"] = config.num_features_to_extract
@@ -208,7 +227,7 @@ def run(args, guard):
                  track_and_map_s=np.asarray(tracking))
         gt = groundtruth_factory(config.dataset_settings)
         if gt is not None and len(poses) >= 3:
-            gt_positions, gt_timestamps = gt.getFull3dTrajectory()
+            gt_positions, gt_timestamps = groundtruth_samples(gt)
             sim3 = sensor == SensorType.MONOCULAR
             report.update(translation_ate(
                 np.asarray(timestamps, dtype=np.float64), poses[:, :3, 3].astype(np.float64),

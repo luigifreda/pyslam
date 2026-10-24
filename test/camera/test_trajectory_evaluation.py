@@ -1,12 +1,24 @@
 import unittest
+import tempfile
+from types import SimpleNamespace
 
 import numpy as np
 
 from trajectory_evaluation import translation_ate
 from run_pinhole_regression import compare
+from replay_sequence import groundtruth_samples
 
 
 class TestTranslationATE(unittest.TestCase):
+    def test_tum_uses_raw_mocap_instead_of_repeated_frame_associations(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt") as file:
+            file.write("# timestamp tx ty tz qx qy qz qw\n1 2 3 4 0 0 0 1\n2 3 4 5 0 0 0 1\n")
+            file.flush()
+            gt = SimpleNamespace(type=SimpleNamespace(name="TUM"), filename=file.name, scale=2.)
+            positions, timestamps = groundtruth_samples(gt)
+        np.testing.assert_array_equal(timestamps, [1., 2.])
+        np.testing.assert_array_equal(positions, [[4., 6., 8.], [6., 8., 10.]])
+
     def setUp(self):
         self.ts = np.arange(5) * 0.02
         self.xyz = np.array([[0., 0, 0], [1, 0, 0], [1, 2, 0], [0, 1, 1], [1, 0, 2]])
@@ -65,7 +77,8 @@ class TestReplayRegressionGate(unittest.TestCase):
                 self.assertEqual(result['failures'], [failure])
 
     def test_incompatible_or_unevaluable_runs_fail(self):
-        for change in ({'sensor': 'MONOCULAR'}, {'ate_rmse_m': -1}, {'gt_associations': 0},
+        for change in ({'sensor': 'MONOCULAR'}, {'local_mapping': 'threaded'},
+                       {'loop_closure': True}, {'ate_rmse_m': -1}, {'gt_associations': 0},
                        {'ate_rmse_m': float('nan')}, {'track_and_map_ms': {'mean': 0}}):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 compare(self.report, dict(self.report, **change))

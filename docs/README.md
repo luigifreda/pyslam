@@ -9,7 +9,7 @@
 - [Camera models](./cameras.md)
 - [TUM-VI visual mono and stereo](./tum-vi.md)
 - [Camera review and validation (2026-10-18)](./camera-review-2026-10-18.md)
-- [C++ sparse-SLAM core](../pyslam/slam/cpp/README.md)
+- [C++ sparse-SLAM core](../cpp/core/slam/README.md)
 - [Semantic Mapping and Segmentation](./semantics.md)
 - [Volumetric Mapping](./volumetric_mapping.md)
 - [Scene from Views](./scene_from_views.md)

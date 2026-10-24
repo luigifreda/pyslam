@@ -5,8 +5,10 @@
       "includePath": [
         "${workspaceFolder}/cpp",
         "${workspaceFolder}/cpp/**",
-        "${workspaceFolder}/pyslam/slam/cpp",
-        "${workspaceFolder}/pyslam/slam/cpp/**",
+        "${workspaceFolder}/cpp/core/slam",
+        "${workspaceFolder}/cpp/core/slam/**",
+        "${workspaceFolder}/cpp/core/semantics",
+        "${workspaceFolder}/cpp/core/semantics/**",
         "/usr/include",
         "/usr/local/include",
         "${workspaceFolder}/thirdparty/pybind11/include",

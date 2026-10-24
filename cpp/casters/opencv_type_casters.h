@@ -19,8 +19,8 @@
 #pragma once
 
 // NOTE: The actual path of this file is cpp/casters/opencv_type_casters.h
-//       We actually created a symlink to this file in other places of the project
-// TESTED with cpp/test_opencv_casters/run_tests.sh
+//       cpp/core/slam includes this directory. Other modules include it directly.
+// TESTED with cpp/modules/test_opencv_casters/run_tests.sh
 
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>

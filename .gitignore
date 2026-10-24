@@ -71,18 +71,25 @@ data/skyseg.onnx
 data/models/
 
 pyslam/slam/cpp/tests_py/test_data
+cpp/core/slam/tests_py/test_data
 
 leftover/
 results/
 
 cpp/test_opencv_casters/build
 cpp/test_opencv_casters/lib
+cpp/modules/test_opencv_casters/build
+cpp/modules/test_opencv_casters/lib
 cpp/.cache/clangd
 
 pyslam/slam/cpp/build
 pyslam/slam/cpp/build_simple
 pyslam/slam/cpp/lib
 pyslam/slam/cpp/.cache
+cpp/core/slam/build
+cpp/core/slam/build_simple
+cpp/core/slam/lib
+cpp/core/slam/.cache
 
 cpp/opencv_type_casters_old.h
 

@@ -1,4 +1,18 @@
-# pybind11 binding for C++ pyslam utils
+# C++ extensions
+
+Utility extensions, the sparse-SLAM core, and the semantic-mapping sources live under this directory. `./build.sh` writes the utility extensions to `lib/`. The sparse-SLAM module `cpp_core` is built from the repository root with `./build_cpp_core.sh` and lands in `core/slam/lib`.
+
+```text
+cpp/
+  modules/          # hamming, glutils, solvers, volumetric, camera_models, ...
+    tests/          # smoke tests for those extensions
+  casters/          # shared OpenCV pybind11 type casters
+  core/slam/        # sparse-SLAM C++ core
+  core/semantics/   # compiled into cpp_core
+  lib/              # utility extension binaries
+```
+
+Python imports `cpp_core` through `pyslam/slam/cpp`. The other extension names (`pyslam_utils`, `glutils`, `hamming`, `volumetric`, and so on) are unchanged.
 
 ## Available Modules
 
@@ -34,4 +48,4 @@ Color conversion utilities for ID visualization. Provides `IdsColorTable` class 
 
 Volumetric mapping and integration. Provides voxel grid data structures for TSDF (Truncated Signed Distance Function) mapping, semantic voxel grids, camera frustum culling, and TBB-based parallel processing utilities.
 
-See [volumetric/README.md](volumetric/README.md) for detailed documentation.
+See [modules/volumetric/README.md](modules/volumetric/README.md) for detailed documentation.
