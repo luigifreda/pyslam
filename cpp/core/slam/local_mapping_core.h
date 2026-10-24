@@ -21,6 +21,7 @@
 #include "map.h"
 #include "smart_pointers.h"
 #include <set>
+#include <atomic>
 #include <vector>
 
 namespace pyslam {
@@ -42,7 +43,7 @@ class LocalMappingCore {
     int &get_kid_last_BA();
 
     void set_opt_abort_flag(bool value);
-    bool &get_opt_abort_flag();
+    bool get_opt_abort_flag() const;
 
     void add_points(const std::vector<MapPointPtr> &points);
     void remove_points(const std::vector<MapPointPtr> &points);
@@ -80,7 +81,7 @@ class LocalMappingCore {
     KeyFramePtr kf_cur_ = nullptr;
     int kid_last_BA_ = -1;
 
-    bool opt_abort_flag_ = false;
+    std::atomic<bool> opt_abort_flag_{false};
 };
 
 } // namespace pyslam

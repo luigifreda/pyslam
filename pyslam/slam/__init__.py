@@ -51,11 +51,37 @@ if USE_CPP:
 else:
     # Assign all classes from fallback to global namespace
     for name, cls in python_module.classes.items():
-        globals()[name] = cls
-        classes_dict[name] = cls
+        if cls is not None:
+            globals()[name] = cls
+            classes_dict[name] = cls
 
 
 globals()["USE_CPP"] = USE_CPP
+
+# Load the Python orchestrators only when requested. Importing Map/Frame in a
+# worker process should not import the entire feature tracker and viewer stack.
+_PYTHON_FRONTENDS = {
+    "MotionModel": "motion_model",
+    "MotionModelDamping": "motion_model",
+    "Initializer": "initializer",
+    "SLAMDynamicConfig": "slam_dynamic_config",
+    "Tracking": "tracking",
+    "LocalMapping": "local_mapping",
+    "Slam": "slam",
+}
+
+
+def __getattr__(name):
+    if not USE_CPP and name in _PYTHON_FRONTENDS:
+        from importlib import import_module
+
+        cls = getattr(import_module(f".{_PYTHON_FRONTENDS[name]}", __name__), name)
+        globals()[name] = cls
+        classes_dict[name] = cls
+        python_module.classes[name] = cls
+        setattr(python_module, name, cls)
+        return cls
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def camera_from_config(config):

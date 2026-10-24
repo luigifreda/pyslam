@@ -58,8 +58,13 @@ def triangulate_normalized_points(pose_1w, pose_2w, kpn_1, kpn_2):
     P2w = pose_2w[:3, :]  # [R2w, t2w]
 
     point_4d_hom = cv2.triangulatePoints(P1w, P2w, kpn_1.T, kpn_2.T)
-    good_pts_mask = np.where(point_4d_hom[3] != 0)[0]
-    point_4d = point_4d_hom / point_4d_hom[3]
+    # Map.add_points expects one boolean per input point. Returning indices
+    # makes index 0 false and can shorten the mask when triangulation fails.
+    good_pts_mask = point_4d_hom[3] != 0
+    point_4d = np.divide(
+        point_4d_hom, point_4d_hom[3],
+        out=np.zeros_like(point_4d_hom), where=good_pts_mask,
+    )
 
     if __debug__:
         if False:

@@ -17,6 +17,7 @@
  * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "local_mapping_core.h"
+#include "owned_g2o_optimizer.h"
 #include "config_parameters.h"
 #include "eigen_aliases.h"
 #include "geometry_matchers.h"
@@ -53,7 +54,7 @@ int &LocalMappingCore::get_kid_last_BA() { return kid_last_BA_; }
 
 void LocalMappingCore::set_opt_abort_flag(bool value) { opt_abort_flag_ = value; }
 
-bool &LocalMappingCore::get_opt_abort_flag() { return opt_abort_flag_; }
+bool LocalMappingCore::get_opt_abort_flag() const { return opt_abort_flag_.load(); }
 
 void LocalMappingCore::add_points(const std::vector<MapPointPtr> &points) {
     recently_added_points_.insert(points.begin(), points.end());
@@ -272,9 +273,11 @@ int LocalMappingCore::cull_keyframes(bool use_fov_centers_based_kf_generation,
 }
 
 std::pair<float, int> LocalMappingCore::local_BA() {
+    ScopedAtomicOptimizationAbort abort_context(opt_abort_flag_);
+    bool solver_abort = opt_abort_flag_.load();
     // local optimization
     float err = static_cast<float>(
-        map_->locally_optimize(kf_cur_, false, 10, &opt_abort_flag_ // verbose, rounds, abort_flag
+        map_->locally_optimize(kf_cur_, false, 10, &solver_abort // verbose, rounds, abort_flag
                                ));
 
     int num_kf_ref_tracked_points =
@@ -284,6 +287,8 @@ std::pair<float, int> LocalMappingCore::local_BA() {
 }
 
 float LocalMappingCore::large_window_BA() {
+    ScopedAtomicOptimizationAbort abort_context(opt_abort_flag_);
+    bool solver_abort = opt_abort_flag_.load();
     // large window optimization of the map
     kid_last_BA_ = kf_cur_->kid;
     float err =
@@ -292,7 +297,7 @@ float LocalMappingCore::large_window_BA() {
                                           10,                             // rounds
                                           false,                          // use_robust_kernel
                                           false,                          // do_cull_points
-                                          &opt_abort_flag_                // abort_flag
+                                          &solver_abort                   // abort_flag
                                           ));
 
     return err;

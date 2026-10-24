@@ -119,6 +119,13 @@ core_classes = [
     "ProjectionMatcher",
     "EpipolarMatcher",
     "SemanticMappingSharedResources",
+    "MotionModel",
+    "MotionModelDamping",
+    "Initializer",
+    "SLAMDynamicConfig",
+    "Tracking",
+    "LocalMapping",
+    "Slam",
 ]
 
 
@@ -164,6 +171,13 @@ def _import_cpp_core():
             "ProjectionMatcher": cpp_core.ProjectionMatcher,
             "EpipolarMatcher": cpp_core.EpipolarMatcher,
             "SemanticMappingSharedResources": cpp_core.SemanticMappingSharedResources,
+            "MotionModel": cpp_core.MotionModel,
+            "MotionModelDamping": cpp_core.MotionModelDamping,
+            "Initializer": cpp_core.Initializer,
+            "SLAMDynamicConfig": cpp_core.SLAMDynamicConfig,
+            "Tracking": cpp_core.Tracking,
+            "LocalMapping": cpp_core.LocalMapping,
+            "Slam": cpp_core.Slam,
         }
 
         out_classes = {}
@@ -243,6 +257,14 @@ def _import_python_core():
             "ProjectionMatcher": ProjectionMatcher,
             "EpipolarMatcher": EpipolarMatcher,
             "SemanticMappingSharedResources": None,
+            # Imported after the package namespace exists. See pyslam/slam/__init__.py.
+            "MotionModel": None,
+            "MotionModelDamping": None,
+            "Initializer": None,
+            "SLAMDynamicConfig": None,
+            "Tracking": None,
+            "LocalMapping": None,
+            "Slam": None,
         }
         out_classes = {}
         # we check the coverage here to ensure we have all the classes
