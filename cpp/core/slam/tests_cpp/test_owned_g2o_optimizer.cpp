@@ -40,6 +40,19 @@ void build(bool fail) {
 }
 
 int main() {
+    // The external thread writes only the atomic request, never g2o's bool*.
+    std::atomic<bool> requested{false};
+    bool solver_stop = false;
+    {
+        pyslam::ScopedAtomicOptimizationAbort context(requested);
+        pyslam::OwnedG2oOptimizer optimizer;
+        optimizer.setForceStopFlag(&solver_stop);
+        requested = true;
+        if (solver_stop) return 2;
+        optimizer.preIteration(0);
+        if (!solver_stop || !optimizer.terminate()) return 3;
+    }
+    if (pyslam::ScopedAtomicOptimizationAbort::current) return 4;
     for (int i = 0; i < 100; ++i) {
         try { build(i % 2); } catch (const std::runtime_error &) {}
         const int count = i + 1;

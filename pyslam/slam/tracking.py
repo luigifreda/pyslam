@@ -739,7 +739,7 @@ class Tracking:
                 self.f_cur.isometry3d() * self.f_cur.kf_ref.isometry3d().inverse()
             )  # pose of current frame w.r.t. current reference keyframe kf_ref
             self.tracking_history.relative_frame_poses.append(isometry3d_Tcr)
-            self.tracking_history.kf_references.append(self.kf_ref)
+            self.tracking_history.kf_references.append(self.f_cur.kf_ref)
             self.tracking_history.timestamps.append(self.f_cur.timestamp)
             self.tracking_history.ids.append(self.f_cur.id)
         else:
@@ -1274,8 +1274,10 @@ class Tracking:
         # HACK: Since local mapping may be not fast enough in python (and tracking is not in real-time) => give local mapping more time to process stuff
         self.wait_for_local_mapping()  # N.B.: this must be outside the `with self.map.update_lock:` block
 
-        with self.map.update_lock:
-
+        # The map lock is released around loop_closing.relocalize(). That call enters
+        # Python LoopClosing, and holding the lock across it deadlocks the C++ twin.
+        self.map.update_lock.acquire()
+        try:
             # DEBUG:
             # if img_id == 50:
             # # if self.map.num_keyframes() > 50: # for ibow
@@ -1327,7 +1329,12 @@ class Tracking:
                 # SLAM is NOT OK
                 if self.state != SlamState.INIT_RELOCALIZE:
                     self.state = SlamState.RELOCALIZE
-                if self.relocalize(f_cur, img):
+                self.map.update_lock.release()
+                try:
+                    relocalized = self.relocalize(f_cur, img)
+                finally:
+                    self.map.update_lock.acquire()
+                if relocalized:
                     # Always set last_reloc_frame_id after successful relocalization
                     self.last_reloc_frame_id = f_cur.id
                     if self.state != SlamState.INIT_RELOCALIZE:
@@ -1417,6 +1424,8 @@ class Tracking:
                                 kf.update_connections()
                             # if self.kf_ref is not None:
                             #     self.map.local_map.update(self.kf_ref)
+        finally:
+            self.map.update_lock.release()
 
         # end block {with self.map.update_lock:}
 

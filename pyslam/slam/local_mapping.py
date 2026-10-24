@@ -216,15 +216,17 @@ class LocalMapping:
             return
         with self.reset_mutex:
             self.reset_requested = True
-        if Parameters.kLocalMappingOnSeparateThread:
+        if self.work_thread is not None and self.work_thread.is_alive() and self.is_running:
             while True:
                 with self.queue_condition:
                     self.queue_condition.notify_all()  # to unblock self.pop_keyframe()
                 with self.reset_mutex:
-                    if not self.reset_requested:
+                    if not self.reset_requested or not self.is_running:
                         break
                 time.sleep(0.1)
                 LocalMapping.print("LocalMapping: waiting for reset...")
+        else:
+            self.reset_if_requested()
         LocalMapping.print("LocalMapping: ...Reset done.")
 
     def reset_if_requested(self):
@@ -273,7 +275,7 @@ class LocalMapping:
                     if not ok:
                         break  # Timeout occurred
                     # LocalMapping.print('LocalMapping: waiting for keyframe...')
-        if self.queue.empty() or self.stop_requested:
+        if self.queue.empty() or self.reset_requested:
             return None
         try:
             return self.queue.get(timeout=timeout)
@@ -363,7 +365,8 @@ class LocalMapping:
 
     def step(self):
         if self.map.num_keyframes() > 0:
-            if not self.stop_requested:
+            # GBA waits for queued work to finish before applying corrections.
+            if not self.stop_requested or not self.queue.empty():
                 ret = self.pop_keyframe()  # blocking call
                 if ret is not None:
                     (self.kf_cur, self.img_cur, self.img_cur_right, self.depth_cur) = ret
@@ -384,7 +387,7 @@ class LocalMapping:
 
             elif self.stop_if_requested():
                 self.set_idle(True)
-                while self.is_stopped():
+                while self.is_stopped() and self.is_running and not self.reset_requested:
                     LocalMapping.print(f"LocalMapping: stopped, idle: {self._is_idle} ...")
                     time.sleep(kLocalMappingSleepTime)
         else:

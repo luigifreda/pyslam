@@ -35,8 +35,8 @@ from pyslam.config import Config  # , dump_config_to_json
 from pyslam.semantics.semantic_mapping_configs import SemanticMappingConfigs
 from pyslam.semantics.semantic_eval import evaluate_semantic_mapping
 
-from pyslam.slam.slam import Slam, SlamState
-from pyslam.slam import camera_from_config, USE_CPP
+from pyslam.slam.slam_commons import SlamState
+from pyslam.slam import Slam, camera_from_config, USE_CPP
 
 from pyslam.viz.slam_plot_drawer import SlamPlotDrawerThread
 from pyslam.io.ground_truth import groundtruth_factory, is_valid_groundtruth, need_sim3_alignment

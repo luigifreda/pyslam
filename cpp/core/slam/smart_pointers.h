@@ -116,4 +116,28 @@ class Map;
 // DECLARE_POINTERS(Map)
 DECLARE_SMART_POINTERS(Map)
 
+class MotionModelBase;
+DECLARE_SMART_POINTERS(MotionModelBase)
+
+class MotionModel;
+DECLARE_SMART_POINTERS(MotionModel)
+
+class MotionModelDamping;
+DECLARE_SMART_POINTERS(MotionModelDamping)
+
+class Initializer;
+DECLARE_SMART_POINTERS(Initializer)
+
+class SLAMDynamicConfig;
+DECLARE_SMART_POINTERS(SLAMDynamicConfig)
+
+class Tracking;
+DECLARE_SMART_POINTERS(Tracking)
+
+class LocalMapping;
+DECLARE_SMART_POINTERS(LocalMapping)
+
+class Slam;
+DECLARE_SMART_POINTERS(Slam)
+
 } // namespace pyslam

@@ -51,6 +51,7 @@
 #include "py_module/rotation_histogram_module.h"
 #include "py_module/sim3_pose_module.h"
 #include "py_module/tracking_core_module.h"
+#include "py_module/slam_pipeline_module.h"
 
 #include "py_module/semantic_mapping_shared_resources_module.h"
 
@@ -171,6 +172,13 @@ PYBIND11_MODULE(cpp_core, m) {
     // LocalMappingCore class
 
     bind_local_mapping_core(m);
+
+    bind_motion_model(m);
+    bind_slam_dynamic_config(m);
+    bind_initializer(m);
+    bind_tracking(m);
+    bind_local_mapping(m);
+    bind_slam(m);
 
     // ------------------------------------------------------------
     // Rotation histogram

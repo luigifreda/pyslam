@@ -27,8 +27,8 @@ enum class SlamState {
     NOT_INITIALIZED = 1,
     OK = 2,
     LOST = 3,
-    INIT_RELOCALIZE = 4,
-    RELOCALIZE = 5
+    RELOCALIZE = 4,
+    INIT_RELOCALIZE = 5
 };
 
 } // namespace pyslam

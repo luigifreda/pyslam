@@ -38,6 +38,7 @@ void bind_config_parameters(py::module &m) {
     py::class_<pyslam::Parameters>(m, "Parameters")
         .def_readwrite_static("kFeatureMatchDefaultRatioTest",
                               &pyslam::Parameters::kFeatureMatchDefaultRatioTest)
-        .def_readwrite_static("kMaxDescriptorDistance",
-                              &pyslam::Parameters::kMaxDescriptorDistance);
+        .def_property_static("kMaxDescriptorDistance",
+            [](py::object) { return pyslam::Parameters::kMaxDescriptorDistance.load(); },
+            [](py::object, float value) { pyslam::Parameters::kMaxDescriptorDistance = value; });
 }

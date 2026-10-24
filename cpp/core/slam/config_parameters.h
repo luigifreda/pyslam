@@ -18,6 +18,7 @@
  */
 
 #pragma once
+#include <atomic>
 
 #include <array>
 #include <cstddef>
@@ -135,8 +136,61 @@ class Parameters {
                                                 // feature matchers. It can be configured per
                                                 // descriptor in feature_tracker_configs.py
 
-    static float kMaxDescriptorDistance; // It is initialized by the first created instance of
+    static std::atomic<float> kMaxDescriptorDistance; // It is initialized by the first created instance of
                                          // feature_manager.py at runtime
+
+    // Runtime copies of the Python Parameters flags the C++ tracker and local mapper read.
+    // Slam construction copies the current Python values into these fields.
+    static bool kLocalMappingOnSeparateThread;
+    static bool kTrackingWaitForLocalMappingToGetIdle;
+    static double kWaitForLocalMappingTimeout;
+    static double kParallelLBAWaitIdleTimeout;
+    static double kLocalMappingTimeoutPopKeyframe;
+    static bool kUseDynamicDesDistanceTh;
+    static bool kUseDescriptorSigmaMadv2;
+    static double kCosMaxParallaxInitializer;
+    static double kInitializerDesiredMedianDepth;
+    static double kInitializerMinRatioDepthBaseline;
+    static int kInitializerNumMinFeatures;
+    static int kInitializerNumMinFeaturesStereo;
+    static int kInitializerNumMinTriangulatedPoints;
+    static int kInitializerNumMinTriangulatedPointsStereo;
+    static float kInitializerFeatureMatchRatioTest;
+    static int kInitializerNumMinNumPointsForPnPWithDepth;
+    static bool kInitializerUseCellCoverageCheck;
+    static bool kInitializerUseMinFrameDistanceCheck;
+    static bool kUseMotionModel;
+    static bool kUseSearchFrameByProjection;
+    static int kMinNumMatchedFeaturesSearchFrameByProjection;
+    static bool kUseEssentialMatrixFitting;
+    static int kMinNumMatchedFeaturesSearchReferenceFrame;
+    static bool kUseVisualOdometryPoints;
+    static bool kUseInterruptLocalMapping;
+    static bool kUseMotionBlurDection;
+    static double kMotionBlurDetectionLalacianVarianceThreshold;
+    static int kMotionBlurDetectionMaxNumMatchedKpsToEnablRansacHomography;
+    static int kNumMinPointsForNewKf;
+    static int kNumMinTrackedClosePointsForNewKfNonMonocular;
+    static int kNumMaxNonTrackedClosePointsForNewKfNonMonocular;
+    static double kThNewKfRefRatioMonocular;
+    static double kThNewKfRefRatioStereo;
+    static double kThNewKfRefRatioNonMonocular;
+    static bool kUseFeatureCoverageControlForNewKf;
+    static bool kLocalMappingParallelKpsMatching;
+    static int kLocalMappingParallelKpsMatchingNumWorkers;
+    static bool kUseLargeWindowBA;
+    static int kEveryNumFramesLargeWindowBA;
+    static bool kUseParallelProcessLBA;
+    static bool kOptimizationFrontEndUseGtsam;
+    static bool kUseLoopClosing;
+    static bool kDoVolumetricIntegration;
+    static bool kDoSparseSemanticMappingAndSegmentation;
+    static bool kSemanticMappingOnSeparateThread;
+
+#ifdef USE_PYTHON
+    // Copy the live Python Parameters values so a C++ Slam follows the same config.
+    static void sync_runtime_from_python();
+#endif
 };
 
 } // namespace pyslam

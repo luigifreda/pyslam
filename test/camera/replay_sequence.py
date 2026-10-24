@@ -53,6 +53,8 @@ def parse_args():
     parser.add_argument("--frames", type=int, default=0, help="0 means the whole sequence")
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--loop-closure", action="store_true", help="enable DBoW3 loop closing")
+    parser.add_argument("--frontend", choices=("python", "cpp"), default="python",
+                        help="orchestrator implementation; both may use the native core")
     parser.add_argument("--local-mapping", choices=("synchronous", "threaded"),
                         default="synchronous",
                         help="threaded mirrors playback; synchronous keeps comparisons deterministic")
@@ -136,7 +138,12 @@ def run(args, guard):
     from pyslam.io.ground_truth import groundtruth_factory
     from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
     from pyslam.loop_closing.loop_detector_configs import LoopDetectorConfigs
-    from pyslam.slam.slam import Slam
+    if args.frontend == "cpp":
+        if not Parameters.USE_CPP_CORE:
+            raise ValueError("The C++ frontend requires PYSLAM_USE_CPP=1")
+        from pyslam.slam import Slam
+    else:
+        from pyslam.slam.slam import Slam
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     config = load_config(args, Config)
@@ -150,7 +157,8 @@ def run(args, guard):
     report = dict(pyslam_root=str(args.pyslam_root), dataset=args.dataset, name=args.name,
                   sensor=sensor.name, overrides=args.set, cpp_core=Parameters.USE_CPP_CORE,
                   start=args.start, processed_frames=count, total_frames=dataset.num_frames,
-                  local_mapping=args.local_mapping, loop_closure=args.loop_closure)
+                  local_mapping=args.local_mapping, loop_closure=args.loop_closure,
+                  frontend=args.frontend)
     report['environment'] = dict(python=platform.python_version(), platform=platform.platform(),
                                  numpy=np.__version__, opencv=cv2.__version__,
                                  opencv_threads=cv2.getNumThreads(),

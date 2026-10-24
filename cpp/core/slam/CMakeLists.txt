@@ -403,6 +403,12 @@ set(SLAM_CPP_CORE_SOURCES
     ${PYSLAM_SLAM_SRC}/config_parameters.cpp
     ${PYSLAM_SLAM_SRC}/geometry_matchers.cpp
     ${PYSLAM_SLAM_SRC}/local_mapping_core.cpp
+    ${PYSLAM_SLAM_SRC}/motion_model.cpp
+    ${PYSLAM_SLAM_SRC}/slam_dynamic_config.cpp
+    ${PYSLAM_SLAM_SRC}/initializer.cpp
+    ${PYSLAM_SLAM_SRC}/tracking.cpp
+    ${PYSLAM_SLAM_SRC}/local_mapping.cpp
+    ${PYSLAM_SLAM_SRC}/slam.cpp
 )
 
 if (USE_PYTHON)
@@ -453,6 +459,13 @@ set(SLAM_CPP_CORE_HEADERS
     ${PYSLAM_SLAM_SRC}/config_parameters.h
     ${PYSLAM_SLAM_SRC}/geometry_matchers.h
     ${PYSLAM_SLAM_SRC}/local_mapping_core.h
+    ${PYSLAM_SLAM_SRC}/frontend_helpers.h
+    ${PYSLAM_SLAM_SRC}/motion_model.h
+    ${PYSLAM_SLAM_SRC}/slam_dynamic_config.h
+    ${PYSLAM_SLAM_SRC}/initializer.h
+    ${PYSLAM_SLAM_SRC}/tracking.h
+    ${PYSLAM_SLAM_SRC}/local_mapping.h
+    ${PYSLAM_SLAM_SRC}/slam.h
 )
 
 if (USE_PYTHON)
@@ -513,6 +526,7 @@ set(SLAM_CPP_PYBIND_MODULE_HEADERS
     ${PYSLAM_SLAM_SRC}/py_module/rotation_histogram_module.h
     ${PYSLAM_SLAM_SRC}/py_module/geometry_matchers_module.h
     ${PYSLAM_SLAM_SRC}/py_module/local_mapping_core_module.h
+    ${PYSLAM_SLAM_SRC}/py_module/slam_pipeline_module.h
     # semantics
     ${PYSLAM_SEMANTICS_SRC}/py_module/semantic_mapping_shared_resources_module.h
 )
