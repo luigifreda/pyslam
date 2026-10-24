@@ -216,6 +216,19 @@ target_link_libraries(pyslam_utils PRIVATE
 )
 
 #=======================================
+# Add data_thread_reader module
+#=======================================
+
+find_package(Threads REQUIRED)
+pybind11_add_module(data_thread_reader
+    modules/data_thread_reader/data_thread_reader_module.cpp
+    modules/data_thread_reader/image_prefetcher.cpp)
+target_link_libraries(data_thread_reader PRIVATE
+    ${OpenCV_LIBS}
+    Threads::Threads
+)
+
+#=======================================
 # Add sim3solver module
 #=======================================
 

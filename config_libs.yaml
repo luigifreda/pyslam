@@ -6,6 +6,7 @@ CORE_LIB_PATHS:
   pangolin: thirdparty/pangolin
   orb_features: thirdparty/orbslam2_features/lib
   pyslam_utils: cpp/lib
+  data_thread_reader: cpp/lib
   thirdparty: thirdparty  # considering the folders in thirdparty as modules
   gtsam_factors: thirdparty/gtsam_factors/lib
   ros2_pybindings: thirdparty/ros2_pybindings/lib

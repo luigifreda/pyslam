@@ -162,9 +162,9 @@ This paper provides a presentation of the first version of sparse semantic mappi
 
 The camera exposes projection, unprojection, and analytic projection Jacobians. Omitting `Camera.type` keeps the linear pinhole used by the existing datasets: detected points are undistorted, and projection does not apply distortion. `kannala_brandt4`, `pinhole_radtan8`, and `double_sphere` project detected pixels directly. Mono, RGB-D, and calibrated native stereo use the corresponding model-aware factors; rectified stereo retains pinhole geometry, and Sim(3) uses undistorted coordinates.
 
-The model parameters, pixel conventions, and factor layout are described in [Camera models](./cameras.md).
+The model parameters, pixel conventions, and factor layout are described in [Camera models](../cpp/modules/camera_models/README.md).
 
-New-model mapping uses raw-pixel measurements consistently. RGB-D and calibrated native stereo use model-aware native factors, and serialization preserves camera subclasses and rig extrinsics. Pinhole observations retain their native optimizer paths. See [TUM-VI](./tum-vi.md) for native and rectified modes, and [Camera models](./cameras.md#tests) for the regression suite.
+New-model mapping uses raw-pixel measurements consistently. RGB-D and calibrated native stereo use model-aware native factors, and serialization preserves camera subclasses and rig extrinsics. Pinhole observations retain their native optimizer paths. See [TUM-VI](./tum-vi.md) for native and rectified modes, and [Camera models](../cpp/modules/camera_models/README.md#tests) for the regression suite.
 
 ## C++ Core for Sparse SLAM
 
