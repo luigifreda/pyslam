@@ -126,7 +126,15 @@ class Sim3Pose {
     // Transform a set of 3D points [Nx3]
     Eigen::MatrixXd map_points(const Eigen::MatrixXd &points) const {
         assert(points.cols() == 3 && "Points must be Nx3 matrix");
-        return ((s_ * R_ * points.transpose()).colwise() + t_).transpose();
+        // Per-point loop: the matrix form goes through GEMM with transposed
+        // temporaries and is several times slower.
+        const Eigen::Matrix3d sR = s_ * R_;
+        const Eigen::Index N = points.rows();
+        Eigen::MatrixXd result(N, 3);
+        for (Eigen::Index i = 0; i < N; ++i) {
+            result.row(i).noalias() = (sR * points.row(i).transpose() + t_).transpose();
+        }
+        return result;
     }
 
     // Matrix multiplication operator

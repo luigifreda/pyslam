@@ -233,9 +233,13 @@ MatNx3<Scalar> FrameBase::transform_points(MatNx3Ref<Scalar> points) const {
     const Mat3<Scalar> Rcw_mat = _pose.Rcw().template cast<Scalar>();
     const Vec3<Scalar> tcw_vec = _pose.tcw().template cast<Scalar>();
 
-    // Transform: (Rcw @ points.T + tcw).T
-    MatNx3<Scalar> result = (Rcw_mat * points.transpose()).transpose();
-    result.rowwise() += tcw_vec.transpose();
+    // Transform: (Rcw @ points.T + tcw).T, one point at a time: the matrix form
+    // goes through GEMM with transposed temporaries and is several times slower.
+    const int N = static_cast<int>(points.rows());
+    MatNx3<Scalar> result(N, 3);
+    for (int i = 0; i < N; ++i) {
+        result.row(i).noalias() = (Rcw_mat * points.row(i).transpose() + tcw_vec).transpose();
+    }
     return result;
 }
 

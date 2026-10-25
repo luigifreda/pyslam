@@ -57,41 +57,41 @@ draw_horizontal_layout = True  # draw matches with the two images in an horizont
 test_type = "graf"  # select the test type (there's a template below to add your test)
 #
 if test_type == "box":
-    img1 = cv2.imread(kScriptFolder + "/test/data/box.png")  # queryImage
-    img2 = cv2.imread(kScriptFolder + "/test/data/box_in_scene.png")  # trainImage
+    img1 = cv2.imread(kScriptFolder + "/examples/data/box.png")  # queryImage
+    img2 = cv2.imread(kScriptFolder + "/examples/data/box_in_scene.png")  # trainImage
     model_fitting_type = "homography"
     draw_horizontal_layout = True
 #
 if test_type == "graf":
-    img1 = cv2.imread(kScriptFolder + "/test/data/graf/img1.ppm")  # queryImage
-    img2 = cv2.imread(kScriptFolder + "/test/data/graf/img3.ppm")  # trainImage   img2, img3, img4
+    img1 = cv2.imread(kScriptFolder + "/examples/data/graf/img1.ppm")  # queryImage
+    img2 = cv2.imread(kScriptFolder + "/examples/data/graf/img3.ppm")  # trainImage   img2, img3, img4
     img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
     img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
     model_fitting_type = "homography"
     draw_horizontal_layout = True
 #
 if test_type == "kitti_LR":
-    img1 = cv2.imread(kScriptFolder + "/test/data/kitti06-12-color.png")
-    img2 = cv2.imread(kScriptFolder + "/test/data/kitti06-12-R-color.png")
+    img1 = cv2.imread(kScriptFolder + "/examples/data/kitti06-12-color.png")
+    img2 = cv2.imread(kScriptFolder + "/examples/data/kitti06-12-R-color.png")
     model_fitting_type = "fundamental"
     draw_horizontal_layout = False
 #
 if test_type == "kitti_step":
-    img1 = cv2.imread(kScriptFolder + "/test/data/kitti06-12-color.png")
-    img2 = cv2.imread(kScriptFolder + "/test/data/kitti06-17-color.png")
+    img1 = cv2.imread(kScriptFolder + "/examples/data/kitti06-12-color.png")
+    img2 = cv2.imread(kScriptFolder + "/examples/data/kitti06-17-color.png")
     model_fitting_type = "fundamental"
     draw_horizontal_layout = False
 #
 if test_type == "churchill":
-    img1 = cv2.imread(kScriptFolder + "/test/data/churchill/1.ppm")
-    img2 = cv2.imread(kScriptFolder + "/test/data/churchill/6.ppm")
+    img1 = cv2.imread(kScriptFolder + "/examples/data/churchill/1.ppm")
+    img2 = cv2.imread(kScriptFolder + "/examples/data/churchill/6.ppm")
     model_fitting_type = "homography"
     draw_horizontal_layout = True
 #
 if test_type == "mars":
     # Very hard. This works with ROOT_SIFT, SUPERPOINT, CONTEXTDESC, LFNET, KEYNET, LOFTR ...
-    img1 = cv2.imread(kScriptFolder + "/test/data/mars1.png")  # queryImage
-    img2 = cv2.imread(kScriptFolder + "/test/data/mars2.png")  # trainImage
+    img1 = cv2.imread(kScriptFolder + "/examples/data/mars1.png")  # queryImage
+    img2 = cv2.imread(kScriptFolder + "/examples/data/mars2.png")  # trainImage
     model_fitting_type = "homography"
     draw_horizontal_layout = True
 #

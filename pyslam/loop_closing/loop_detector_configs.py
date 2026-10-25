@@ -129,7 +129,7 @@ class LocalDescriptorAggregationType(SerializableEnum):
 
 """
 LoopDetectorConfigs contains a collection of ready-to-used loop detection configurations. These configurations are used by the class LoopDetectingProcess.
-You can test any of these configurations separataly (without SLAM) by using the script: test/loopclosing/test_loop_detecting_process.py or test/loopclosing/test_loop_detector.py.
+You can test any of these configurations separataly (without SLAM) by using the script: examples/loopclosing/example_loop_detecting_process.py or examples/loopclosing/example_loop_detector.py.
 See the README for further details.
 
 Template configuration: 
@@ -221,7 +221,7 @@ class LoopDetectorConfigs:
 
     # NOTE: HDC_DELF seems very slow and does not work well with SLAM. In fact,
     #       the online computation of global descriptors for keyframes struggles to keep up with the real-time demands of SLAM processing.
-    #       You can test HDC_DELF separataly (without SLAM) by using the script: test/loopclosing/test_loop_detecting_process.py.
+    #       You can test HDC_DELF separataly (without SLAM) by using the script: examples/loopclosing/example_loop_detecting_process.py.
     HDC_DELF = dict(
         global_descriptor_type=GlobalDescriptorType.HDC_DELF,
         local_feature_manager_config=None,  # It does use its own local feature manager: Delf.
@@ -238,7 +238,7 @@ class LoopDetectorConfigs:
 
     # NOTE: ALEXNET seems very slow and does not work well with SLAM. In fact,
     #       the online computation of global descriptors for keyframes struggles to keep up with the real-time demands of SLAM processing.
-    #       You can test ALEXNET separataly (without SLAM) by using the script: test/loopclosing/test_loop_detecting_process.py.
+    #       You can test ALEXNET separataly (without SLAM) by using the script: examples/loopclosing/example_loop_detecting_process.py.
     ALEXNET = dict(
         global_descriptor_type=GlobalDescriptorType.ALEXNET,
         local_feature_manager_config=None,  # Not needed.

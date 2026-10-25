@@ -237,6 +237,10 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
     // Robust optimization rounds
     if (robust_rounds > 0) {
         optimizer.optimize(robust_rounds);
+        // optimize() may leave the edge errors stale: unset (uninitialized memory, often NaN or inf)
+        // when the abort flag stops it before its first iteration, or those of a rejected Levenberg
+        // step. Recompute them before reading any chi2.
+        optimizer.computeActiveErrors();
 
         // Check inliers and remove outliers
         for (auto &edge_pair : graph_edges_mono) {
@@ -275,6 +279,7 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
     // Final optimization
     optimizer.initializeOptimization();
     optimizer.optimize(final_rounds);
+    optimizer.computeActiveErrors();
 
     // Store updates
     if (fill_result_dict) {
@@ -473,6 +478,7 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
         vertex_se3->setEstimate(g2o::SE3Quat(Rcw, tcw));
         optimizer.initializeOptimization();
         optimizer.optimize(rounds);
+        optimizer.computeActiveErrors();
 
         num_bad_point_edges = 0;
 
@@ -722,6 +728,7 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
     // Initial optimization
     optimizer.initializeOptimization();
     optimizer.optimize(5);
+    optimizer.computeActiveErrors();
 
     // Check inliers and remove outliers
     if (!abort_flag || !*abort_flag) {
@@ -756,6 +763,7 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
         // Optimize again without outliers
         optimizer.initializeOptimization();
         optimizer.optimize(rounds);
+        optimizer.computeActiveErrors();
     }
 
     // Search for final outlier observations
@@ -990,6 +998,7 @@ Sim3OptimizationResult OptimizerG2o::optimize_sim3(
         optimizer.setVerbose(true);
     }
     optimizer.optimize(5);
+    optimizer.computeActiveErrors();
     double err = optimizer.activeChi2();
 
     // Check inliers
@@ -1021,6 +1030,7 @@ Sim3OptimizationResult OptimizerG2o::optimize_sim3(
     // Optimize again with inliers
     optimizer.initializeOptimization();
     optimizer.optimize(num_more_iterations);
+    optimizer.computeActiveErrors();
 
     result.delta_error = optimizer.activeChi2() - err;
 
@@ -1262,6 +1272,7 @@ double OptimizerG2o::optimize_essential_graph(
     // Optimize
     optimizer.initializeOptimization();
     optimizer.optimize(20);
+    optimizer.computeActiveErrors();
 
     // SE3 Pose Recovering. Sim3:[sR t;0 1] -> SE3:[R t/s;0 1]
     for (const auto &keyframe : all_keyframes) {

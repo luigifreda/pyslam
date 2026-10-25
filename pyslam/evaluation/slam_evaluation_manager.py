@@ -118,7 +118,7 @@ def update_yaml_dict(yaml_dict, vocabulary):
 # A class to manage the evaluation of SLAM algorithms.
 # It runs a set of SLAM presets on a set of datasets, and then collects and aggregates the results.
 # A final table is created with the results.
-# See test/evaluation/test_run_evaluations.py
+# See examples/evaluation/example_run_evaluation.py
 class SlamEvaluationManager:
     def __init__(self, evaluation_config_path, template_config_file_path, just_create_report=False):
         if not os.path.exists(evaluation_config_path):

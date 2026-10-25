@@ -19,7 +19,7 @@ map.json
 config.pyc 
 
 private/
-test/private
+examples/private
 data/videos/private
 
 docs/private/

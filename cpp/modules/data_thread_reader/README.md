@@ -27,6 +27,6 @@ Call `dataset.close()` when finished to stop and join the worker promptly. Destr
 Run the synthetic reader and dataset regression checks from the repository root:
 
 ```bash
-PYTHONPATH=. python -m unittest discover -s test/dataset -p 'test_image_prefetcher.py' -v
-PYTHONPATH=. python -m unittest discover -s test/dataset -p 'test_folder_dataset_timestamps.py' -v
+PYTHONPATH=. python -m unittest discover -s tests/dataset -p 'test_image_prefetcher.py' -v
+PYTHONPATH=. python -m unittest discover -s tests/dataset -p 'test_folder_dataset_timestamps.py' -v
 ```

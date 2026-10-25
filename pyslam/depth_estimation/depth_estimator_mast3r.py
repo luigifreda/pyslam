@@ -51,7 +51,7 @@ model_name = kMast3rFolder + "/checkpoints/MASt3R_ViTLarge_BaseDecoder_512_catml
 
 
 # Mono/Stereo Depth estimator using the MAST3R model.
-# NOTE: See the examples test/dust3r/test_mast3r_2images.py, test/dust3r/test_mast3r.py
+# NOTE: See the examples examples/dust3r/example_mast3r_2images.py, examples/dust3r/example_mast3r.py
 class DepthEstimatorMast3r(DepthEstimator):
     def __init__(
         self,

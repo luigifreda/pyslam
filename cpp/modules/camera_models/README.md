@@ -183,30 +183,30 @@ In Python, `pyslam.slam.camera.camera_from_json(payload)` selects the serialized
 
 `cpp/core/slam/tests_py/test_camera_models.py` checks the Python bindings, the OpenCV projection, and the calibrations in `settings/`. For every settings file the omitted camera type must stay a linear pinhole, including files whose distortion coefficients are nonzero. That test also times pinhole batch projection against the existing Numba path and compares a pinhole bundle adjustment against `EdgeSE3ProjectXYZ`. It covers `search_stereo_rig` on a synthetic KB4 rig (true matches and depths, off-curve and beyond-infinity distractors, octave gap, ambiguous duplicates, one-to-one) and the Python bearing epipolar mask.
 
-`test/camera/test_camera_models_modules.py` covers the Python-core path (`USE_CPP_CORE=False`): importing `camera_models`, `camera_models_g2o`, or `camera_models_gtsam` loads only its own optimizer library; a Python KB4 rig binds to a `camera_models` camera; `search_stereo_rig` recovers synthetic matches and depths; and the g2o pose edges and gtsam resectioning factors (mono and stereo) pull a perturbed pose back to the true one. It also checks that a gtsam graph of these factors can be cloned.
+`tests/camera/test_camera_models_modules.py` covers the Python-core path (`USE_CPP_CORE=False`): importing `camera_models`, `camera_models_g2o`, or `camera_models_gtsam` loads only its own optimizer library; a Python KB4 rig binds to a `camera_models` camera; `search_stereo_rig` recovers synthetic matches and depths; and the g2o pose edges and gtsam resectioning factors (mono and stereo) pull a perturbed pose back to the true one. It also checks that a gtsam graph of these factors can be cloned.
 
-Additional integration and pinhole compatibility checks are in `test/camera/test_camera_regressions.py`. They exercise 54 calibration/sensor combinations in both backends, stereo disparity, RGB-D backprojection, undistortion, raw-pixel KD trees, and Python camera serialization. The six original defect reproductions are ordinary passing regression tests; no expected-failure decorators remain. A pinhole control verifies the map-admission test fixture.
+Additional integration and pinhole compatibility checks are in `tests/camera/test_camera_regressions.py`. They exercise 54 calibration/sensor combinations in both backends, stereo disparity, RGB-D backprojection, undistortion, raw-pixel KD trees, and Python camera serialization. The six original defect reproductions are ordinary passing regression tests; no expected-failure decorators remain. A pinhole control verifies the map-admission test fixture.
 
 Run from the repository root using the pySLAM Python environment and a rebuilt C++ core:
 
 ```bash
 python cpp/core/slam/tests_py/test_camera_models.py
-python test/camera/test_camera_regressions.py -v
-python test/camera/test_tum_vi.py -v
-python test/camera/test_camera_models_modules.py -v
+python tests/camera/test_camera_regressions.py -v
+python tests/camera/test_tum_vi.py -v
+python tests/camera/test_camera_models_modules.py -v
 # Run just the original defect reproductions:
-python test/camera/test_camera_regressions.py TestKnownCameraDefects
+python tests/camera/test_camera_regressions.py TestKnownCameraDefects
 ```
 
 The opt-in paired benchmark loads the pinhole implementation from a supplied Git commit into a temporary module. It warms Numba, alternates measurement order, records repeated samples and medians, checks numerical equivalence, and writes machine-readable JSON. It also compares the new Python g2o/GTSAM factor paths with the previous native factors, including a pose-only solve with fixed 3D landmarks. The default regression budget is 20%, adjustable for a controlled benchmark machine. An exceeded budget returns exit status 1.
 
 ```bash
 # Compare against a pinhole-only commit, for example:
-python test/camera/benchmark_pinhole.py \
+python tests/camera/benchmark_pinhole.py \
   --baseline-ref 96019cfafcfc099ac9866884d7143a9ed1451a0d \
   --output /tmp/pinhole-benchmark.json
 # Faster optimizer-only check:
-python test/camera/benchmark_pinhole.py \
+python tests/camera/benchmark_pinhole.py \
   --baseline-ref 96019cfafcfc099ac9866884d7143a9ed1451a0d \
   --optimizers-only --output /tmp/pinhole-optimizers.json
 # Native C++ edges/factors against the original g2o/GTSAM implementations:
@@ -220,12 +220,12 @@ Python camera timings compare actual revisions. The C++ camera rows compare curr
 
 ### End-to-end replay and pinhole regression
 
-`test/camera/replay_sequence.py` replays any dataset section of `config.yaml` deterministically (ORB2, synchronous local mapping, no loop closure unless `--loop-closure`) and writes JSON with tracking states, per-frame track+map timings, keyframe/map-point counts, and ATE (Sim(3) for mono, SE(3) otherwise), plus an NPZ with the trajectory and raw timings. `--pyslam-root` imports another checkout, so a pinhole-only baseline exported from the last pinhole commit (with its own C++ core built) is replayed by the same harness:
+`tests/camera/replay_sequence.py` replays any dataset section of `config.yaml` deterministically (ORB2, synchronous local mapping, no loop closure unless `--loop-closure`) and writes JSON with tracking states, per-frame track+map timings, keyframe/map-point counts, and ATE (Sim(3) for mono, SE(3) otherwise), plus an NPZ with the trajectory and raw timings. `--pyslam-root` imports another checkout, so a pinhole-only baseline exported from the last pinhole commit (with its own C++ core built) is replayed by the same harness:
 
 ```bash
 git archive <pinhole-commit> | tar -x -C ../pyslam-baseline   # then build its C++ core
 for root in ../pyslam-baseline .; do
-  python test/camera/replay_sequence.py --pyslam-root $root \
+  python tests/camera/replay_sequence.py --pyslam-root $root \
     --dataset KITTI_DATASET --base-path <kitti>/dataset --name 00 --sensor-type stereo \
     --settings settings/KITTI00-02.yaml --set is_color=false --frames 1500 \
     --output /tmp/kitti00_stereo_$(basename $root).json
@@ -240,12 +240,12 @@ On Linux, the replay and component benchmark share an exclusive process lock. A 
 
 For memory investigations, `--trace-memory` prints Python allocation summaries at 200-frame intervals. Tracing adds overhead and its timings must be excluded from throughput comparisons.
 
-For repeated comparisons, edit the dataset roots and sequences in `test/camera/pinhole_replay_cases.example.json`, then run:
+For repeated comparisons, edit the dataset roots and sequences in `tests/camera/pinhole_replay_cases.example.json`, then run:
 
 ```bash
-python test/camera/run_pinhole_regression.py \
+python tests/camera/run_pinhole_regression.py \
   --baseline-root ../pyslam-baseline-pinhole \
-  --cases test/camera/pinhole_replay_cases.example.json \
+  --cases tests/camera/pinhole_replay_cases.example.json \
   --frames 300 --repeats 3 --output results/pinhole-regression
 ```
 
@@ -253,8 +253,8 @@ The example covers KITTI mono/stereo, EuRoC mono/stereo, and TUM mono/RGB-D. Add
 
 The runner alternates baseline/candidate order between pairs and saves each JSON, trajectory, and log. It fails if the median paired mean frame-time ratio exceeds 1.20, any pair loses more than two percentage points of tracking/trajectory/mocap coverage, or ATE increases by more than the larger of 20% and 0.02 m. Timing budget is configurable with `--max-ratio`. Baselines exported with `git archive` are supported: source and native binary hashes identify them when no `.git` is present. Compilation caches and replay logs stay in the output directory.
 
-Replay ATE uses `test/camera/trajectory_evaluation.py`, with Sim(3) alignment for mono and SE(3) for metric sensors. Interpolation requires the entire bracketing mocap interval to be at most `--max-align-dt`; ground truth is never extrapolated or filled across longer gaps. Fewer than three associations is an error. The report includes association coverage and alignment scale. Tests cover a known similarity transform, interpolation, sparse gaps, invalid/degenerate input, and the independent regression gates:
+Replay ATE uses `tests/camera/trajectory_evaluation.py`, with Sim(3) alignment for mono and SE(3) for metric sensors. Interpolation requires the entire bracketing mocap interval to be at most `--max-align-dt`; ground truth is never extrapolated or filled across longer gaps. Fewer than three associations is an error. The report includes association coverage and alignment scale. Tests cover a known similarity transform, interpolation, sparse gaps, invalid/degenerate input, and the independent regression gates:
 
 ```bash
-python -m unittest discover -s test/camera -p 'test_*.py'
+python -m unittest discover -s tests/camera -p 'test_*.py'
 ```

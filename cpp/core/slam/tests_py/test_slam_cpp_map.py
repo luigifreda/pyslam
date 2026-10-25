@@ -65,7 +65,7 @@ class FrameExtractionTest(TestUnit):
     kScriptPath = os.path.realpath(__file__)
     kScriptFolder = os.path.dirname(kScriptPath)
     kRootFolder = kScriptFolder + "/../../../.."
-    kDataFolder = kRootFolder + "/test/data"
+    kDataFolder = kRootFolder + "/examples/data"
 
     def __init__(self):
         super().__init__("Frame Extraction", detailed=True)
@@ -231,7 +231,7 @@ class MapKeyFrameOperationsTest(TestUnit):
     kScriptPath = os.path.realpath(__file__)
     kScriptFolder = os.path.dirname(kScriptPath)
     kRootFolder = kScriptFolder + "/../../../.."
-    kDataFolder = kRootFolder + "/test/data"
+    kDataFolder = kRootFolder + "/examples/data"
 
     def __init__(self):
         super().__init__("Map KeyFrame Operations")

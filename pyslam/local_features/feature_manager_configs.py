@@ -35,7 +35,7 @@ class FeatureManagerConfigs(object):
 
     # Template configuration used by FeatureManagerConfigs.extract_from() to extract
     # a FeatureManager subconfiguration from a full FeatureTracker input configuration.
-    # See for instance the file test_feature_manager.py.
+    # See for instance the file example_feature_manager.py.
     TEMPLATE = dict(
         num_features=kNumFeatures,
         num_levels=8,
@@ -46,7 +46,7 @@ class FeatureManagerConfigs(object):
     )
 
     # Extract the FeatureManager sub-configuration from a full FeatureTracker input configuration (selected from FeatureTrackerConfigs)
-    # See for instance the file test_feature_manager.py.
+    # See for instance the file example_feature_manager.py.
     @staticmethod
     def extract_from(dict_in):
         dict_out = {
@@ -58,7 +58,7 @@ class FeatureManagerConfigs(object):
     # The following configurations were manually extracted from the corresponding tracker configs in feature_tracker_configs.py.
     # These are just examples.
     # Normally, you should use the FeatureManagerConfigs.extract_from() method instead of manually specifying these configurations.
-    # See the comments/notes above and for instance the file test_feature_manager.py.
+    # See the comments/notes above and for instance the file example_feature_manager.py.
     ORB2 = dict(
         num_features=kNumFeatures,
         num_levels=8,

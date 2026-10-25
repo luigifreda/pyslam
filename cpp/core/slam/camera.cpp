@@ -75,20 +75,17 @@ std::pair<MatNx2<Scalar>, VecN<Scalar>> CameraUtils::project_points(MatNx3Ref<Sc
     MatNx2<Scalar> uv(N, 2);
     VecN<Scalar> z(N);
 
-    // Work in row space to avoid a 3xN transpose/copy:
-    const auto Q = xcs * K.transpose();
-
-    // Depths
-    z = Q.col(2);
-
-    // Project (elementwise division)
-    uv.col(0) = Q.col(0).array() / z.array();
-    uv.col(1) = Q.col(1).array() / z.array();
-
-    // Handle near-zero depths
+    // Single pass with fixed-size math. Do not hold xcs * K^T in an `auto`:
+    // Eigen keeps it as a lazy product and re-evaluates it on every access.
+    const Mat3<Scalar> K_ = K;
     const Scalar min_z = static_cast<Scalar>(kMinZ);
     for (int i = 0; i < N; ++i) {
-        if (z(i) <= min_z) {
+        const Vec3<Scalar> q = K_ * xcs.row(i).transpose();
+        z(i) = q.z();
+        if (q.z() > min_z) {
+            uv(i, 0) = q.x() / q.z();
+            uv(i, 1) = q.y() / q.z();
+        } else {
             uv(i, 0) = static_cast<Scalar>(-1.0);
             uv(i, 1) = static_cast<Scalar>(-1.0);
         }
@@ -104,23 +101,17 @@ CameraUtils::project_points_stereo(MatNx3Ref<Scalar> xcs, Mat3Ref<Scalar> K, con
     MatNx3<Scalar> projections(N, 3);
     VecN<Scalar> z(N);
 
-    // Work in row space to avoid a 3xN transpose/copy:
-    // Q = [X Y Z] = xcs * K^T  (Nx3)
-    const auto Q = xcs * K.transpose();
-
-    // Depths
-    z = Q.col(2);
-
-    auto u = Q.col(0).array() / z.array();
-    auto v = Q.col(1).array() / z.array();
-    auto ur = u.array() - bf / z.array();
-
+    // Single pass with fixed-size math (see project_points).
+    const Mat3<Scalar> K_ = K;
     const Scalar min_z = static_cast<Scalar>(kMinZ);
     for (int i = 0; i < N; ++i) {
-        if (z(i) > min_z) {
-            projections(i, 0) = u(i);
-            projections(i, 1) = v(i);
-            projections(i, 2) = ur(i);
+        const Vec3<Scalar> q = K_ * xcs.row(i).transpose();
+        z(i) = q.z();
+        if (q.z() > min_z) {
+            const Scalar u = q.x() / q.z();
+            projections(i, 0) = u;
+            projections(i, 1) = q.y() / q.z();
+            projections(i, 2) = u - bf / q.z();
         } else {
             projections(i, 0) = static_cast<Scalar>(-1.0);
             projections(i, 1) = static_cast<Scalar>(-1.0);

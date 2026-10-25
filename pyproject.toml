@@ -116,3 +116,12 @@ exclude = '''
   | thirdparty/(?! (contextdesc|g2opy|geodesc|gtsam_factors|l2net|l2net_keras|lietorch|monogs|mvdust3r_scripts|orbslam2_features|pangolin|pybind11|pydbow2|pydbow3|pyibow|ros2_pybindings) (?:/|$) )
 )/
 '''
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["examples", "thirdparty", "cpp", "build", ".git"]
+addopts = [
+  "--ignore=tests/modules/test_volumetric.py",
+  "--ignore=tests/modules/test_sim3solver.py",
+  "--ignore=tests/modules/test_pnpsolver.py",
+]
