@@ -25,6 +25,7 @@ import unittest
 
 import numpy as np
 from local_ba_abort_support import ABORTED_BEFORE_OPTIMIZING, LocalBaAbortCase
+from pyslam.config_parameters import Parameters
 
 # Abort delays, counted from the start of the call (C++ core) or of the optimization (Python
 # core). Most are short, to stop g2o before its first iteration. On the C++ core the flag
@@ -50,6 +51,31 @@ class TestAbortedLocalBundleAdjustment(LocalBaAbortCase):
             with self.subTest(delay_ms=delay * 1e3):
                 self._assert_error_of_accepted_state(err)
         self.assertGreater(num_interrupted, 0, "no abort landed inside the optimization")
+
+    def test_aborted_mean_excludes_deleted_outlier(self):
+        # A point just in front of a camera has an enormous reprojection chi2. Local BA
+        # deletes that observation. An abort during the robust phase used to leave the
+        # edge active, so the reported mean included it.
+        candidates = [
+            p for p in self.points if not p.is_bad() and p.num_observations() > 2
+        ]
+        candidates.sort(key=lambda p: p.num_observations(), reverse=True)
+        delays = (0.0, 0.001, 0.002, 0.004)
+        num_reported = 0
+        for delay, point in zip(delays, candidates):
+            self._restore_map()
+            nobs = point.num_observations()
+            kf = point.observations()[0][0]
+            point.update_position(kf.Ow() + kf.Rwc() @ np.array([0.05, 0.05, 1e-4]))
+            err, _interrupted = self._local_ba_aborted_after(delay)
+            if err == ABORTED_BEFORE_OPTIMIZING:
+                continue
+            num_reported += 1
+            with self.subTest(delay_ms=delay * 1e3):
+                self.assertTrue(np.isfinite(err), err)
+                self.assertLessEqual(err, Parameters.kChi2Stereo)
+                self.assertLess(point.num_observations(), nobs)
+        self.assertGreater(num_reported, 0, "no abort reached the chi2 report")
 
 
 if __name__ == "__main__":

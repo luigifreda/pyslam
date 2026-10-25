@@ -625,7 +625,6 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
     }
 
     int num_edges = 0;
-    int num_bad_edges = 0;
 
     const auto &inv_level_sigmas2 = FeatureSharedResources::inv_level_sigmas2;
 
@@ -741,7 +740,6 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
             bool chi2_check_failure = (edge_chi2 > Parameters::kChi2Mono);
             if (chi2_check_failure || !edge->isDepthPositive()) {
                 edge->setLevel(1);
-                num_bad_edges++;
             }
             edge->setRobustKernel(nullptr);
         }
@@ -755,7 +753,6 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
             bool chi2_check_failure = (edge_chi2 > Parameters::kChi2Stereo);
             if (chi2_check_failure || !edge->isDepthPositive()) {
                 edge->setLevel(1);
-                num_bad_edges++;
             }
             edge->setRobustKernel(nullptr);
         }
@@ -766,30 +763,35 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
         optimizer.computeActiveErrors();
     }
 
-    // Search for final outlier observations
+    // Outlier observations are removed below. activeChi2() still includes them: an abort
+    // during the robust phase never deactivates those edges, and one near-camera point
+    // then pulls the mean to 1e4–1e11. The reported value is the mean of the edges kept.
     int num_bad_observations = 0;
+    double kept_chi2 = 0.0;
+    int num_kept = 0;
     std::vector<std::tuple<MapPointPtr, KeyFramePtr, int, bool>> outliers_edge_data;
+
+    auto consider_edge = [&](double chi2, double limit, bool depth_positive,
+                             const auto &edge_data) {
+        if (!std::isfinite(chi2) || chi2 > limit || !depth_positive) {
+            num_bad_observations++;
+            outliers_edge_data.push_back(edge_data);
+        } else {
+            kept_chi2 += chi2;
+            num_kept++;
+        }
+    };
 
     for (auto &edge_pair : graph_edges_mono) {
         auto *edge = edge_pair.first;
-        auto &edge_data = edge_pair.second;
-        auto [p, kf, p_idx, is_stereo] = edge_data;
-
-        if (edge->chi2() > Parameters::kChi2Mono || !edge->isDepthPositive()) {
-            num_bad_observations++;
-            outliers_edge_data.push_back(edge_data);
-        }
+        consider_edge(edge->chi2(), Parameters::kChi2Mono, edge->isDepthPositive(),
+                      edge_pair.second);
     }
 
     for (auto &edge_pair : graph_edges_stereo) {
         auto *edge = edge_pair.first;
-        auto &edge_data = edge_pair.second;
-        auto [p, kf, p_idx, is_stereo] = edge_data;
-
-        if (edge->chi2() > Parameters::kChi2Stereo || !edge->isDepthPositive()) {
-            num_bad_observations++;
-            outliers_edge_data.push_back(edge_data);
-        }
+        consider_edge(edge->chi2(), Parameters::kChi2Stereo, edge->isDepthPositive(),
+                      edge_pair.second);
     }
 
     // Apply updates with map lock
@@ -833,8 +835,7 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
         }
     }
 
-    int num_active_edges = num_edges - num_bad_edges;
-    double mean_squared_error = optimizer.activeChi2() / std::max(num_active_edges, 1);
+    double mean_squared_error = kept_chi2 / std::max(num_kept, 1);
     double outlier_ratio = static_cast<double>(num_bad_observations) / std::max(1, num_edges);
 
     return {mean_squared_error, outlier_ratio};

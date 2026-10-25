@@ -684,7 +684,6 @@ def local_bundle_adjustment(
         graph_keyframes[kf] = v_se3
 
     num_edges = 0
-    num_bad_edges = 0
 
     eye2 = np.eye(2)
     eye3 = np.eye(3)
@@ -798,7 +797,6 @@ def local_bundle_adjustment(
             chi2_check_failure = (edge_chi2 > chi2Stereo) if is_stereo else (edge_chi2 > chi2Mono)
             if chi2_check_failure or not edge.is_depth_positive():
                 edge.set_level(1)
-                num_bad_edges += 1
             edge.set_robust_kernel(None)
 
         # optimize again without outliers
@@ -806,9 +804,13 @@ def local_bundle_adjustment(
         opt.optimize(rounds)
         opt.compute_active_errors()
 
-    # search for final outlier observations and clean map
+    # Outlier observations are removed below. active_chi2() still includes them: an abort
+    # during the robust phase never deactivates those edges, and one near-camera point
+    # then pulls the mean to 1e4–1e11. The reported value is the mean of the edges kept.
     num_bad_observations = 0  # final bad observations
     outliers_edge_data = []
+    kept_chi2 = 0.0
+    num_kept = 0
 
     chi2_limits = {True: chi2Stereo, False: chi2Mono}
 
@@ -819,9 +821,17 @@ def local_bundle_adjustment(
 
         assert kf.get_point_match(p_idx) is p
 
-        if edge.chi2() > chi2_limits[is_stereo] or not edge.is_depth_positive():
+        edge_chi2 = edge.chi2()
+        if (
+            not np.isfinite(edge_chi2)
+            or edge_chi2 > chi2_limits[is_stereo]
+            or not edge.is_depth_positive()
+        ):
             num_bad_observations += 1
             outliers_edge_data.append((p, kf, p_idx, is_stereo))
+        else:
+            kept_chi2 += edge_chi2
+            num_kept += 1
 
     if map_lock is None:
         map_lock = threading.RLock()  # put a fake lock
@@ -851,8 +861,7 @@ def local_bundle_adjustment(
                 p.update_position(np.array(v_p.estimate()))
                 p.update_normal_and_depth(force=True)
 
-    num_active_edges = num_edges - num_bad_edges
-    mean_squared_error = opt.active_chi2() / max(num_active_edges, 1)
+    mean_squared_error = kept_chi2 / max(num_kept, 1)
 
     return mean_squared_error, num_bad_observations / max(num_edges, 1)
 
@@ -920,7 +929,6 @@ def lba_optimization_process(
         thHuberStereo = math.sqrt(7.815)  # chi-square 3 DOFS
 
         num_edges = 0
-        num_bad_edges = 0
 
         eye2 = np.eye(2)
         eye3 = np.eye(3)
@@ -1033,7 +1041,6 @@ def lba_optimization_process(
                 )
                 if chi2_check_failure or not edge.is_depth_positive():
                     edge.set_level(1)
-                    num_bad_edges += 1
                 edge.set_robust_kernel(None)
 
             # optimize again without outliers
@@ -1044,9 +1051,12 @@ def lba_optimization_process(
 
         print("lba_optimization_process: searching for outliers...")
 
-        # search for final outlier observations and clean map
+        # Outlier observations are removed by the caller. active_chi2() still includes them
+        # when this process is aborted during the robust phase. Report the mean of the edges kept.
         num_bad_observations = 0  # final bad observations
         outliers_edge_data = []
+        kept_chi2 = 0.0
+        num_kept = 0
 
         chi2_limits = {True: chi2Stereo, False: chi2Mono}
 
@@ -1057,12 +1067,19 @@ def lba_optimization_process(
 
             assert kf.get_point_match(p_idx) is p
 
-            if edge.chi2() > chi2_limits[is_stereo] or not edge.is_depth_positive():
+            edge_chi2 = edge.chi2()
+            if (
+                not np.isfinite(edge_chi2)
+                or edge_chi2 > chi2_limits[is_stereo]
+                or not edge.is_depth_positive()
+            ):
                 num_bad_observations += 1
                 outliers_edge_data.append((p, kf, p_idx, is_stereo))
+            else:
+                kept_chi2 += edge_chi2
+                num_kept += 1
 
-        num_active_edges = num_edges - num_bad_edges
-        mean_squared_error = opt.active_chi2() / max(num_active_edges, 1)
+        mean_squared_error = kept_chi2 / max(num_kept, 1)
 
         print("lba_optimization_process: preparing results ...")
 
