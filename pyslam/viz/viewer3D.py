@@ -1010,6 +1010,14 @@ class Viewer3D(object):
         self.sparsePointSize = self.sparsePointSizeSlider.Get()
         self.densePointSize = self.densePointSizeSlider.Get()
 
+        # Follow() stores T_cw for this refresh, and Activate() applies it before drawing.
+        # The blue camera is drawn from this same pose. Setting Twc only after the draw
+        # left the view one refresh behind, so the frustum jumped ahead of the followed
+        # pose and snapped back on the next refresh.
+        follow_pose = self._pose_for_follow()
+        if follow_pose is not None:
+            self.updateTwc(follow_pose)
+
         if self.do_follow and self.is_following:
             self.scam.Follow(self.Twc, True)
         elif self.do_follow and not self.is_following:
@@ -1048,7 +1056,6 @@ class Viewer3D(object):
                 gl.glLineWidth(2)
                 glutils.DrawCamera(cur_pose, self.scale)
                 gl.glLineWidth(1)
-                self.updateTwc(cur_pose)
 
             if self.draw_predicted and cur_frame_data.predicted_pose is not None:
                 # draw predicted pose in red
@@ -1274,7 +1281,6 @@ class Viewer3D(object):
                 gl.glColor3f(0.0, 0.0, 1.0)
                 current_pose = self.vo_state.poses[-1:]
                 glutils.DrawCameras(current_pose, self.scale)
-                self.updateTwc(current_pose[0])
 
             if self.vo_state.traj3d_est.shape[0] != 0:
                 # draw blue estimated trajectory
@@ -1608,8 +1614,20 @@ class Viewer3D(object):
 
         self.qvo.put(vo_state)
 
+    def _pose_for_follow(self):
+        # Same pose drawn as the current (blue) camera. A VO pose replaces the map pose,
+        # matching the previous update order.
+        pose = None
+        if self.map_state is not None:
+            cur_frame_data = self.map_state.cur_frame_data
+            if cur_frame_data is not None and cur_frame_data.cur_pose is not None:
+                pose = cur_frame_data.cur_pose
+        if self.vo_state is not None and len(self.vo_state.poses) > 0:
+            pose = self.vo_state.poses[-1]
+        return pose
+
     def updateTwc(self, pose):
-        self.Twc.m = pose
+        self.Twc.m = np.array(pose, copy=True)
 
     @staticmethod
     def drawPlane(num_divs=200, div_size=10, scale=1.0):
