@@ -684,7 +684,7 @@ class FeatureMatcher:
             output = self.mast3r_inference(
                 [tuple(imgs_preproc)], self.matcher, self.device, batch_size=1, verbose=False
             )
-            # check test/dust3r/test_mast3r_2images.py
+            # check examples/dust3r/example_mast3r_2images.py
             view1, view2 = output["view1"], output["view2"]
             pred1, pred2 = output["pred1"], output["pred2"]
             # extract descriptors
@@ -1005,7 +1005,7 @@ class Mast3RMatcher(FeatureMatcher):
             detector_type=detector_type,
             descriptor_type=descriptor_type,
         )
-        # NOTE: see test/dust3r/test_mast3r_2images.py
+        # NOTE: see examples/dust3r/example_mast3r_2images.py
         if not os.path.exists(kMast3rFolder):
             raise ValueError(
                 f"Mast3RMatcher: Mast3R was not installed. The folder was not found: {kMast3rFolder}"

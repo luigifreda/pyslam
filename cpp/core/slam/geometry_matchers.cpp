@@ -1292,7 +1292,7 @@ std::tuple<std::vector<int>, std::vector<int>, int> EpipolarMatcher::search_fram
             continue;
         }
 
-        const auto epipolar_line = F12.transpose() * kp1.homogeneous().cast<double>();
+        const Eigen::Vector3d epipolar_line = F12.transpose() * kp1.homogeneous().cast<double>();
         const double numerator =
             kp2(0) * epipolar_line[0] + kp2(1) * epipolar_line[1] + epipolar_line[2];
         const double denominator =

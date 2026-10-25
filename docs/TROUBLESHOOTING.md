@@ -83,7 +83,7 @@ This is ideal when you pull new updates and need a fresh build and install.
 
 Due to the multi-threading system (tracking thread + local mapping thread) and the non-super-fast performances of the python implementations (indeed, [python is not actually multithreading](https://www.theserverside.com/blog/Coffee-Talk-Java-News-Stories-and-Opinions/Is-Pythons-GIL-the-software-worlds-biggest-blunder)), bad tracking performances may occur and vary depending on your machine computation capabilities. In a few words, it may happen that the local mapping thread is not fast enough to spawn new map points in time for the tracking thread. In fact, new spawned map points are necessary to let the tracking thread find enough {keypoint}-{map point} correspondences, and hence stably grasp at the map and proceed along its estimated trajectory. Simply put, the local mapping thread continuously builds/unrolls the fundamental 'carpet' of points (the map) on which the tracking thread 'walks': no 'carpet', no party!
 
-If you experience bad tracking performances, go in [config_parameters.py](./config_parameters.py) and try to set `kTrackingWaitForLocalMappingToGetIdle=True`.
+If you experience bad tracking performances, go in [config_parameters.py](../pyslam/config_parameters.py) and try to set `kTrackingWaitForLocalMappingToGetIdle=True`.
 
 
 ---
@@ -451,8 +451,8 @@ projs = projs.copy(order='C')
 
 I got this error after messing up with the installation of different python packages related to torch and torchvision. The result was that tfeat was generating segmentation faults. In order to check if this is actually your case, run
 ```
-$ cd test/cv     # this is compulsory
-$ python3 test_tfeat.py
+$ cd examples/cv     # this is compulsory
+$ python3 example_tfeat.py
 ```
 and check if you get a segmenation fault. If this is the case, try to run 
 ```

@@ -1,15 +1,32 @@
 """
-Edge/factor selection for the Python optimizers (USE_CPP_CORE=False).
-
-Pinhole observations keep the original Python g2o edges and gtsam factors.
-Those computations stay here and do not import cpp_core. USE_CPP_CORE=True
-selects cpp_core.OptimizerG2o / OptimizerGTSAM instead of this module.
-
-KB4, RadTan8, and double sphere use edges from camera_models_g2o and factors
-from camera_models_gtsam. Those modules share the camera_models camera and
-are loaded only by the optimizer that needs them. A camera that is already a
-cpp_core object keeps cpp_core factors, because those edges store a cpp_core
-camera pointer.
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+*
+* Edge/factor selection for the Python optimizers (USE_CPP_CORE=False).
+*
+* Pinhole observations keep the original Python g2o edges and gtsam factors.
+* Those computations stay here and do not import cpp_core. USE_CPP_CORE=True
+* selects cpp_core.OptimizerG2o / OptimizerGTSAM instead of this module.
+*
+* KB4, RadTan8, and double sphere use edges from camera_models_g2o and factors
+* from camera_models_gtsam. Those modules share the camera_models camera and
+* are loaded only by the optimizer that needs them. A camera that is already a
+* cpp_core object keeps cpp_core factors, because those edges store a cpp_core
+* camera pointer.
 """
 
 import importlib

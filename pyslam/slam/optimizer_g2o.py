@@ -246,6 +246,10 @@ def bundle_adjustment(
 
     if robust_rounds > 0:
         opt.optimize(robust_rounds)
+        # optimize() may leave the edge errors stale: unset (uninitialized memory, often NaN or inf)
+        # when the abort flag stops it before its first iteration, or those of a rejected Levenberg
+        # step. Recompute them before reading any chi2.
+        opt.compute_active_errors()
         # check inliers observation
         for edge, is_stereo in graph_edges.items():
 
@@ -261,6 +265,7 @@ def bundle_adjustment(
 
     opt.initialize_optimization()
     opt.optimize(final_rounds)
+    opt.compute_active_errors()
 
     # shut down the sync thread if used and still running
     if sync_flag_thread is not None and sync_flag_thread.is_alive():
@@ -510,6 +515,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
         v_se3.set_estimate(g2o.SE3Quat(Rcw.copy(), tcw.copy()))
         opt.initialize_optimization()
         opt.optimize(rounds)
+        opt.compute_active_errors()
 
         num_bad_point_edges = 0
 
@@ -775,6 +781,7 @@ def local_bundle_adjustment(
     # initial optimization
     opt.initialize_optimization()
     opt.optimize(5)
+    opt.compute_active_errors()
 
     chi2Mono = 5.991  # chi-square 2 DOFs
     chi2Stereo = 7.815  # chi-square 3 DOFs
@@ -797,6 +804,7 @@ def local_bundle_adjustment(
         # optimize again without outliers
         opt.initialize_optimization()
         opt.optimize(rounds)
+        opt.compute_active_errors()
 
     # search for final outlier observations and clean map
     num_bad_observations = 0  # final bad observations
@@ -1005,6 +1013,7 @@ def lba_optimization_process(
         # Initial optimization
         opt.initialize_optimization()
         opt.optimize(5)
+        opt.compute_active_errors()
 
         print("lba_optimization_process: done optimize(5)...")
 
@@ -1030,6 +1039,7 @@ def lba_optimization_process(
             # optimize again without outliers
             opt.initialize_optimization()
             opt.optimize(rounds)
+            opt.compute_active_errors()
             print("lba_optimization_process: done optimize(rounds)...")
 
         print("lba_optimization_process: searching for outliers...")
@@ -1363,6 +1373,7 @@ def optimize_sim3(
     if verbose:
         optimizer.set_verbose(True)
     optimizer.optimize(5)
+    optimizer.compute_active_errors()
     err = optimizer.active_chi2()
 
     # Check inliers
@@ -1395,6 +1406,7 @@ def optimize_sim3(
     # Optimize again with inliers
     optimizer.initialize_optimization()
     optimizer.optimize(num_more_iterations)
+    optimizer.compute_active_errors()
 
     delta_err = (
         optimizer.active_chi2() - err
@@ -1618,6 +1630,7 @@ def optimize_essential_graph(
     # Optimize
     optimizer.initialize_optimization()
     optimizer.optimize(20)
+    optimizer.compute_active_errors()
 
     # SE3 Pose Recovering.  Sim3:[sR t;0 1] -> SE3:[R t/s;0 1]
     for keyframe in all_keyframes:

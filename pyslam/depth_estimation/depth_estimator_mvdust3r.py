@@ -68,7 +68,7 @@ kMvdust3rMModelWeightPath = kMvdust3rFolder + "/checkpoints/MVD.pth"
 
 
 # Mono/Stereo depth estimator using the Mv-DUST3R model.
-# NOTE: See the example test/dust3r/test_mvdust3r.py
+# NOTE: See the example examples/dust3r/example_mvdust3r.py
 class DepthEstimatorMvdust3r(DepthEstimator):
     def __init__(
         self,

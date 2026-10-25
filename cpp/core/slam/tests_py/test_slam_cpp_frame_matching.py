@@ -68,7 +68,7 @@ from pyslam.slam.frame import match_frames
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + "/../../../.."
-kDataFolder = kRootFolder + "/test/data"
+kDataFolder = kRootFolder + "/examples/data"
 
 
 if __name__ == "__main__":

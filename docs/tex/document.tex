@@ -111,7 +111,7 @@
 %\begin{scriptsize}
 %\begin{Shaded}
 %\begin{Highlighting}[]
-%\NormalTok{$ }\BuiltInTok{\ExtensionTok{python\ test\_gsm.py\ -\/-load\ \textless{}gs\_checkpoint\_path\textgreater{}}}   
+%\NormalTok{$ }\BuiltInTok{\ExtensionTok{python\ example\_gsm.py\ -\/-load\ \textless{}gs\_checkpoint\_path\textgreater{}}}   
 %\end{Highlighting}
 %\end{Shaded}
 %\end{scriptsize}
@@ -146,16 +146,18 @@
 \end{center}
 
 \begin{abstract}
-pySLAM is an open-source Python framework for Visual SLAM that supports monocular, stereo, and RGB-D camera inputs. It offers a flexible and modular interface, integrating a broad range of both classical and learning-based local features. The framework includes multiple loop closure strategies, a volumetric reconstruction pipeline, and support for depth prediction models. It also offers a comprehensive set of tools for experimenting with and evaluating visual odometry and SLAM modules.
-Designed for both beginners and experienced researchers, pySLAM emphasizes rapid prototyping, extensibility, and reproducibility across diverse datasets. Its modular architecture facilitates the integration of custom components and encourages research that bridges traditional and deep learning-based approaches. Community contributions are welcome, fostering collaborative development and innovation in the field of Visual SLAM.
-This document\footnote{You may find an updated version of this document at:\\ \href{https://github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}{github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}} presents the pySLAM framework, outlining its main components, features, and usage.
+pySLAM is an open-source framework for Visual SLAM that supports monocular, stereo, and RGB-D cameras. The framework integrates a broad range of classical and learning-based local features, multiple loop closure strategies, depth prediction models, semantic segmentation and mapping, a volumetric reconstruction pipeline, and a unified interface to feed-forward multi-view 3D reconstruction models. Multiple camera models are supported. Its sparse SLAM core is implemented in both Python and C++, which lets users trade flexibility for speed without changing the rest of the pipeline.
+A unified dataset interface, automated evaluation scripts, and a regression test suite support reproducible experiments across more than fifteen dataset types. Designed for both beginners and experienced researchers, pySLAM emphasizes rapid prototyping, extensibility, and reproducibility, and encourages research that bridges traditional and deep learning-based approaches.
+This document\footnote{You may find an updated version of this document at:\\ \href{https://github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}{github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}} presents the architecture of the framework, its main components, and the tools it provides for evaluation and testing.
 \end{abstract}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.52\textwidth]{images_tex/pyslam-teaser-rect.png}
+  \includegraphics[width=0.5\textwidth]{images_tex/pyslam-teaser-rect.png}
   \label{fig:teaser}
 \end{figure}
+
+\pagebreak
 
 \tableofcontents
 
@@ -171,7 +173,7 @@ However, designing a modern SLAM framework in Python presents several challenges
 
 To address these issues, pySLAM is built on several key design principles. \textit{Modularity} is central: components such as local/global features\cite{tuytelaars2008local,joshi2020recent,ma2021image}, loop closure mechanisms\cite{schubert2023visual}, semantic mapping\cite{georgevichsemantic,chen2025semantic,schmid2024khronos}, and volumetric integration\cite{dong2022ash,freda2023plvs} can be easily swapped or extended. This architecture supports the use of interchangeable baselines, enabling researchers to plug-and-play with different configurations depending on their goals. \textit{Extensibility} is facilitated through a base-class architecture that allows new components to be integrated with minimal friction, making pySLAM a flexible platform for benchmarking and algorithm development.
 
-In terms of usability, pySLAM emphasizes simplicity in the build and deployment process.. It supports a unified Python environment compatible with \textit{conda}, \textit{pyenv}, and \textit{pixi}, and offers a one-command installation process that covers setup and dataset acquisition. Cross-platform compatibility (Linux, macOS, Windows with WSL2) and full source accessibility further enhance its utility for both academic and industrial use.
+In terms of usability, pySLAM emphasizes simplicity in the build and deployment process. It supports a unified Python environment compatible with \textit{conda}, \textit{pyenv}, and \textit{pixi}, and offers a one-command installation process that covers setup and dataset acquisition. Cross-platform compatibility (Linux, macOS, Windows with WSL2) and full source accessibility further enhance its utility for both academic and industrial use.
 
 Another cornerstone of the framework is standardized dataset handling. By providing a unified interface to multiple datasets, pySLAM encourages \textit{reproducibility} and \textit{reusability}. It supports consistent data loading, map state saving/loading, and automatic generation of evaluation metrics -- including final and online trajectory estimation -- thus enabling robust comparison between algorithms.
 
@@ -181,10 +183,10 @@ Beyond SLAM, pySLAM also provides a unified \textit{ScenefromViews} architecture
 
 Together, these capabilities position pySLAM as a powerful research toolkit -- aiming to be a ``Swiss army knife`` for SLAM development, evaluation, and education. By streamlining reproducibility, supporting modular experimentation, and lowering the technical threshold for entry, pySLAM addresses some of the most persistent challenges in contemporary SLAM research.
 
-The objective of this document is to present the pySLAM framework, its main features, and usage\footnote{You may find an updated version of this document at:\\ \href{https://github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}{github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}}. 
+The remainder of this document is organized as follows. Section~\ref{main-features} summarizes the main features of the framework, and Section~\ref{related-work} relates pySLAM to prior SLAM systems and to the methods it integrates. Section~\ref{sec:architecture} describes the system architecture: the processing modules, their main components, the camera models, the C++ core, and the Scene from Views module. Section~\ref{supported-components-and-models} lists the supported components and models. Section~\ref{evaluating-slam} presents the evaluation tools, the results obtained on TUM, EuRoC, and KITTI, the automated test suite, and an initial validation of the camera models on TUM-VI. Section~\ref{conclusions} concludes and outlines future work. Appendix~\ref{usage} describes how to run the main tools, and Appendix~\ref{configuration} how to configure datasets and cameras.
 
 
-\section{Main Features}
+\section{Main Features}\label{main-features}
 
 \textbf{pySLAM} provides a python implementation of a \emph{Visual SLAM} pipeline that supports \textbf{monocular}, \textbf{stereo} and
 \textbf{RGBD} cameras. It offers the following \textbf{features} in a single python environment: 
@@ -220,13 +222,17 @@ The objective of this document is to present the pySLAM framework, its main feat
     \item A \textbf{\protect\hyperlink{scene-from-views}{Scene from Views}} module providing a unified interface for feed-forward inference of 3D scenes from multiple views, supporting models such as DUSt3R\cite{wang2023dust3r}, MASt3R\cite{leroy2024grounding}, Depth Anything V3\cite{depthanything3}, MV-DUSt3R\cite{tang2025mv}, VGGT\cite{wang2025vggt}, and Fast3R\cite{yang2025fast3r}.
     
     \item A modular sparse SLAM \textbf{\protect\hyperlink{cpp-core}{Core}}, implemented both in Python and C++ (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes.
+
+    \item Several \textbf{\protect\hyperlink{camera-models}{camera models}} in the sparse pipeline: pinhole, Kannala--Brandt\cite{kannala2006generic}, rational distortion, and double sphere\cite{usenko2018double}, with native and rectified fisheye stereo on TUM-VI\cite{schubert2018tumvi}.
     
     \item Additional tools for VO (Visual Odometry) and SLAM, with built-in
     support for both \textbf{g2o}\cite{g2o_kummerle} and \textbf{GTSAM}\cite{factor_graphs_for_robot_perception}, along with custom
     Python bindings for features not available in the original libraries
 
-    \item Built-in support for over \textbf{\protect\hyperlink{datasets}{10 dataset
+    \item Built-in support for more than \textbf{\protect\hyperlink{datasets}{15 dataset
     types}}. The list is currently growing.
+
+    \item Tools for \textbf{\protect\hyperlink{evaluating-slam}{reproducible evaluation}}: automated multi-dataset evaluation, a regression test suite, and an end-to-end replay harness with performance and accuracy gates.
 \end{itemize}
 
 pySLAM serves as a flexible baseline framework to experiment with VO/SLAM
@@ -244,10 +250,25 @@ pipelines. pySLAM is a research framework and a work in progress. It is
 not optimized for real-time performance.
 
 
-\hypertarget{system_overview}{%
-\section{Overview}}
+\hypertarget{related-work}{%
+\section{Related Work}\label{related-work}}
 
-\subsection{Main Scritps}
+\paragraph{Feature-based visual SLAM.}
+PTAM~\cite{PTAM} introduced the separation of camera tracking and keyframe-based mapping into parallel threads, with bundle adjustment running in the background. ORB-SLAM2~\cite{ORB_SLAM2} built on this design and added loop closing, relocalization, and support for monocular, stereo, and RGB-D cameras, using ORB features~\cite{rublee2011orb} and a bag of binary words~\cite{galvez2012bags} for place recognition. ORB-SLAM3~\cite{campos2021orbslam3} extended the system to visual-inertial and multi-map SLAM and abstracted the camera model, so that pinhole and fisheye cameras share the same pipeline. pySLAM adopts the same tracking, local mapping, and loop closing decomposition (Sect.~\ref{sec:architecture}), but implements it as a modular framework in which each component, from the local features to the optimization backend, can be replaced through a factory interface. A broader overview of the SLAM problem and its open challenges is given in~\cite{cadena2017past}.
+
+\paragraph{Place recognition and loop closing.}
+Loop detection has moved from aggregations of local descriptors, such as bags of words~\cite{galvez2012bags} and VLAD~\cite{jegou2010aggregating}, to global image descriptors learned end to end, such as NetVLAD~\cite{arandjelovic2016netvlad}, CosPlace~\cite{berton2023cosplace}, EigenPlaces~\cite{berton2023eigenplaces}, and MegaLoc~\cite{berton2025megaloc}. Schubert et al.~\cite{schubert2023visual} provide a tutorial on visual place recognition. pySLAM exposes both families behind the same loop detector interface, so they can be compared within a complete SLAM pipeline rather than in isolation.
+
+\paragraph{Dense, semantic, and learned reconstruction.}
+Dense reconstruction from RGB-D data has been surveyed in~\cite{zollhofer2018state}. pySLAM integrates TSDF fusion with voxel hashing~\cite{dong2022ash}, incremental Gaussian Splatting~\cite{matsuki2023gaussian,kerbl20233d}, and semantic volumetric mapping, following earlier work on combining sparse SLAM with dense and semantic mapping~\cite{freda2023plvs,pyslamSemantic2025}. More recently, feed-forward models such as DUSt3R~\cite{wang2023dust3r}, MASt3R~\cite{leroy2024grounding}, and VGGT~\cite{wang2025vggt} infer camera poses and 3D structure directly from a set of images. pySLAM offers them through a single \textit{Scene from Views} interface (Sect.~\ref{scene-from-views}).
+
+\paragraph{Camera models.}
+Wide-angle and fisheye lenses are commonly described by the Kannala--Brandt model~\cite{kannala2006generic} or by the double sphere model~\cite{usenko2018double}, and the TUM-VI benchmark~\cite{schubert2018tumvi} provides fisheye stereo sequences with motion-capture ground truth. Sect.~\ref{camera-models} describes how these models are integrated into the sparse pipeline of pySLAM.
+
+\hypertarget{system_overview}{%
+\section{System Architecture}\label{sec:architecture}}
+
+\subsection{Main Scripts}
 
 A convenient entry point is the following collection of \textbf{main scripts}:
 \begin{itemize}
@@ -279,6 +300,10 @@ camera pose estimation.
   \texttt{main\_depth\_prediction.py} shows how to use the available
   depth inference models to get depth estimations from input color
   images.
+\item
+  \texttt{main\_semantic\_image\_segmentation.py} runs the configured
+  semantic segmentation model on each frame of the selected dataset and
+  visualizes the extracted semantic information.
 \item
   \texttt{main\_map\_viewer.py} reloads a saved map and visualizes it.
   Further details on how to save a map
@@ -370,7 +395,7 @@ The \textit{Feature Tracker} consists of the following key sub-components:
 
 \end{itemize}
 
-\item \textit{Feature Matcher}: Establishes correspondences between features in successive frames (or stereo pairs) by comparing their descriptors or directly inferring matches from image content. Matching can be performed using brute-force, k-NN with ratio test, or learned matching strategies. Refere to Sect.~\ref{Sect:FeatureMatcher} for futher details.
+\item \textit{Feature Matcher}: Establishes correspondences between features in successive frames (or stereo pairs) by comparing their descriptors or directly inferring matches from image content. Matching can be performed using brute-force, k-NN with ratio test, or learned matching strategies. Refer to Sect.~\ref{Sect:FeatureMatcher} for further details.
 \end{itemize}
 
 Sect.~\ref{supported-local-features} lists the supported local feature extractors and detectors.
@@ -480,6 +505,78 @@ This modular design decouples semantic segmentation from mapping logic, enabling
 The Section~\ref{semantic-mapping-and-image-segmentation} provides a list of supported semantic segmentation methods.
 A more in-depth presentation of the semantic mapping module is provided in~\cite{pyslamSemantic2025}.
 
+\hypertarget{camera-models}{%
+\subsection{Camera Models}\label{camera-models}}
+
+The sparse pipeline accesses the camera only through its projection $\pi(\mathbf{X}_c)$, its unprojection $\pi^{-1}(\mathbf{u})$, and the analytic Jacobian $\partial \pi / \partial \mathbf{X}_c$ of the projection with respect to a point $\mathbf{X}_c = (x, y, z)^\top$ in the camera frame. Four models are available and are selected by the \texttt{Camera.type} field of the settings file. A settings file without that field keeps the linear pinhole model, so existing calibration files are unaffected.
+
+\paragraph{Pinhole.} The default model is
+\begin{equation}
+u = f_x \frac{x}{z} + c_x, \qquad v = f_y \frac{y}{z} + c_y .
+\end{equation}
+The distortion coefficients are used only to undistort the detected keypoints, and bundle adjustment compares the linear projection with the undistorted keypoints.
+
+\paragraph{Kannala--Brandt.} The fisheye model of~\cite{kannala2006generic} with four distortion coefficients (\texttt{kannala\_brandt4}) maps the angle $\theta$ between the ray and the optical axis to a distorted angle $\theta_d$:
+\begin{equation}
+r = \sqrt{x^2 + y^2}, \quad \theta = \operatorname{atan2}(r, z), \quad
+\theta_d = \theta \left(1 + k_1 \theta^2 + k_2 \theta^4 + k_3 \theta^6 + k_4 \theta^8\right),
+\end{equation}
+\begin{equation}
+u = f_x \, \theta_d \, \frac{x}{r} + c_x, \qquad v = f_y \, \theta_d \, \frac{y}{r} + c_y .
+\end{equation}
+This is the polynomial used by OpenCV's fisheye module. Because the field of view can exceed $180^\circ$, a point with $z < 0$ can still have a valid projection.
+
+\paragraph{Rational pinhole.} This model (\texttt{pinhole\_radtan8}) distorts the normalized point $(x/z, y/z)$ with the OpenCV rational model, whose eight coefficients are $k_1, k_2, p_1, p_2, k_3, k_4, k_5, k_6$, and then multiplies it by the intrinsic matrix.
+
+\paragraph{Double sphere.} The model of~\cite{usenko2018double} (\texttt{double\_sphere}) projects a point through two unit spheres whose centers are offset by $\xi$, followed by a pinhole whose image plane is shifted by $\alpha$:
+\begin{equation}
+d_1 = \Vert \mathbf{X}_c \Vert, \quad d_2 = \sqrt{x^2 + y^2 + (\xi d_1 + z)^2}, \quad
+u = f_x \frac{x}{\alpha d_2 + (1 - \alpha)(\xi d_1 + z)} + c_x ,
+\end{equation}
+and analogously for $v$.
+
+\paragraph{Measurements.} For the pinhole model, tracking and optimization use undistorted keypoints, as in ORB-SLAM2~\cite{ORB_SLAM2}. For the three non-linear models, the projection predicts the detected pixel directly, so projection search and bundle adjustment measure the raw keypoints. For every model the framework also keeps the pinhole image of each keypoint ray, which is used by the fundamental-matrix test and by rectified stereo matching. A stereo observation is the triple $(u_l, v_l, u_r)$. With a physical stereo rig, $u_r$ is predicted by projecting the point through the calibrated right camera and its extrinsics. With an RGB-D sensor it is the virtual coordinate $u_r = f_x x/z + c_x - b f_x / z$, where $b f_x$ is the stereo baseline times the focal length.
+
+\paragraph{Native fisheye stereo.} Rectified-row stereo matching assumes a pinhole image. For the non-linear models, stereo correspondences are instead searched on unit bearings: each left bearing defines an epipolar plane in the right camera, and a right keypoint is a candidate when its bearing lies on that plane, between the image of the point at infinity and the right camera center, within a $\chi^2$ bound (one degree of freedom) of the right keypoint's octave. The best descriptor must pass a ratio test, matches are made one-to-one, and each pair is triangulated from both rays and accepted only if it reprojects within a two-degree-of-freedom $\chi^2$ bound in both images. Triangulation search between keyframes uses the same bearing-to-plane distance.
+
+\paragraph{Implementation.} The projection formulas and their Jacobians are written once, in a single C++ header that depends only on Eigen and is shared by the Python and C++ cores. Optimization factors for g2o~\cite{g2o_kummerle} and GTSAM~\cite{factor_graphs_for_robot_perception} are implemented in C++ with analytic Jacobians, so no per-observation Python callbacks enter the optimization. Pinhole observations keep their original optimizer factors.
+
+\paragraph{TUM-VI.} The TUM-VI loader~\cite{schubert2018tumvi} supports two stereo modes. The \textit{native} mode keeps the original fisheye images and builds two Kannala--Brandt cameras with the calibrated right-to-left transform. The \textit{rectified} mode remaps the fisheye images once to a pinhole stereo pair, which then runs through the standard pinhole pipeline; this mode should be used with stereo depth estimators and dense reconstruction. Monocular fisheye tracking is also supported. Motion-capture poses are converted to the tracking camera frame and are never interpolated across gaps longer than a configurable threshold. Sect.~\ref{camera-model-validation} reports an initial comparison of the two modes.
+
+\paragraph{Limitations.} Stereo depth initialization and the legacy initialization and Sim(3) paths have not yet been validated for fields of view beyond $180^\circ$. Supporting a projection model is therefore not equivalent to supporting complete omnidirectional SLAM.
+
+\hypertarget{cpp-core}{%
+\subsection{C++ Core for Sparse SLAM}\label{cpp-core}}
+
+The system provides a modular \textbf{sparse-SLAM core}, implemented in \textbf{both Python and C++} (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes. The C++ core reimplements the sparse SLAM initially implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11.
+
+The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names. The bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++ when possible.
+
+The module is currently \textbf{under active development}.
+
+The C++ core is selected by default (\texttt{USE\_CPP\_CORE = True} in \texttt{pyslam/config\_parameters.py}); setting the flag to \texttt{False}, or launching with the environment variable \texttt{PYSLAM\_USE\_CPP=false}, selects the Python implementation. The two implementations are interoperable: a map saved by one can be loaded by the other. Two practical consequences follow from this design. When the C++ core is active, the Python implementation of the sparse core is bypassed, so changes to it have no effect at runtime. Conversely, changes to the C++ sources take effect only after the core is rebuilt with \texttt{./build\_cpp\_core.sh}.
+
+
+The codebase is organized into the following categories:
+\begin{itemize}
+\item \textbf{Core SLAM Classes}: Main C++ implementations (\texttt{frame.cpp/h}, \texttt{keyframe.cpp/h}, \texttt{map\_point.cpp/h}, \texttt{map.cpp/h}, \texttt{camera.cpp/h}, \texttt{camera\_pose.cpp/h}, \texttt{optimizer\_g2o.cpp/h}, \texttt{tracking\_core.cpp/h}, \texttt{local\_mapping\_core.cpp/h}).
+\item \textbf{SLAM pipeline}: the \texttt{Slam}, \texttt{Tracking}, and \texttt{LocalMapping} classes (\texttt{slam.cpp/h}, \texttt{tracking.cpp/h}, \texttt{local\_mapping.cpp/h}), which follow the control flow of their Python counterparts. Components that have not been ported, such as the feature tracker and loop closing, remain Python objects held by these classes.
+\item \textbf{Serialization}: JSON and NumPy serialization modules for data persistence and Python interop.
+\item \textbf{Python Bindings}: pybind11 module definitions that expose C++ classes to Python.
+\item \textbf{Type Casters}: pybind11 type casters for custom type conversions (OpenCV, Eigen, JSON, dictionary types).
+\item \textbf{Utilities}: Helper functions for geometry, features, descriptors, image processing, NumPy/Eigen operations, and serialization.
+\item \textbf{Tests}: C++ unit tests and Python integration tests (see Sect.~\ref{testing}).
+\end{itemize}
+
+The C++ core adopts a streamlined design philosophy:
+\begin{itemize}
+\item \textbf{All core data resides in C++}: Python serves purely as an interface layer.
+\item \textbf{Direct pybind11 exposure}: Python objects are lightweight views of underlying C++ objects.
+\item \textbf{Automatic zero-copy}: pybind11 automatically shares NumPy array memory with C++ when possible.
+\item \textbf{RAII-based ownership}: C++ smart pointers manage object lifetimes safely and efficiently.
+\end{itemize}
+
+
 \hypertarget{scene-from-views}{%
 \subsection{3D Scene from Views}\label{scene-from-views}}
 
@@ -500,6 +597,764 @@ The module supports both pairwise models (\texttt{DUSt3R}\cite{wang2023dust3r}, 
 %\clearpage
 \FloatBarrier
 
+
+\hypertarget{supported-components-and-models}{%
+\section{Supported components and
+models}\label{supported-components-and-models}}
+
+\hypertarget{supported-local-features}{%
+\subsection{Supported local
+features}\label{supported-local-features}}
+
+\begin{figure}[!t]
+\begin{center}
+    \includegraphics[width=\textwidth]{./images_tex/local_features_timeline.png}
+\end{center}
+\caption{Timeline of some of the most famous local features for image matching, place recognition and SLAM.}
+\label{Fig_TimelineLocalFeatures}
+\end{figure}
+
+Fig.~\ref{Fig_TimelineLocalFeatures} shows a timeline with some of the most famous local features for image matching, place recognition and SLAM. At present time, pySLAM supports the following feature \textbf{detectors}:
+
+\begin{itemize}
+    \item \href{https://www.edwardrosten.com/work/fast.html}{FAST} \cite{rosten2006machine}
+    \item \href{https://ieeexplore.ieee.org/document/323794}{Good features to track} \cite{shi1994good}
+    \item \href{http://www.willowgarage.com/sites/default/files/orb_final.pdf}{ORB} \cite{rublee2011orb}
+    \item \href{https://github.com/raulmur/ORB_SLAM2}{ORB2} (improvements of ORB-SLAM2\cite{ORB_SLAM2} to ORB detector)
+    \item \href{https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf}{SIFT} \cite{lowe1999object}
+    \item \href{http://people.ee.ethz.ch/~surf/eccv06.pdf}{SURF} \cite{bay2006surf}
+    \item \href{https://www.doc.ic.ac.uk/~ajd/Publications/alcantarilla_etal_eccv2012.pdf}{KAZE} \cite{alcantarilla2012kaze}
+    \item \href{http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf}{AKAZE} \cite{alcantarilla2013fast}
+    \item \href{http://www.margaritachli.com/papers/ICCV2011paper.pdf}{BRISK} \cite{leutenegger2011brisk}
+    \item \href{chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://archive.air.in.tum.de/Main/Publications/Mair2010c.pdf}{AGAST} \cite{mair2010adaptive}
+    \item \href{http://cmp.felk.cvut.cz/~matas/papers/matas-bmvc02.pdf}{MSER} \cite{matas2002robust}
+    \item \href{https://link.springer.com/chapter/10.1007/978-3-540-88693-8_8}{StarDector/CenSurE} \cite{censure}
+    \item \href{https://www.robots.ox.ac.uk/~vgg/research/affine/det_eval_files/mikolajczyk_ijcv2004.pdf}{Harris-Laplace} \cite{mikolajczyk_inria00548554}
+    \item \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPoint}\cite{detone18superpoint}
+    \item \href{https://github.com/mihaidusmanu/d2-net}{D2-Net} \cite{dusmanu2019d2}
+    \item \href{https://github.com/tensorflow/models/tree/master/research/delf}{DELF} \cite{noh2017large}
+    \item \href{https://github.com/lzx551402/contextdesc}{Contextdesc} \cite{luo2020contextdesc}
+    \item \href{https://github.com/vcg-uvic/lf-net-release}{LFNet} \cite{ono2018lf}
+    \item \href{https://github.com/naver/r2d2}{R2D2} \cite{revaud2019r2d2}
+    \item \href{https://github.com/axelBarroso/Key.Net}{Key.Net} \cite{barroso2020key}
+    \item \href{https://arxiv.org/abs/2006.13566}{DISK} \cite{tyszkiewicz2020disk}
+    \item \href{https://arxiv.org/abs/2304.03608}{ALIKED} \cite{barroso2023alike}
+    \item \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{barroso2024xfeat}
+    \item \href{https://github.com/axelBarroso/Key.Net}{KeyNetAffNetHardNet} (KeyNet detector \cite{barroso2020key} + AffNet + HardNet descriptor \cite{mishchuk2017working})
+\end{itemize}
+
+The following feature \textbf{descriptors} are supported: 
+
+\begin{itemize}
+    \item \href{http://www.willowgarage.com/sites/default/files/orb_final.pdf}{ORB} \cite{rublee2011orb}
+    \item \href{https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf}{SIFT} \cite{lowe1999object}
+    \item \href{https://www.robots.ox.ac.uk/~vgg/publications/2012/Arandjelovic12/arandjelovic12.pdf}{ROOT SIFT} \cite{arandjelovic2012three}
+    \item \href{http://people.ee.ethz.ch/~surf/eccv06.pdf}{SURF} \cite{bay2006surf}
+    \item \href{http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf}{AKAZE} \cite{alcantarilla2013fast}
+    \item \href{http://www.margaritachli.com/papers/ICCV2011paper.pdf}{BRISK} \cite{leutenegger2011brisk}
+    \item \href{https://www.researchgate.net/publication/258848394_FREAK_Fast_retina_keypoint}{FREAK} \cite{alahi2012freak}
+    \item \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPoint} \cite{detone18superpoint}
+    \item \href{https://github.com/vbalnt/tfeat}{Tfeat} \cite{balntas2016learning}
+    \item \href{https://www.labri.fr/perso/vlepetit/pubs/trzcinski_pami15.pdf}{BOOST-DESC} \cite{trzcinski2013boosting}
+    \item \href{https://ieeexplore.ieee.org/document/4815264}{DAISY} \cite{tola2010daisy}
+    \item \href{https://arxiv.org/abs/1501.03719}{LATCH} \cite{levi2006latch}
+    \item \href{https://pdfs.semanticscholar.org/85bd/560cdcbd4f3c24a43678284f485eb2d712d7.pdf}{LUCID} \cite{lucid2015}
+    \item \href{https://www.robots.ox.ac.uk/~vedaldi/assets/pubs/simonyan14learning.pdf}{VGG} \cite{simonyan2014learning}
+    \item \href{https://github.com/DagnyT/hardnet.git}{Hardnet} \cite{mishchuk2017working}
+    \item \href{https://github.com/lzx551402/geodesc.git}{GeoDesc} \cite{verdie2018tilde}
+    \item \href{https://github.com/yuruntian/SOSNet.git}{SOSNet} \cite{SOSNet}
+    \item \href{https://github.com/yuruntian/L2-Net}{L2Net} \cite{L2Net}
+    \item \href{https://github.com/cvlab-epfl/log-polar-descriptors}{Log-polar descriptor} \cite{LogPolarDescriptor}
+    \item \href{https://github.com/mihaidusmanu/d2-net}{D2-Net} \cite{dusmanu2019d2}
+    \item \href{https://github.com/tensorflow/models/tree/master/research/delf}{DELF} \cite{noh2017large}
+    \item \href{https://github.com/lzx551402/contextdesc}{Contextdesc} \cite{luo2020contextdesc}
+    \item \href{https://github.com/vcg-uvic/lf-net-release}{LFNet} \cite{ono2018lf}
+    \item \href{https://github.com/naver/r2d2}{R2D2} \cite{revaud2019r2d2}
+    \item \href{https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf}{BEBLID} \cite{BEBLID}
+    \item \href{https://arxiv.org/abs/2006.13566}{DISK} \cite{tyszkiewicz2020disk}
+    \item \href{https://arxiv.org/abs/2304.03608}{ALIKED} \cite{barroso2023alike}
+    \item \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{barroso2024xfeat}
+    \item \href{https://github.com/axelBarroso/Key.Net}{KeyNetAffNetHardNet} (KeyNet detector \cite{barroso2020key} + AffNet + HardNet descriptor \cite{mishchuk2017working})
+\end{itemize}
+
+For more information, refer to \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/local_features/feature_types.py}{pyslam/local\_features/feature\_types.py}
+file. Some of the local features consist of a \emph{joint
+detector-descriptor}. You can start playing with the supported local
+features by taking a look at \texttt{examples/cv/example\_feature\_manager.py}
+and \texttt{main\_feature\_matching.py}.
+
+In both the scripts \texttt{main\_vo.py} and \texttt{main\_slam.py}, you
+can create your preferred detector-descritor configuration and feed it
+to the function \texttt{feature\_tracker\_factory()}. Some ready-to-use
+configurations are already available in the file
+\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/local_features/feature_tracker_configs.py}{pyslam/local\_features/feature\_tracker.configs.py}
+
+The function \texttt{feature\_tracker\_factory()} can be found in the
+file \texttt{pyslam/local\_features/feature\_tracker.py}. Take a look at the
+file \texttt{pyslam/local\_features/feature\_manager.py} for further details.
+
+\textbf{N.B.}: You just need a \emph{single} python environment to be
+able to work with all the
+\protect\hyperlink{supported-local-features}{supported local features}!
+
+\hypertarget{supported-matchers}{%
+\subsection{Supported matchers}\label{supported-matchers}}
+
+\begin{itemize}
+    \item \texttt{BF}: Brute force matcher on descriptors (with KNN).
+    \item \href{https://www.semanticscholar.org/paper/Fast-Approximate-Nearest-Neighbors-with-Automatic-Muja-Lowe/35d81066cb1369acf4b6c5117fcbb862be2af350}{FLANN} \cite{muja2009fast}
+    \item \href{https://arxiv.org/abs/2404.19174}{XFeat} \cite{barroso2024xfeat}
+    \item \href{https://arxiv.org/abs/2306.13643}{LightGlue} \cite{lindenberger2023lightglue}
+    \item \href{https://arxiv.org/abs/2104.00680}{LoFTR} \cite{sun2021loftr}
+    \item \href{https://arxiv.org/abs/2406.09756}{MASt3R} \cite{master}
+\end{itemize}
+
+See the file \texttt{pyslam/local\_features/feature\_matcher.py} for further
+details.
+
+\hypertarget{supported-global-descriptors-and-local-descriptor-aggregation-methods}{%
+\subsection{Supported global descriptors and local descriptor
+aggregation
+methods}\label{supported-global-descriptors-and-local-descriptor-aggregation-methods}}
+
+\hypertarget{local-descriptor-aggregation-methods}{%
+\subparagraph{Local descriptor aggregation
+methods}\label{local-descriptor-aggregation-methods}}
+
+\begin{itemize}
+    \item Bag of Words (BoW): \href{https://github.com/dorian3d/DBoW2}{DBoW2} \cite{galvez2012bags}, \href{https://github.com/rmsalinas/DBow3}{DBoW3} \cite{galvez2012bags}.  \href{https://doi.org/10.1109/TRO.2012.2197158}{[paper]}
+    \item Vector of Locally Aggregated Descriptors: \href{https://www.vlfeat.org/api/vlad.html}{VLAD} \cite{jegou2010aggregating}.  \href{https://doi.org/10.1109/CVPR.2010.5540039}{[paper]}
+    \item Incremental Bags of Binary Words (iBoW) via Online Binary Image Index: \href{https://github.com/emiliofidalgo/ibow-lcd}{iBoW} \cite{garcia2018ibow}, \href{https://github.com/emiliofidalgo/obindex2}{OBIndex2} \cite{garcia2018ibow}.  \href{https://doi.org/10.1109/LRA.2018.2849609}{[paper]}
+    \item Hyperdimensional Computing: \href{https://www.tu-chemnitz.de/etit/proaut/hdc_desc}{HDC} \cite{neubert2021hyperdimensional}.  \href{https://openaccess.thecvf.com/content/CVPR2021/html/Neubert_Hyperdimensional_Computing_as_a_Framework_for_Systematic_Aggregation_of_Image_CVPR_2021_paper.html}{[paper]}
+\end{itemize}
+
+\textbf{NOTE}: \emph{iBoW} and \emph{OBIndex2} incrementally build a
+binary image index and do not need a prebuilt vocabulary. In the
+implemented classes, when needed, the input non-binary local descriptors
+are transparently transformed into binary descriptors.
+
+\hypertarget{global-descriptors}{%
+\subparagraph{Global descriptors}\label{global-descriptors}}
+
+Also referred to as \emph{holistic descriptors}:
+
+\begin{itemize}
+\tightlist
+\item
+  \href{https://ieeexplore.ieee.org/document/6224623}{SAD} \cite{milford2012seqslam}
+\item
+  \href{https://github.com/BVLC/caffe/tree/master/models/bvlc_alexnet}{AlexNet} \cite{krizhevsky2012imagenet}
+\item
+  \href{https://www.di.ens.fr/willow/research/netvlad/}{NetVLAD} \cite{arandjelovic2016netvlad}
+\item
+  \href{https://www.tu-chemnitz.de/etit/proaut/hdc_desc}{HDC-DELF} \cite{schlegel2022comparison}
+\item
+  \href{https://github.com/gmberton/CosPlace}{CosPlace} \cite{berton2023cosplace}
+\item
+  \href{https://github.com/gmberton/EigenPlaces}{EigenPlaces} \cite{berton2023eigenplaces}
+\item
+  \href{https://github.com/gmberton/MegaLoc}{MegaLoc} \cite{berton2025megaloc}	
+\end{itemize}
+
+Different \protect\hyperlink{loop-closing}{loop closing methods} are
+available. These combines the above aggregation methods and global
+descriptors. See the file \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/loop_closing/loop_detector_configs.py}{pyslam/loop\_closing/loop\_detector\_configs.py}
+for further details.
+
+\hypertarget{supported-depth-prediction-models}{%
+\subsection{Supported depth prediction
+models}\label{supported-depth-prediction-models}}
+
+Both monocular and stereo depth prediction models are available. SGBM
+algorithm has been included as a classic reference approach.
+
+\begin{itemize}
+\tightlist
+\item
+  \href{https://ieeexplore.ieee.org/document/4359315}{SGBM}\cite{hirschmuller2007stereo}: Depth SGBM
+  from OpenCV (Stereo, classic approach) 
+\item
+  \href{https://arxiv.org/abs/2410.02073}{Depth-Pro} (Monocular) \cite{depthpro2023}
+\item
+  \href{https://arxiv.org/abs/2406.09414}{DepthAnythingV2} (Monocular) \cite{depthanythingv2_2024}
+\item
+  \href{https://arxiv.org/abs/2109.07547}{RAFT-Stereo} (Stereo) \cite{teed2021raft}
+\item
+  \href{https://arxiv.org/abs/2203.11483}{CREStereo} (Stereo) \cite{li2022cres}
+\item
+  \href{https://arxiv.org/abs/2406.09756}{MASt3R} (Monocular/Stereo) \cite{master}
+\item
+  \href{https://arxiv.org/abs/2412.06974}{MV-DUSt3R} (Monocular/Stereo) \cite{mvduster}    
+\end{itemize}
+
+\hypertarget{supported-volumetric-mapping-methods}{%
+\subsection{Supported volumetric mapping
+methods}\label{supported-volumetric-mapping-methods}}
+
+\begin{itemize}
+\tightlist
+\item
+  A C++ template-based voxel grid implementation leverages parallel
+  spatial hashing, supporting both direct voxel hashing and indirect
+  voxel-block hashing strategies. Parallel execution is managed using
+  TBB, and the design accommodates both simple and semantic voxels.
+  Further information about the volumetric grid models is available
+  \href{https://github.com/luigifreda/pyslam/blob/master/cpp/modules/volumetric/README.md}{here}.
+\item    
+  \href{https://arxiv.org/pdf/2110.00511}{TSDF} with voxel block grid
+  (parallel spatial hashing)~\cite{dong2022ash}
+\item
+  Incremental 3D Gaussian Splatting. See
+  \href{https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/}{here}
+  and \href{https://arxiv.org/abs/2312.06741}{MonoGS} for a description
+  of its backend \cite{matsuki2023gaussian, kerbl20233d}.
+\end{itemize}
+
+\hypertarget{supported-semantic-segmentation-methods}{%
+\subsection{Supported semantic segmentation
+methods}\label{supported-semantic-segmentation-methods}}
+
+\begin{itemize}
+\tightlist
+\item
+  \href{https://arxiv.org/abs/1706.05587}{DeepLabv3}~\cite{chen2017rethinking}: from \texttt{torchvision}, pre-trained on COCO/VOC.
+\item
+  \href{https://arxiv.org/abs/2105.15203}{Segformer}~\cite{xie2021segformer}: from \texttt{transformers}, pre-trained on Cityscapes or ADE20k.
+\item
+  \href{https://arxiv.org/abs/2212.09506}{CLIP}~\cite{lin2023clip}: from \texttt{f3rm} package for open-vocabulary support.
+\item
+  \href{https://arxiv.org/abs/2412.08628v1}{EOV\_SEG}~\cite{eov_seg}: EOV-Seg: Efficient Open-Vocabulary Panoptic Segmentation.
+\item
+  \href{https://arxiv.org/abs/2201.02605}{DETIC}~\cite{detic}: Detecting Twenty-thousand Classes using Image-level Supervision.
+\item
+  \href{https://arxiv.org/abs/2303.04803}{ODISE}~\cite{odise}: Open-Vocabulary Panoptic Segmentation with Text-to-Image Diffusion Models.
+\item
+  \href{https://arxiv.org/abs/2511.09554}{RFDETR}~\cite{rfdetr}: A real-time transformer architecture for object detection and instance segmentation, built on a DINOv2 vision transformer backbone.
+\item
+  \href{https://arxiv.org/abs/2510.09653}{YOLO}~\cite{sapkota2025ultralytics}: One of the most influential and widely adopted series of models for real-time object detection, that attains an excellent balance
+between high accuracy and inference speed.
+\end{itemize}
+\hypertarget{supported-models-for-feed-forward-inference-of-3d-scenes-from-multiple-images}{%
+\subsubsection{Supported models for feed-forward inference of 3D scenes
+from multiple
+images}\label{supported-models-for-feed-forward-inference-of-3d-scenes-from-multiple-images}}
+
+\begin{itemize}
+\tightlist
+\item
+  \href{https://arxiv.org/abs/2312.14132}{DUSt3R}\cite{wang2023dust3r}: Geometric 3D Vision
+  Made Easy
+\item
+  \href{https://arxiv.org/abs/2406.09756}{MASt3R}\cite{master}: Grounding Image
+  Matching in 3D with MASt3R 
+\item
+  \href{https://arxiv.org/abs/2511.10647}{Depth Anything V3}\cite{depthanything3}: Recovering
+  the Visual Space from Any Views
+\item
+  \href{https://github.com/naver/mvdust3r}{MVDust3r}\cite{mvduster}: Multi-view DUSt3R
+  variant
+\item
+  \href{https://github.com/facebookresearch/vggt}{VGGT}\cite{wang2025vggt}: Visual Geometry
+  Grounded Transformer
+\item
+  \href{https://github.com/cvlab-kaist/RobustVGGT.git}{Robust VGGT}\cite{vggt_robust}:
+  Emergent Outlier View Rejection in Visual Geometry Grounded
+  Transformers
+\item
+  \href{https://arxiv.org/abs/2501.13928}{Fast3R}\cite{yang2025fast3r}: Fast3R: Towards 3D Reconstruction of 1000+ Images in One Forward Pass
+\end{itemize}
+
+See \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/scene_from_views/README.md}{here} for further details about
+\texttt{SceneFromViews} architecture.
+
+%\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{evaluating-slam}{%
+\section{Experimental Evaluation}\label{evaluating-slam}}
+
+This section describes the tools pySLAM provides for evaluating SLAM configurations, reports results obtained with them on the TUM, EuRoC, and KITTI benchmarks, and presents the automated test suite and an initial validation of the camera models on TUM-VI.
+
+\hypertarget{run-a-slam-evaluation}{%
+\subsection{Run a SLAM evaluation}\label{run-a-slam-evaluation}}
+
+The \texttt{main\_slam\_evaluation.py} script enables automated SLAM
+evaluation by executing \texttt{main\_slam.py} across a collection of
+\textit{datasets} and configuration \textit{presets}. The main input to the script is an evaluation configuration file (e.g., \texttt{evaluation/configs/evaluation.json}) that specifies which datasets and presets to be used. For convenience, sample configurations for the datasets \texttt{TUM}, \texttt{EUROC} and \texttt{KITTI} datasets are already provided in the \texttt{evaluation/configs/} directory.
+
+For each evaluation run, results are
+stored in a dedicated subfolder within the \texttt{results} directory,
+containing all the computed metrics. These metrics are then processed
+and compared. The final output is a report, available in PDF,
+LaTeX, and HTML formats, that includes comparison tables summarizing the
+\emph{Absolute Trajectory Error} (ATE), the maximum deviation from the
+ground truth trajectory and other metrics.
+
+Evaluation results are presented in the following subsections. For convenience, they are also available at this \href{https://github.com/luigifreda/pyslam/blob/master/docs/evaluations/evaluations.md}{link}. The evaluation uses commit \textit{f7c9a13} with the following presets: \texttt{baseline}, \texttt{root\_sift}, and \texttt{superpoint}, which correspond to local feature extractors \texttt{ORB2}, \texttt{root\_SIFT}, and \texttt{SuperPoint}, respectively. 
+
+
+\hypertarget{tum-evaluation}{%
+\subsection{TUM Evaluation}\label{tum-evaluation}}
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{TUM: Table RMSE}\label{tab:tum_table_rmse}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 8.0cm } >{\RaggedRight\arraybackslash}p{ 1.0cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+rgbd\_dataset\_freiburg1\_desk & 0.06634 & 0.05289 & 0.04815 \\
+rgbd\_dataset\_freiburg1\_desk2 & 0.04645 & 0.06255 & 0.03868 \\
+rgbd\_dataset\_freiburg1\_room & 0.05885 & 0.07968 & 0.07199 \\
+rgbd\_dataset\_freiburg1\_xyz & 0.01196 & 0.01758 & 0.01726 \\
+rgbd\_dataset\_freiburg3\_long\_office\_household & 0.00921 & 0.00982 & 0.00952 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_far & 0.08397 & 0.11342 & 0.12118 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_near\_withloop & 0.02245 & 0.05022 & 0.05037 \\
+Average & 0.04275 & 0.05517 & 0.05102 \\
+Std Dev & 0.0362 & 0.04531 & 0.04503 \\
+Best (Average) Preset & baseline &  &  \\
+Best (Average) Metric & 0.04275 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{TUM: Table Max }\label{tab:tum_table_max}
+
+
+
+\fontsize{7pt}{8pt}\selectfont
+
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 8.0cm } >{\RaggedRight\arraybackslash}p{ 1.0cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+rgbd\_dataset\_freiburg1\_desk & 0.326 & 0.19361 & 0.22686 \\
+rgbd\_dataset\_freiburg1\_desk2 & 0.44543 & 0.28865 & 0.38157 \\
+rgbd\_dataset\_freiburg1\_room & 0.14959 & 0.2838 & 0.17632 \\
+rgbd\_dataset\_freiburg1\_xyz & 0.06059 & 0.0677 & 0.0635 \\
+rgbd\_dataset\_freiburg3\_long\_office\_household & 0.03609 & 0.03543 & 0.04005 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_far & 0.29727 & 0.4361 & 0.70826 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_near\_withloop & 0.09011 & 0.13774 & 0.11602 \\
+Average & 0.20073 & 0.20615 & 0.24465 \\
+Std Dev & 0.18661 & 0.18182 & 0.26334 \\
+Best (Average) Preset & baseline &  &  \\
+Best (Average) Metric & 0.20073 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{TUM: Table Percent Lost }\label{tab:tum_table_percent_lost}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 8.0cm } >{\RaggedRight\arraybackslash}p{ 1.0cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+rgbd\_dataset\_freiburg1\_desk & 1.364 & 1.502 & 1.674 \\
+rgbd\_dataset\_freiburg1\_desk2 & 0.548 & 1.55 & 0.612 \\
+rgbd\_dataset\_freiburg1\_room & 0.074 & 0.148 & 0.088 \\
+rgbd\_dataset\_freiburg1\_xyz & 0.05 & 0.076 & 0.078 \\
+rgbd\_dataset\_freiburg3\_long\_office\_household & 0.0 & 0.0 & 0.0 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_far & 0.622 & 0.622 & 0.666 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_near\_withloop & 0.024 & 0.036 & 0.036 \\
+Average & 0.38314 & 0.562 & 0.45057 \\
+Std Dev & 0.50438 & 0.82947 & 0.59847 \\
+Best (Average) Preset & baseline &  &  \\
+Best (Average) Metric & 0.38314 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+
+\hypertarget{euroc-evaluation}{%
+\subsection{EUROC Evaluation}\label{euroc-evaluation}}
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{EUROC: Table RMSE}\label{tab:euroc_table_rmse}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+V101 & 0.08819 & 0.08816 & 0.08834 \\
+V102 & 0.06852 & 0.06609 & 0.06694 \\
+V201 & 0.07062 & 0.06409 & 0.09735 \\
+V202 & 0.62539 & 0.56925 & 0.53736 \\
+MH01 & 0.03775 & 0.03781 & 0.04172 \\
+MH02 & 0.04217 & 0.0456 & 0.04177 \\
+MH03 & 0.0512 & 0.04905 & 0.04882 \\
+MH04 & 0.0702 & 0.05907 & 0.0646 \\
+MH05 & 0.08177 & 0.06607 & 0.07131 \\
+Average & 0.1262 & 0.11613 & 0.11758 \\
+Std Dev & 0.19831 & 0.17517 & 0.15435 \\
+Best (Average) Preset & root\_sift &  &  \\
+Best (Average) Metric & 0.11613 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{EUROC: Table Max }\label{tab:euroc_table_max}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+V101 & 0.16335 & 0.163 & 0.16208 \\
+V102 & 0.14545 & 0.12379 & 0.13136 \\
+V201 & 0.15864 & 0.18921 & 0.22163 \\
+V202 & 2.06607 & 2.52628 & 1.97847 \\
+MH01 & 0.09141 & 0.10259 & 0.21303 \\
+MH02 & 0.11922 & 0.1318 & 0.11196 \\
+MH03 & 0.19995 & 0.17533 & 0.14082 \\
+MH04 & 0.32021 & 0.27938 & 0.26722 \\
+MH05 & 0.24828 & 0.17474 & 0.18991 \\
+Average & 0.39029 & 0.42957 & 0.37961 \\
+Std Dev & 0.67128 & 0.75543 & 0.6093 \\
+Best (Average) Preset & superpoint &  &  \\
+Best (Average) Metric & 0.37961 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{EUROC: Table Percent Lost }\label{tab:euroc_table_percent_lost}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+V101 & 0.0 & 0.0 & 0.0 \\
+V102 & 0.0 & 0.0 & 0.0 \\
+V201 & 0.04 & 0.04 & 0.04 \\
+V202 & 0.146 & 0.138 & 0.112 \\
+MH01 & 0.05 & 0.074 & 0.08 \\
+MH02 & 0.018 & 0.026 & 0.012 \\
+MH03 & 0.046 & 0.03 & 0.032 \\
+MH04 & 0.0 & 0.01 & 0.0 \\
+MH05 & 0.07 & 0.016 & 0.034 \\
+Average & 0.04111 & 0.03711 & 0.03444 \\
+Std Dev & 0.05351 & 0.04829 & 0.04435 \\
+Best (Average) Preset & superpoint &  &  \\
+Best (Average) Metric & 0.03444 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+
+\hypertarget{kitti-evaluation}{%
+\subsection{KITTI Evaluation}\label{kitti-evaluation}}
+
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{KITTI: Table RMSE}\label{tab:kitt_table_rmse}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+00 & 3.947 & 3.24849 & 3.93432 \\
+01 & 21.60014 & 21.86468 & 23.37292 \\
+02 & 6.1194 & 5.6707 & 10.14455 \\
+03 & 5.96451 & 5.92601 & 5.88895 \\
+04 & 1.74556 & 1.76121 & 1.65506 \\
+05 & 2.13915 & 2.11047 & 2.52263 \\
+06 & 2.74011 & 2.73981 & 2.6784 \\
+07 & 1.12358 & 1.12823 & 1.09496 \\
+08 & 3.99078 & 4.13702 & 4.14543 \\
+09 & 4.26068 & 4.35988 & 4.06244 \\
+10 & 2.22097 & 2.25127 & 2.27694 \\
+Average & 5.07744 & 5.01798 & 5.61605 \\
+Std Dev & 5.47265 & 5.63609 & 6.77 \\
+Best (Average) Preset & root\_sift &  &  \\
+Best (Average) Metric & 5.01798 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{KITTI: Table Max }\label{tab:kitt_table_max}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+00 & 6.82983 & 5.8663 & 7.04067 \\
+01 & 33.32903 & 33.85867 & 36.62253 \\
+02 & 13.97623 & 9.47974 & 21.05188 \\
+03 & 10.16642 & 10.16978 & 10.06014 \\
+04 & 3.09135 & 3.0576 & 2.87271 \\
+05 & 3.81484 & 3.77687 & 4.9547 \\
+06 & 6.53758 & 5.14239 & 5.11673 \\
+07 & 1.84418 & 1.82355 & 1.8655 \\
+08 & 10.809 & 11.23635 & 10.75959 \\
+09 & 8.53888 & 8.70237 & 8.31166 \\
+10 & 4.13901 & 4.37849 & 4.27905 \\
+Average & 9.37058 & 8.86292 & 10.26683 \\
+Std Dev & 8.62548 & 8.62145 & 12.23529 \\
+Best (Average) Preset & root\_sift &  &  \\
+Best (Average) Metric & 8.86292 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{KITTI: Table Percent Lost }\label{tab:kitt_table_percent_lost}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+00 & 0.0 & 0.038 & 0.012 \\
+01 & 0.0 & 0.0 & 0.0 \\
+02 & 0.012 & 0.004 & 0.004 \\
+03 & 0.0 & 0.0 & 0.0 \\
+04 & 0.0 & 0.0 & 0.0 \\
+05 & 0.0 & 0.0 & 0.028 \\
+06 & 0.108 & 0.018 & 0.0 \\
+07 & 0.0 & 0.0 & 0.0 \\
+08 & 0.0 & 0.0 & 0.0 \\
+09 & 0.0 & 0.0 & 0.0 \\
+10 & 0.0 & 0.0 & 0.0 \\
+Average & 0.01091 & 0.00545 & 0.004 \\
+Std Dev & 0.07244 & 0.02373 & 0.0196 \\
+Best (Average) Preset & superpoint &  &  \\
+Best (Average) Metric & 0.004 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+
+\hypertarget{pyslam-performances-and-comparative-evaluations}{%
+\subsection{pySLAM performances and comparative
+evaluations}\label{pyslam-performances-and-comparative-evaluations}}
+
+For a comparative evaluation of the ``\textit{online}'' trajectory
+estimated by pySLAM versus the ``\textit{final}'' trajectory estimated
+by ORB-SLAM3, check out this nice
+\href{https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb}{notebook}.
+For more details about ``online'' and ``final''
+trajectories, refer to Section~\ref{trajectory-saving}.
+
+\textbf{Note}: Unlike ORB-SLAM3, which only saves the final pose
+estimates (recorded after the entire dataset has been processed), pySLAM
+saves both online and final pose estimates. For details on how to save
+trajectories in pySLAM, refer to this
+\protect\hyperlink{trajectory-saving}{section}. When you click the
+\texttt{Draw\ Ground\ Truth} button in the GUI (see
+\protect\hyperlink{slam-gui}{here}), you can visualize the
+\emph{Absolute Trajectory Error} (ATE or \emph{RMSE}) history and
+evaluate both online and final errors up to the current time.
+
+\hypertarget{testing}{%
+\subsection{Automated Testing}\label{testing}}
+
+Reproducibility also depends on detecting regressions as the framework evolves. The repository therefore separates the automated test suite (folder \texttt{tests}) from the usage examples (folder \texttt{examples}). The suite comprises Python unit tests run with \texttt{pytest}, C++ unit tests of the sparse core, Python tests of the C++ core and its bindings, and headless checks of the C++ extension modules. A single launcher, \texttt{tests/run\_all.sh}, runs all of them in sequence and reports the failing steps. Several tests reproduce past defects, such as crashes in local mapping and relocalization or inconsistent loop-detector database indices, so that they cannot reappear unnoticed.
+
+Changes that affect the camera models are additionally checked end to end. A replay harness processes a dataset sequence deterministically (ORB2 features, synchronous local mapping, and no loop closure unless requested) and records tracking states, per-frame timings, keyframe and map-point counts, and the absolute trajectory error, with Sim(3) alignment for monocular runs and SE(3) alignment for metric sensors. A comparison script replays the same sequences with a baseline checkout and with the current one, alternating their order, and fails if the median paired frame-time ratio exceeds $1.20$, if any pair loses more than two percentage points of tracking or ground-truth coverage, or if the trajectory error grows by more than the larger of $20\%$ and $0.02$\,m.
+
+\hypertarget{camera-model-validation}{%
+\subsection{Camera Models on TUM-VI}\label{camera-model-validation}}
+
+As an initial check of the camera models of Sect.~\ref{camera-models}, the first 300 frames of the TUM-VI \texttt{room1} sequence (512$\times$512) were replayed in the rectified and native stereo modes, using the C++ core, g2o, ORB2 with 1200 features, and synchronous local mapping. Table~\ref{tab:tumvi_modes} summarizes the results. Both modes tracked all frames after initialization. The rectified mode, which runs the established pinhole pipeline, was faster and more accurate on this short segment; the native mode pays for bearing-based stereo matching and model-aware projection and optimization.
+
+\begin{table}[!ht]
+\centering
+\caption{TUM-VI \texttt{room1}, first 300 frames: rectified versus native fisheye stereo. Timings include tracking and synchronous local mapping.}
+\label{tab:tumvi_modes}
+\fontsize{8pt}{9.6pt}\selectfont
+\begin{tabular}{lrr}
+\toprule
+Measurement & Rectified & Native \\
+\midrule
+Tracking states & 1 initializing, 299 OK & 1 initializing, 299 OK \\
+Trajectory / mocap associations & 299 / 299 & 299 / 299 \\
+SE(3)-aligned translation RMSE & 0.0061\,m & 0.0127\,m \\
+Mean tracking + local mapping & 81.5\,ms/frame & 238.1\,ms/frame \\
+Median tracking + local mapping & 38.4\,ms/frame & 188.0\,ms/frame \\
+Mean image loading and preprocessing & 14.5\,ms/pair & 9.7\,ms/pair \\
+Final keyframes / map points & 48 / 2141 & 54 / 2417 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+These are exploratory measurements on a short segment, not a controlled benchmark: timings include warm-up and logging, and full-sequence drift, loop closing, the remaining TUM-VI sequences, and the Python and GTSAM paths on real data remain to be evaluated.
+
+\hypertarget{conclusions}{%
+\section{Conclusions and Future Work}\label{conclusions}}
+
+This document presented pySLAM, an open-source framework for visual SLAM that combines a sparse SLAM core, available in both Python and C++, with interchangeable local features, loop detectors, depth estimators, semantic segmentation models, volumetric integrators, and feed-forward multi-view reconstruction models. A unified dataset interface, automated evaluation scripts, and a regression test suite make it possible to compare these components within a complete pipeline and across more than fifteen dataset types. The framework is intended as a research and teaching platform rather than a real-time system.
+
+Several directions remain open. Inertial and LiDAR measurements are not yet integrated, and the tracker does not include direct methods. Object-level mapping is under development. For the camera models, wide fields of view beyond $180^\circ$ still need to be validated in initialization and Sim(3) estimation, and the native fisheye pipeline needs a full-sequence evaluation on TUM-VI and other fisheye datasets.
+
+%\hypertarget{Comparison pySLAM vs ORB-SLAM3}{%
+%\section{Comparison pySLAM vs ORB-SLAM3}\label{comparison-pySLAM-ORBSLAM3}}
+%
+%For a comparative evaluation, \textit{online} trajectory estimated by pySLAM vs \textit{final} trajectories estimated by ORB-SLAM3, see this nice \href{https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb}{notebook}. 
+%Note that pySLAM is able to save both online and final pose estimates. On the other end, ORB-SLAM3 pose estimates are saved at the end of the full dataset playback. 
+%For further details about online/final trajectories and trajectory saving, see the section~\ref{trajectory-saving}.
+
+% \hypertarget{pySLAM Performances and Comparative Evaluations}{%
+% \section{pySLAM Performances and Comparative Evaluations}\label{comparison-pySLAM}}
+
+% For a comparative evaluation of the \textbf{"online"} trajectory estimated by pySLAM versus the \textbf{"final"} trajectory estimated by ORB-SLAM3, check out this nice 
+% \href{https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb}{notebook}. 
+% For more details about \textit{"online"} and \textit{"final"} trajectories, refer to this \hyperref[trajectory-saving]{section}.
+
+% \textbf{Note}: pySLAM saves both online and final pose estimates, whereas ORB-SLAM3 only saves final estimates (pose data is recorded at the end of the entire dataset playback). 
+% For instructions on how to save trajectories with pySLAM, see this \hyperref[trajectory-saving]{section}. 
+% When you press the GUI button \texttt{Draw Ground Truth} (see \hyperref[slam-gui]{here}), you can visualize the history of the Absolute Trajectory Error (ATE or \textit{RMSE}) and evaluate both online and offline errors.
+
+\hypertarget{credits}{%
+\section*{Acknowledgments}\label{credits}}
+\addcontentsline{toc}{section}{Acknowledgments}
+
+A list of the frameworks that inspired or has been integrated into pySLAM are available \href{https://github.com/luigifreda/pyslam?tab=readme-ov-file#credits}{here}. Many thanks to their Authors for their great work.
+%
+%\begin{itemize}
+%\tightlist
+%\item
+%  \href{https://github.com/stevenlovegrove/Pangolin}{Pangolin}
+%\item
+%  \href{https://github.com/uoip/g2opy}{g2opy}
+%\item
+%  \href{https://github.com/raulmur/ORB_SLAM2}{ORBSLAM2} \cite{ORB_SLAM2}
+%\item
+%  \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPointPretrainedNetwork} \cite{detone18superpoint}
+%\item
+%  \href{https://github.com/vbalnt/tfeat}{Tfeat} \cite{Tfeat}
+%\item
+%  \href{https://github.com/vcg-uvic/image-matching-benchmark-baselines}{Image Matching Benchmark Baselines} \cite{ImageMatchingBenchmarkBaselines}
+%\item
+%  \href{https://github.com/DagnyT/hardnet.git}{Hardnet} \cite{Hardnet}
+%\item
+%  \href{https://github.com/lzx551402/geodesc.git}{GeoDesc} \cite{GeoDesc}
+%\item
+%  \href{https://github.com/yuruntian/SOSNet.git}{SOSNet} \cite{SOSNet}
+%\item
+%  \href{https://github.com/yuruntian/L2-Net}{L2Net} \cite{L2Net}
+%\item
+%  \href{https://github.com/cvlab-epfl/log-polar-descriptors}{Log-polar descriptor} \cite{LogPolarDescriptor}
+%\item
+%  \href{https://github.com/mihaidusmanu/d2-net}{D2-Net} \cite{D2Net}
+%\item
+%  \href{https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md}{DELF} \cite{DELF}
+%\item
+%  \href{https://github.com/lzx551402/contextdesc}{Contextdesc} \cite{Contextdesc}
+%\item
+%  \href{https://github.com/vcg-uvic/lf-net-release}{LFNet} \cite{LFNet}
+%\item
+%  \href{https://github.com/naver/r2d2}{R2D2} \cite{R2D2}
+%\item
+%  \href{https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf}{BEBLID} \cite{BEBLID}
+%\item
+%  \href{https://arxiv.org/abs/2006.13566}{DISK} \cite{DISK}
+%\item
+%  \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{Xfeat}
+%\item
+%  \href{https://arxiv.org/abs/2306.13643}{LightGlue} \cite{LightGlue}
+%\item
+%  \href{https://github.com/axelBarroso/Key.Net}{Key.Net} \cite{barroso2020key}
+%\item
+%  \href{https://github.com/geohot/twitchslam}{Twitchslam} 
+%\item
+%  \href{https://github.com/uoip/monoVO-python}{MonoVO} 
+%\item
+%  \href{https://github.com/stschubert/VPR_Tutorial.git}{VPR\_Tutorial} \cite{VPR_Tutorial}
+%\item
+%  \href{https://github.com/DepthAnything/Depth-Anything-V2}{DepthAnythingV2} \cite{DepthAnythingV2}
+%\item
+%  \href{https://github.com/apple/ml-depth-pro}{DepthPro} \cite{depthpro2023}
+%\item
+%  \href{https://github.com/princeton-vl/RAFT-Stereo}{RAFT-Stereo} \cite{RAFTStereo}
+%\item
+%  \href{https://github.com/megvii-research/CREStereo}{CREStereo} and
+%  \href{https://github.com/ibaiGorordo/CREStereo-Pytorch}{CREStereo-Pytorch} \cite{CREStereo}
+%\item
+%  \href{https://github.com/muskie82/MonoGS}{MonoGS} \cite{MonoGS}
+%\item
+%  \href{https://github.com/naver/mast3r}{MASt3R} \cite{master}
+%\item
+%  \href{https://github.com/facebookresearch/mvdust3r}{MV-DUSt3R} \cite{mvduster}
+%\item
+%  Many thanks to \href{https://github.com/anathonic}{Anathonic} for
+%  adding the first version of the trajectory-saving feature and for the comparison notebook:
+%  \href{https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb}{pySLAM vs ORB-SLAM3}.
+%\item 
+%	Many thanks to \href{https://github.com/dvdmc}{David Morilla Cabello} for his great work on creating the first version of sparse semantic mapping module in pySLAM~\cite{pyslamSemantic2025}.
+%\end{itemize}
+
+
+%\hypertarget{contributing-to-pyslam}{%
+%\section{Contributing to pySLAM}\label{contributing-to-pyslam}}
+%
+%If you like pySLAM and would like to contribute to the code base, you
+%can report bugs, leave comments and proposing new features through
+%issues and pull requests on github. Feel free to get in touch at
+%\emph{luigifreda(at)gmail{[}dot{]}com}. Thank you!
+
+
+%\section*{References}
+
+\bibliographystyle{plain}
+\bibliography{bibliography}
+
+
+\clearpage
+\appendix
 
 \hypertarget{usage}{%
 \section{Usage}\label{usage}}
@@ -522,16 +1377,13 @@ entry-point to configure the system and its global configuration
 parameters contained in
 \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/config_parameters.py}{pyslam/config\_parameters.py}. 
 \begin{itemize}
-\item To \textbf{enable the C++ sparse-SLAM core}, set \texttt{USE\_CPP\_CORE\ =\ True} in the file \texttt{config\_parameters.py}.
-\item Further information on how to configure pySLAM are provided \protect\hyperlink{selecting-a-dataset-and-different-configuration-parameters}{here}.
+\item The \textbf{C++ sparse-SLAM core} is enabled by default: the flag \texttt{USE\_CPP\_CORE} in the file \texttt{pyslam/config\_parameters.py} is \texttt{True}. To use the Python core, set the flag to \texttt{False} or launch with \texttt{PYSLAM\_USE\_CPP=false} (see Sect.~\ref{cpp-core}).
+\item Further information on how to configure pySLAM is provided \protect\hyperlink{selecting-a-dataset-and-different-configuration-parameters}{here}.
 \end{itemize}
-Further
-information on how to configure pySLAM are provided
-\protect\hyperlink{selecting-a-dataset-and-different-configuration-parameters}{here}.
 
 
 \hypertarget{visual-odometry}{%
-\subsubsection{Visual odometry}\label{visual-odometry}}
+\subsection{Visual odometry}\label{visual-odometry}}
 
 The basic \textbf{Visual Odometry} (VO) can be run with the following
 commands:
@@ -561,7 +1413,7 @@ the classes \texttt{VisualOdometryRgbd} or
 \texttt{VisualOdometryRgbdTensor} (ground truth is not required here).
 
 \hypertarget{full-slam}{%
-\subsubsection{Full SLAM}\label{full-slam}}
+\subsection{Full SLAM}\label{full-slam}}
 
 Similarly, you can test the \textbf{full SLAM} by running
 \texttt{main\_slam.py}:\\
@@ -583,7 +1435,7 @@ corresponding camera calibration file (available in the folder
 \texttt{settings}). You can stop it by clicking on one of the
 opened windows and pressing the key `Q' or closing the 3D pangolin GUI.
 \hypertarget{selecting-a-dataset-and-different-configuration-parameters}{%
-\subsubsection{Selecting a dataset and different configuration
+\subsection{Selecting a dataset and different configuration
 parameters}\label{selecting-a-dataset-and-different-configuration-parameters}}
 
 The file \href{https://github.com/luigifreda/pyslam/blob/master/config.yaml}{config.yaml} can be used as a unique
@@ -603,7 +1455,7 @@ section (e.g.~\texttt{KITTI\_DATASET}, \texttt{TUM\_DATASET}, etc).
 \item  Select the camera \texttt{settings} file in the dataset section
 (further details in the section
 \emph{\protect\hyperlink{camera-settings}{Camera Settings}} below).
-\item Set the \texttt{groudtruth\_file} accordingly. Further details in the
+\item Set the \texttt{groundtruth\_file} accordingly. Further details in the
 section \emph{\protect\hyperlink{datasets}{Datasets}} below (see also
 the files \texttt{pyslam/io/ground\_truth.py} and
 \texttt{pyslam/io/convert\_groundtruth\_to\_simple.py}).
@@ -640,9 +1492,9 @@ among \emph{ORB}, \emph{SIFT}, \emph{SURF}, \emph{BRISK}, \emph{AKAZE},
 Features}} below for further information).
 
 Some basic examples are available in the subfolder
-\texttt{test/cv}. In particular, as for feature
+\texttt{examples/cv}. In particular, as for feature
 detection/description, you may want to take a look at
-\href{https://github.com/luigifreda/pyslam/blob/master/test/cv/test_feature_manager.py}{test/cv/test\_feature\_manager.py}
+\href{https://github.com/luigifreda/pyslam/blob/master/examples/cv/example_feature_manager.py}{examples/cv/example\_feature\_manager.py}
 too.
 
 \hypertarget{loop-closing}{%
@@ -660,8 +1512,8 @@ disabled by setting \texttt{kUseLoopClosing=False} in
 \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/loop_closing/loop_detector_configs.py}{pyslam/loop\_closing/loop\_detector\_configs.py}: Code comments provide additional useful details.
 
 One can start experimenting with loop closing methods by using the
-examples in \texttt{test/loopclosing}. The example
-\href{https://github.com/luigifreda/pyslam/blob/master/test/loopclosing/test_loop_detector.py}{test/loopclosing/test\_loop\_detector.py}
+examples in \texttt{examples/loopclosing}. The example
+\href{https://github.com/luigifreda/pyslam/blob/master/examples/loopclosing/example_loop_detector.py}{examples/loopclosing/example\_loop\_detector.py}
 is the recommended entry point.
 
 \hypertarget{vocabulary-management}{%
@@ -678,18 +1530,18 @@ To create a new vocabulary, follow these steps:
 \def\labelenumi{\arabic{enumi}.}
 \item
   \textbf{Generate an array of descriptors}: Use the script \\
-  \texttt{test/loopclosing/test\_gen\_des\_array\_from\_imgs.py} to
+  \texttt{examples/loopclosing/example\_gen\_des\_array\_from\_imgs.py} to
   generate the array of descriptors that will be used to train the new
   vocabulary. Select your desired descriptor type via the tracker
   configuration.
 \item
   \textbf{DBOW vocabulary generation}: Train your target DBOW vocabulary
   by using the script
-  \texttt{test/loopclosing/test\_gen\_dbow\_voc\_from\_des\_array.py}.
+  \texttt{examples/loopclosing/example\_gen\_dbow\_voc\_from\_des\_array.py}.
 \item
   \textbf{VLAD vocabulary generation}: Train your target VLAD
   ``vocabulary'' by using the script
-  \texttt{test/loopclosing/test\_gen\_vlad\_voc\_from\_des\_array.py}.
+  \texttt{examples/loopclosing/example\_gen\_vlad\_voc\_from\_des\_array.py}.
 \end{enumerate}
 
 Once you have trained the vocabulary, you can add it in
@@ -838,16 +1690,16 @@ and drop the saved Gaussian splatting \texttt{.ply} pointcloud in the
 editor interface). 
 
 \item Getting into the folder
-\texttt{test/gaussian\_splatting} and running:\\
+\texttt{examples/gaussian\_splatting} and running:\\
 %\begin{scriptsize}
 %\begin{Shaded}
 %\begin{Highlighting}[]
-%\NormalTok{$ }\BuiltInTok{\ExtensionTok{python\ test\_gsm.py\ -\/-load\ \textless{}gs\_checkpoint\_path\textgreater{}}}   
+%\NormalTok{$ }\BuiltInTok{\ExtensionTok{python\ example\_gsm.py\ -\/-load\ \textless{}gs\_checkpoint\_path\textgreater{}}}   
 %\end{Highlighting}
 %\end{Shaded}
 %\end{scriptsize}
 \begin{codeblock}
-\codeline{python\ test\_gsm.py\ -\/-load\ \textless{}gs\_checkpoint\_path\textgreater{}}
+\codeline{python\ example\_gsm.py\ -\/-load\ \textless{}gs\_checkpoint\_path\textgreater{}}
 \end{codeblock}
 
 The directory \texttt{<gs\_checkpoint\_path>} is expected to have the following structure:\\
@@ -1052,38 +1904,11 @@ SW architecture} are available \href{https://github.com/luigifreda/pyslam/blob/m
 
 %\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
-\hypertarget{cpp-core}{%
-\subsection{C++ Core for Sparse SLAM}\label{cpp-core}}
-
-The system provides a modular \textbf{sparse-SLAM core}, implemented in \textbf{both Python and C++} (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes. The C++ core reimplements the sparse SLAM initially implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11.
-
-The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names. The bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++ when possible.
-
-To enable the C++ sparse-SLAM core, set \texttt{USE\_CPP\_CORE = True} in \texttt{pyslam/config\_parameters.py}. The module is currently \textbf{under active development}.
-
-The codebase is organized into the following categories:
-\begin{itemize}
-\item \textbf{Core SLAM Classes}: Main C++ implementations (\texttt{frame.cpp/h}, \texttt{keyframe.cpp/h}, \texttt{map\_point.cpp/h}, \texttt{map.cpp/h}, \texttt{camera.cpp/h}, \texttt{camera\_pose.cpp/h}, \texttt{optimizer\_g2o.cpp/h}, \texttt{tracking\_core.cpp/h}, \texttt{local\_mapping\_core.cpp/h}).
-\item \textbf{Serialization}: JSON and NumPy serialization modules for data persistence and Python interop.
-\item \textbf{Python Bindings}: pybind11 module definitions that expose C++ classes to Python.
-\item \textbf{Type Casters}: pybind11 type casters for custom type conversions (OpenCV, Eigen, JSON, dictionary types).
-\item \textbf{Utilities}: Helper functions for geometry, features, descriptors, image processing, NumPy/Eigen operations, and serialization.
-\item \textbf{Tests}: C++ unit tests and Python integration tests.
-\end{itemize}
-
-The C++ core adopts a streamlined design philosophy:
-\begin{itemize}
-\item \textbf{All core data resides in C++}: Python serves purely as an interface layer.
-\item \textbf{Direct pybind11 exposure}: Python objects are lightweight views of underlying C++ objects.
-\item \textbf{Automatic zero-copy}: pybind11 automatically shares NumPy array memory with C++ when possible.
-\item \textbf{RAII-based ownership}: C++ smart pointers manage object lifetimes safely and efficiently.
-\end{itemize}
-
 \hypertarget{saving-and-reloading}{%
 \subsection{Saving and reloading}\label{saving-and-reloading}}
 
 \hypertarget{save-the-a-map}{%
-\subsubsection{Save the a map}\label{save-the-a-map}}
+\subsubsection{Save a map}\label{save-the-a-map}}
 
 When you run the script \texttt{main\_slam.py}
 (\texttt{main\_map\_dense\_reconstruction.py}): 
@@ -1262,336 +2087,6 @@ To launch slam and check all logs in a single tmux, run:\\
 Press \texttt{CTRL+A} followed by \texttt{CTRL+Q} to exit from
 \texttt{tmux} environment.
 
-\hypertarget{evaluating-slam}{%
-\subsection{Evaluating SLAM}\label{evaluating-slam}}
-
-\hypertarget{run-a-slam-evaluation}{%
-\subsubsection{Run a SLAM evaluation}\label{run-a-slam-evaluation}}
-
-The \texttt{main\_slam\_evaluation.py} script enables automated SLAM
-evaluation by executing \texttt{main\_slam.py} across a collection of
-\textit{datasets} and configuration \textit{presets}. The main input to the script is an evaluation configuration file (e.g., \texttt{evaluation/configs/evaluation.json}) that specifies which datasets and presets to be used. For convenience, sample configurations for the datasets \texttt{TUM}, \texttt{EUROC} and \texttt{KITTI} datasets are already provided in the \texttt{evaluation/configs/} directory.
-
-For each evaluation run, results are
-stored in a dedicated subfolder within the \texttt{results} directory,
-containing all the computed metrics. These metrics are then processed
-and compared. The final output is a report, available in PDF,
-LaTeX, and HTML formats, that includes comparison tables summarizing the
-\emph{Absolute Trajectory Error} (ATE), the maximum deviation from the
-ground truth trajectory and other metrics.
-
-Evaluation results are presented in the following subsections. For convenience, they are also available at this \href{https://github.com/luigifreda/pyslam/blob/master/docs/evaluations/evaluations.md}{link}. The evaluation uses commit \textit{f7c9a13} with the following presets: \texttt{baseline}, \texttt{root\_sift}, and \texttt{superpoint}, which correspond to local feature extractors \texttt{ORB2}, \texttt{root\_SIFT}, and \texttt{SuperPoint}, respectively. 
-
-
-\hypertarget{tum-evaluation}{%
-\subsubsection{TUM Evaluation}\label{tum-evaluation}}
-
-\begin{minipage}{\textwidth}
-\noindent
-\captionsetup{type=table}
-\captionof{table}{TUM: Table RMSE}\label{tab:tum_table_rmse}
-
-\fontsize{7pt}{8pt}\selectfont
-
-\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 8.0cm } >{\RaggedRight\arraybackslash}p{ 1.0cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
-Dataset & baseline & root\_sift & superpoint \\
-\midrule
-rgbd\_dataset\_freiburg1\_desk & 0.06634 & 0.05289 & 0.04815 \\
-rgbd\_dataset\_freiburg1\_desk2 & 0.04645 & 0.06255 & 0.03868 \\
-rgbd\_dataset\_freiburg1\_room & 0.05885 & 0.07968 & 0.07199 \\
-rgbd\_dataset\_freiburg1\_xyz & 0.01196 & 0.01758 & 0.01726 \\
-rgbd\_dataset\_freiburg3\_long\_office\_household & 0.00921 & 0.00982 & 0.00952 \\
-rgbd\_dataset\_freiburg3\_nostructure\_texture\_far & 0.08397 & 0.11342 & 0.12118 \\
-rgbd\_dataset\_freiburg3\_nostructure\_texture\_near\_withloop & 0.02245 & 0.05022 & 0.05037 \\
-Average & 0.04275 & 0.05517 & 0.05102 \\
-Std Dev & 0.0362 & 0.04531 & 0.04503 \\
-Best (Average) Preset & baseline &  &  \\
-Best (Average) Metric & 0.04275 &  &  \\
-
-\bottomrule
-\end{tabularx}
-\end{minipage}
-
-\bigskip
-
-\begin{minipage}{\textwidth}
-\noindent
-\captionsetup{type=table}
-\captionof{table}{TUM: Table Max }\label{tab:tum_table_max}
-
-
-
-\fontsize{7pt}{8pt}\selectfont
-
-
-\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 8.0cm } >{\RaggedRight\arraybackslash}p{ 1.0cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
-Dataset & baseline & root\_sift & superpoint \\
-\midrule
-rgbd\_dataset\_freiburg1\_desk & 0.326 & 0.19361 & 0.22686 \\
-rgbd\_dataset\_freiburg1\_desk2 & 0.44543 & 0.28865 & 0.38157 \\
-rgbd\_dataset\_freiburg1\_room & 0.14959 & 0.2838 & 0.17632 \\
-rgbd\_dataset\_freiburg1\_xyz & 0.06059 & 0.0677 & 0.0635 \\
-rgbd\_dataset\_freiburg3\_long\_office\_household & 0.03609 & 0.03543 & 0.04005 \\
-rgbd\_dataset\_freiburg3\_nostructure\_texture\_far & 0.29727 & 0.4361 & 0.70826 \\
-rgbd\_dataset\_freiburg3\_nostructure\_texture\_near\_withloop & 0.09011 & 0.13774 & 0.11602 \\
-Average & 0.20073 & 0.20615 & 0.24465 \\
-Std Dev & 0.18661 & 0.18182 & 0.26334 \\
-Best (Average) Preset & baseline &  &  \\
-Best (Average) Metric & 0.20073 &  &  \\
-
-\bottomrule
-\end{tabularx}
-\end{minipage}
-
-\bigskip
-
-\begin{minipage}{\textwidth}
-\noindent
-\captionsetup{type=table}
-\captionof{table}{TUM: Table Percent Lost }\label{tab:tum_table_percent_lost}
-
-\fontsize{7pt}{8pt}\selectfont
-
-\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 8.0cm } >{\RaggedRight\arraybackslash}p{ 1.0cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
-Dataset & baseline & root\_sift & superpoint \\
-\midrule
-rgbd\_dataset\_freiburg1\_desk & 1.364 & 1.502 & 1.674 \\
-rgbd\_dataset\_freiburg1\_desk2 & 0.548 & 1.55 & 0.612 \\
-rgbd\_dataset\_freiburg1\_room & 0.074 & 0.148 & 0.088 \\
-rgbd\_dataset\_freiburg1\_xyz & 0.05 & 0.076 & 0.078 \\
-rgbd\_dataset\_freiburg3\_long\_office\_household & 0.0 & 0.0 & 0.0 \\
-rgbd\_dataset\_freiburg3\_nostructure\_texture\_far & 0.622 & 0.622 & 0.666 \\
-rgbd\_dataset\_freiburg3\_nostructure\_texture\_near\_withloop & 0.024 & 0.036 & 0.036 \\
-Average & 0.38314 & 0.562 & 0.45057 \\
-Std Dev & 0.50438 & 0.82947 & 0.59847 \\
-Best (Average) Preset & baseline &  &  \\
-Best (Average) Metric & 0.38314 &  &  \\
-
-\bottomrule
-\end{tabularx}
-\end{minipage}
-
-\bigskip
-
-
-\hypertarget{euroc-evaluation}{%
-\subsubsection{EUROC Evaluation}\label{euroc-evaluation}}
-
-\begin{minipage}{\textwidth}
-\noindent
-\captionsetup{type=table}
-\captionof{table}{EUROC: Table RMSE}\label{tab:euroc_table_rmse}
-
-\fontsize{7pt}{8pt}\selectfont
-
-\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
-Dataset & baseline & root\_sift & superpoint \\
-\midrule
-V101 & 0.08819 & 0.08816 & 0.08834 \\
-V102 & 0.06852 & 0.06609 & 0.06694 \\
-V201 & 0.07062 & 0.06409 & 0.09735 \\
-V202 & 0.62539 & 0.56925 & 0.53736 \\
-MH01 & 0.03775 & 0.03781 & 0.04172 \\
-MH02 & 0.04217 & 0.0456 & 0.04177 \\
-MH03 & 0.0512 & 0.04905 & 0.04882 \\
-MH04 & 0.0702 & 0.05907 & 0.0646 \\
-MH05 & 0.08177 & 0.06607 & 0.07131 \\
-Average & 0.1262 & 0.11613 & 0.11758 \\
-Std Dev & 0.19831 & 0.17517 & 0.15435 \\
-Best (Average) Preset & root\_sift &  &  \\
-Best (Average) Metric & 0.11613 &  &  \\
-
-\bottomrule
-\end{tabularx}
-\end{minipage}
-
-\bigskip
-
-\begin{minipage}{\textwidth}
-\noindent
-\captionsetup{type=table}
-\captionof{table}{EUROC: Table Max }\label{tab:euroc_table_max}
-
-\fontsize{7pt}{8pt}\selectfont
-
-\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
-Dataset & baseline & root\_sift & superpoint \\
-\midrule
-V101 & 0.16335 & 0.163 & 0.16208 \\
-V102 & 0.14545 & 0.12379 & 0.13136 \\
-V201 & 0.15864 & 0.18921 & 0.22163 \\
-V202 & 2.06607 & 2.52628 & 1.97847 \\
-MH01 & 0.09141 & 0.10259 & 0.21303 \\
-MH02 & 0.11922 & 0.1318 & 0.11196 \\
-MH03 & 0.19995 & 0.17533 & 0.14082 \\
-MH04 & 0.32021 & 0.27938 & 0.26722 \\
-MH05 & 0.24828 & 0.17474 & 0.18991 \\
-Average & 0.39029 & 0.42957 & 0.37961 \\
-Std Dev & 0.67128 & 0.75543 & 0.6093 \\
-Best (Average) Preset & superpoint &  &  \\
-Best (Average) Metric & 0.37961 &  &  \\
-
-\bottomrule
-\end{tabularx}
-\end{minipage}
-
-\bigskip
-
-\begin{minipage}{\textwidth}
-\noindent
-\captionsetup{type=table}
-\captionof{table}{EUROC: Table Percent Lost }\label{tab:euroc_table_percent_lost}
-
-\fontsize{7pt}{8pt}\selectfont
-
-\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
-Dataset & baseline & root\_sift & superpoint \\
-\midrule
-V101 & 0.0 & 0.0 & 0.0 \\
-V102 & 0.0 & 0.0 & 0.0 \\
-V201 & 0.04 & 0.04 & 0.04 \\
-V202 & 0.146 & 0.138 & 0.112 \\
-MH01 & 0.05 & 0.074 & 0.08 \\
-MH02 & 0.018 & 0.026 & 0.012 \\
-MH03 & 0.046 & 0.03 & 0.032 \\
-MH04 & 0.0 & 0.01 & 0.0 \\
-MH05 & 0.07 & 0.016 & 0.034 \\
-Average & 0.04111 & 0.03711 & 0.03444 \\
-Std Dev & 0.05351 & 0.04829 & 0.04435 \\
-Best (Average) Preset & superpoint &  &  \\
-Best (Average) Metric & 0.03444 &  &  \\
-
-\bottomrule
-\end{tabularx}
-\end{minipage}
-
-\bigskip
-
-
-\hypertarget{kitti-evaluation}{%
-\subsubsection{KITTI Evaluation}\label{kitti-evaluation}}
-
-
-\begin{minipage}{\textwidth}
-\noindent
-\captionsetup{type=table}
-\captionof{table}{KITTI: Table RMSE}\label{tab:kitt_table_rmse}
-
-\fontsize{7pt}{8pt}\selectfont
-
-\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
-Dataset & baseline & root\_sift & superpoint \\
-\midrule
-00 & 3.947 & 3.24849 & 3.93432 \\
-01 & 21.60014 & 21.86468 & 23.37292 \\
-02 & 6.1194 & 5.6707 & 10.14455 \\
-03 & 5.96451 & 5.92601 & 5.88895 \\
-04 & 1.74556 & 1.76121 & 1.65506 \\
-05 & 2.13915 & 2.11047 & 2.52263 \\
-06 & 2.74011 & 2.73981 & 2.6784 \\
-07 & 1.12358 & 1.12823 & 1.09496 \\
-08 & 3.99078 & 4.13702 & 4.14543 \\
-09 & 4.26068 & 4.35988 & 4.06244 \\
-10 & 2.22097 & 2.25127 & 2.27694 \\
-Average & 5.07744 & 5.01798 & 5.61605 \\
-Std Dev & 5.47265 & 5.63609 & 6.77 \\
-Best (Average) Preset & root\_sift &  &  \\
-Best (Average) Metric & 5.01798 &  &  \\
-
-\bottomrule
-\end{tabularx}
-\end{minipage}
-
-\bigskip
-
-\begin{minipage}{\textwidth}
-\noindent
-\captionsetup{type=table}
-\captionof{table}{KITTI: Table Max }\label{tab:kitt_table_max}
-
-\fontsize{7pt}{8pt}\selectfont
-
-\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
-Dataset & baseline & root\_sift & superpoint \\
-\midrule
-00 & 6.82983 & 5.8663 & 7.04067 \\
-01 & 33.32903 & 33.85867 & 36.62253 \\
-02 & 13.97623 & 9.47974 & 21.05188 \\
-03 & 10.16642 & 10.16978 & 10.06014 \\
-04 & 3.09135 & 3.0576 & 2.87271 \\
-05 & 3.81484 & 3.77687 & 4.9547 \\
-06 & 6.53758 & 5.14239 & 5.11673 \\
-07 & 1.84418 & 1.82355 & 1.8655 \\
-08 & 10.809 & 11.23635 & 10.75959 \\
-09 & 8.53888 & 8.70237 & 8.31166 \\
-10 & 4.13901 & 4.37849 & 4.27905 \\
-Average & 9.37058 & 8.86292 & 10.26683 \\
-Std Dev & 8.62548 & 8.62145 & 12.23529 \\
-Best (Average) Preset & root\_sift &  &  \\
-Best (Average) Metric & 8.86292 &  &  \\
-
-\bottomrule
-\end{tabularx}
-\end{minipage}
-
-\bigskip
-
-\begin{minipage}{\textwidth}
-\noindent
-\captionsetup{type=table}
-\captionof{table}{KITTI: Table Percent Lost }\label{tab:kitt_table_percent_lost}
-
-\fontsize{7pt}{8pt}\selectfont
-
-\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
-Dataset & baseline & root\_sift & superpoint \\
-\midrule
-00 & 0.0 & 0.038 & 0.012 \\
-01 & 0.0 & 0.0 & 0.0 \\
-02 & 0.012 & 0.004 & 0.004 \\
-03 & 0.0 & 0.0 & 0.0 \\
-04 & 0.0 & 0.0 & 0.0 \\
-05 & 0.0 & 0.0 & 0.028 \\
-06 & 0.108 & 0.018 & 0.0 \\
-07 & 0.0 & 0.0 & 0.0 \\
-08 & 0.0 & 0.0 & 0.0 \\
-09 & 0.0 & 0.0 & 0.0 \\
-10 & 0.0 & 0.0 & 0.0 \\
-Average & 0.01091 & 0.00545 & 0.004 \\
-Std Dev & 0.07244 & 0.02373 & 0.0196 \\
-Best (Average) Preset & superpoint &  &  \\
-Best (Average) Metric & 0.004 &  &  \\
-
-\bottomrule
-\end{tabularx}
-\end{minipage}
-
-\bigskip
-
-
-\hypertarget{pyslam-performances-and-comparative-evaluations}{%
-\subsubsection{pySLAM performances and comparative
-evaluations}\label{pyslam-performances-and-comparative-evaluations}}
-
-For a comparative evaluation of the ``\textit{online}'' trajectory
-estimated by pySLAM versus the ``\textit{final}'' trajectory estimated
-by ORB-SLAM3, check out this nice
-\href{https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb}{notebook}.
-For more details about ``online'' and ``final''
-trajectories, refer to Section~\ref{trajectory-saving}.
-
-\textbf{Note}: Unlike ORB-SLAM3, which only saves the final pose
-estimates (recorded after the entire dataset has been processed), pySLAM
-saves both online and final pose estimates. For details on how to save
-trajectories in pySLAM, refer to this
-\protect\hyperlink{trajectory-saving}{section}. When you click the
-\texttt{Draw\ Ground\ Truth} button in the GUI (see
-\protect\hyperlink{slam-gui}{here}), you can visualize the
-\emph{Absolute Trajectory Error} (ATE or \emph{RMSE}) history and
-evaluate both online and final errors up to the current time.
-
-
-
 \hypertarget{scene-from-views-usage}{%
 \subsection{Scene from Views}\label{scene-from-views-usage}}
 
@@ -1636,282 +2131,11 @@ switching between models while maintaining the same interface.
 Further details \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/scene_from_views/README.md}{here}.
 
 
-\hypertarget{supported-components-and-models}{%
-\section{Supported components and
-models}\label{supported-components-and-models}}
-
-\hypertarget{supported-local-features}{%
-\subsection{Supported local
-features}\label{supported-local-features}}
-
-\begin{figure}[!t]
-\begin{center}
-    \includegraphics[width=\textwidth]{./images_tex/local_features_timeline.png}
-\end{center}
-\caption{Timeline of some of the most famous local features for image matching, place recognition and SLAM.}
-\label{Fig_TimelineLocalFeatures}
-\end{figure}
-
-Fig.~\ref{Fig_TimelineLocalFeatures} shows a timeline with some of the most famous local features for image matching, place recognition and SLAM. At present time, pySLAM supports the following feature \textbf{detectors}:
-
-\begin{itemize}
-    \item \href{https://www.edwardrosten.com/work/fast.html}{FAST} \cite{rosten2006machine}
-    \item \href{https://ieeexplore.ieee.org/document/323794}{Good features to track} \cite{shi1994good}
-    \item \href{http://www.willowgarage.com/sites/default/files/orb_final.pdf}{ORB} \cite{rublee2011orb}
-    \item \href{https://github.com/raulmur/ORB_SLAM2}{ORB2} (improvements of ORB-SLAM2\cite{ORB_SLAM2} to ORB detector)
-    \item \href{https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf}{SIFT} \cite{lowe1999object}
-    \item \href{http://people.ee.ethz.ch/~surf/eccv06.pdf}{SURF} \cite{bay2006surf}
-    \item \href{https://www.doc.ic.ac.uk/~ajd/Publications/alcantarilla_etal_eccv2012.pdf}{KAZE} \cite{alcantarilla2012kaze}
-    \item \href{http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf}{AKAZE} \cite{alcantarilla2013fast}
-    \item \href{http://www.margaritachli.com/papers/ICCV2011paper.pdf}{BRISK} \cite{leutenegger2011brisk}
-    \item \href{chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://archive.air.in.tum.de/Main/Publications/Mair2010c.pdf}{AGAST} \cite{mair2010adaptive}
-    \item \href{http://cmp.felk.cvut.cz/~matas/papers/matas-bmvc02.pdf}{MSER} \cite{matas2002robust}
-    \item \href{https://link.springer.com/chapter/10.1007/978-3-540-88693-8_8}{StarDector/CenSurE} \cite{censure}
-    \item \href{https://www.robots.ox.ac.uk/~vgg/research/affine/det_eval_files/mikolajczyk_ijcv2004.pdf}{Harris-Laplace} \cite{mikolajczyk_inria00548554}
-    \item \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPoint}\cite{detone18superpoint}
-    \item \href{https://github.com/mihaidusmanu/d2-net}{D2-Net} \cite{dusmanu2019d2}
-    \item \href{https://github.com/tensorflow/models/tree/master/research/delf}{DELF} \cite{noh2017large}
-    \item \href{https://github.com/lzx551402/contextdesc}{Contextdesc} \cite{luo2020contextdesc}
-    \item \href{https://github.com/vcg-uvic/lf-net-release}{LFNet} \cite{ono2018lf}
-    \item \href{https://github.com/naver/r2d2}{R2D2} \cite{revaud2019r2d2}
-    \item \href{https://github.com/axelBarroso/Key.Net}{Key.Net} \cite{barroso2020key}
-    \item \href{https://arxiv.org/abs/2006.13566}{DISK} \cite{tyszkiewicz2020disk}
-    \item \href{https://arxiv.org/abs/2304.03608}{ALIKED} \cite{barroso2023alike}
-    \item \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{barroso2024xfeat}
-    \item \href{https://github.com/axelBarroso/Key.Net}{KeyNetAffNetHardNet} (KeyNet detector \cite{barroso2020key} + AffNet + HardNet descriptor \cite{mishchuk2017working})
-\end{itemize}
-
-The following feature \textbf{descriptors} are supported: 
-
-\begin{itemize}
-    \item \href{http://www.willowgarage.com/sites/default/files/orb_final.pdf}{ORB} \cite{rublee2011orb}
-    \item \href{https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf}{SIFT} \cite{lowe1999object}
-    \item \href{https://www.robots.ox.ac.uk/~vgg/publications/2012/Arandjelovic12/arandjelovic12.pdf}{ROOT SIFT} \cite{arandjelovic2012three}
-    \item \href{http://people.ee.ethz.ch/~surf/eccv06.pdf}{SURF} \cite{bay2006surf}
-    \item \href{http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf}{AKAZE} \cite{alcantarilla2013fast}
-    \item \href{http://www.margaritachli.com/papers/ICCV2011paper.pdf}{BRISK} \cite{leutenegger2011brisk}
-    \item \href{https://www.researchgate.net/publication/258848394_FREAK_Fast_retina_keypoint}{FREAK} \cite{alahi2012freak}
-    \item \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPoint} \cite{detone18superpoint}
-    \item \href{https://github.com/vbalnt/tfeat}{Tfeat} \cite{balntas2016learning}
-    \item \href{https://www.labri.fr/perso/vlepetit/pubs/trzcinski_pami15.pdf}{BOOST-DESC} \cite{trzcinski2013boosting}
-    \item \href{https://ieeexplore.ieee.org/document/4815264}{DAISY} \cite{tola2010daisy}
-    \item \href{https://arxiv.org/abs/1501.03719}{LATCH} \cite{levi2006latch}
-    \item \href{https://pdfs.semanticscholar.org/85bd/560cdcbd4f3c24a43678284f485eb2d712d7.pdf}{LUCID} \cite{lucid2015}
-    \item \href{https://www.robots.ox.ac.uk/~vedaldi/assets/pubs/simonyan14learning.pdf}{VGG} \cite{simonyan2014learning}
-    \item \href{https://github.com/DagnyT/hardnet.git}{Hardnet} \cite{mishchuk2017working}
-    \item \href{https://github.com/lzx551402/geodesc.git}{GeoDesc} \cite{verdie2018tilde}
-    \item \href{https://github.com/yuruntian/SOSNet.git}{SOSNet} \cite{SOSNet}
-    \item \href{https://github.com/yuruntian/L2-Net}{L2Net} \cite{L2Net}
-    \item \href{https://github.com/cvlab-epfl/log-polar-descriptors}{Log-polar descriptor} \cite{LogPolarDescriptor}
-    \item \href{https://github.com/mihaidusmanu/d2-net}{D2-Net} \cite{dusmanu2019d2}
-    \item \href{https://github.com/tensorflow/models/tree/master/research/delf}{DELF} \cite{noh2017large}
-    \item \href{https://github.com/lzx551402/contextdesc}{Contextdesc} \cite{luo2020contextdesc}
-    \item \href{https://github.com/vcg-uvic/lf-net-release}{LFNet} \cite{ono2018lf}
-    \item \href{https://github.com/naver/r2d2}{R2D2} \cite{revaud2019r2d2}
-    \item \href{https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf}{BEBLID} \cite{BEBLID}
-    \item \href{https://arxiv.org/abs/2006.13566}{DISK} \cite{tyszkiewicz2020disk}
-    \item \href{https://arxiv.org/abs/2304.03608}{ALIKED} \cite{barroso2023alike}
-    \item \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{barroso2024xfeat}
-    \item \href{https://github.com/axelBarroso/Key.Net}{KeyNetAffNetHardNet} (KeyNet detector \cite{barroso2020key} + AffNet + HardNet descriptor \cite{mishchuk2017working})
-\end{itemize}
-
-For more information, refer to \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/local_features/feature_types.py}{pyslam/local\_features/feature\_types.py}
-file. Some of the local features consist of a \emph{joint
-detector-descriptor}. You can start playing with the supported local
-features by taking a look at \texttt{test/cv/test\_feature\_manager.py}
-and \texttt{main\_feature\_matching.py}.
-
-In both the scripts \texttt{main\_vo.py} and \texttt{main\_slam.py}, you
-can create your preferred detector-descritor configuration and feed it
-to the function \texttt{feature\_tracker\_factory()}. Some ready-to-use
-configurations are already available in the file
-\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/local_features/feature_tracker_configs.py}{pyslam/local\_features/feature\_tracker.configs.py}
-
-The function \texttt{feature\_tracker\_factory()} can be found in the
-file \texttt{pyslam/local\_features/feature\_tracker.py}. Take a look at the
-file \texttt{pyslam/local\_features/feature\_manager.py} for further details.
-
-\textbf{N.B.}: You just need a \emph{single} python environment to be
-able to work with all the
-\protect\hyperlink{supported-local-features}{supported local features}!
-
-\hypertarget{supported-matchers}{%
-\subsection{Supported matchers}\label{supported-matchers}}
-
-\begin{itemize}
-    \item \texttt{BF}: Brute force matcher on descriptors (with KNN).
-    \item \href{https://www.semanticscholar.org/paper/Fast-Approximate-Nearest-Neighbors-with-Automatic-Muja-Lowe/35d81066cb1369acf4b6c5117fcbb862be2af350}{FLANN} \cite{muja2009fast}
-    \item \href{https://arxiv.org/abs/2404.19174}{XFeat} \cite{barroso2024xfeat}
-    \item \href{https://arxiv.org/abs/2306.13643}{LightGlue} \cite{lindenberger2023lightglue}
-    \item \href{https://arxiv.org/abs/2104.00680}{LoFTR} \cite{sun2021loftr}
-    \item \href{https://arxiv.org/abs/2406.09756}{MASt3R} \cite{master}
-\end{itemize}
-
-See the file \texttt{pyslam/local\_features/feature\_matcher.py} for further
-details.
-
-\hypertarget{supported-global-descriptors-and-local-descriptor-aggregation-methods}{%
-\subsection{Supported global descriptors and local descriptor
-aggregation
-methods}\label{supported-global-descriptors-and-local-descriptor-aggregation-methods}}
-
-\hypertarget{local-descriptor-aggregation-methods}{%
-\subparagraph{Local descriptor aggregation
-methods}\label{local-descriptor-aggregation-methods}}
-
-\begin{itemize}
-    \item Bag of Words (BoW): \href{https://github.com/dorian3d/DBoW2}{DBoW2} \cite{galvez2012bags}, \href{https://github.com/rmsalinas/DBow3}{DBoW3} \cite{galvez2012bags}.  \href{https://doi.org/10.1109/TRO.2012.2197158}{[paper]}
-    \item Vector of Locally Aggregated Descriptors: \href{https://www.vlfeat.org/api/vlad.html}{VLAD} \cite{jegou2010aggregating}.  \href{https://doi.org/10.1109/CVPR.2010.5540039}{[paper]}
-    \item Incremental Bags of Binary Words (iBoW) via Online Binary Image Index: \href{https://github.com/emiliofidalgo/ibow-lcd}{iBoW} \cite{garcia2018ibow}, \href{https://github.com/emiliofidalgo/obindex2}{OBIndex2} \cite{garcia2018ibow}.  \href{https://doi.org/10.1109/LRA.2018.2849609}{[paper]}
-    \item Hyperdimensional Computing: \href{https://www.tu-chemnitz.de/etit/proaut/hdc_desc}{HDC} \cite{neubert2021hyperdimensional}.  \href{https://openaccess.thecvf.com/content/CVPR2021/html/Neubert_Hyperdimensional_Computing_as_a_Framework_for_Systematic_Aggregation_of_Image_CVPR_2021_paper.html}{[paper]}
-\end{itemize}
-
-\textbf{NOTE}: \emph{iBoW} and \emph{OBIndex2} incrementally build a
-binary image index and do not need a prebuilt vocabulary. In the
-implemented classes, when needed, the input non-binary local descriptors
-are transparently transformed into binary descriptors.
-
-\hypertarget{global-descriptors}{%
-\subparagraph{Global descriptors}\label{global-descriptors}}
-
-Also referred to as \emph{holistic descriptors}:
-
-\begin{itemize}
-\tightlist
-\item
-  \href{https://ieeexplore.ieee.org/document/6224623}{SAD} \cite{milford2012seqslam}
-\item
-  \href{https://github.com/BVLC/caffe/tree/master/models/bvlc_alexnet}{AlexNet} \cite{krizhevsky2012imagenet}
-\item
-  \href{https://www.di.ens.fr/willow/research/netvlad/}{NetVLAD} \cite{arandjelovic2016netvlad}
-\item
-  \href{https://www.tu-chemnitz.de/etit/proaut/hdc_desc}{HDC-DELF} \cite{schlegel2022comparison}
-\item
-  \href{https://github.com/gmberton/CosPlace}{CosPlace} \cite{berton2023cosplace}
-\item
-  \href{https://github.com/gmberton/EigenPlaces}{EigenPlaces} \cite{berton2023eigenplaces}
-\item
-  \href{https://github.com/gmberton/MegaLoc}{MegaLoc} \cite{berton2025megaloc}	
-\end{itemize}
-
-Different \protect\hyperlink{loop-closing}{loop closing methods} are
-available. These combines the above aggregation methods and global
-descriptors. See the file \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/loop_closing/loop_detector_configs.py}{pyslam/loop\_closing/loop\_detector\_configs.py}
-for further details.
-
-\hypertarget{supported-depth-prediction-models}{%
-\subsection{Supported depth prediction
-models}\label{supported-depth-prediction-models}}
-
-Both monocular and stereo depth prediction models are available. SGBM
-algorithm has been included as a classic reference approach.
-
-\begin{itemize}
-\tightlist
-\item
-  \href{https://ieeexplore.ieee.org/document/4359315}{SGBM}\cite{hirschmuller2007stereo}: Depth SGBM
-  from OpenCV (Stereo, classic approach) 
-\item
-  \href{https://arxiv.org/abs/2410.02073}{Depth-Pro} (Monocular) \cite{depthpro2023}
-\item
-  \href{https://arxiv.org/abs/2406.09414}{DepthAnythingV2} (Monocular) \cite{depthanythingv2_2024}
-\item
-  \href{https://arxiv.org/abs/2109.07547}{RAFT-Stereo} (Stereo) \cite{teed2021raft}
-\item
-  \href{https://arxiv.org/abs/2203.11483}{CREStereo} (Stereo) \cite{li2022cres}
-\item
-  \href{https://arxiv.org/abs/2406.09756}{MASt3R} (Monocular/Stereo) \cite{master}
-\item
-  \href{https://arxiv.org/abs/2412.06974}{MV-DUSt3R} (Monocular/Stereo) \cite{mvduster}    
-\end{itemize}
-
-\hypertarget{supported-volumetric-mapping-methods}{%
-\subsection{Supported volumetric mapping
-methods}\label{supported-volumetric-mapping-methods}}
-
-\begin{itemize}
-\tightlist
-\item
-  A C++ template-based voxel grid implementation leverages parallel
-  spatial hashing, supporting both direct voxel hashing and indirect
-  voxel-block hashing strategies. Parallel execution is managed using
-  TBB, and the design accommodates both simple and semantic voxels.
-  Further information about the volumetric grid models is available
-  \href{https://github.com/luigifreda/pyslam/blob/master/cpp/modules/volumetric/README.md}{here}.
-\item    
-  \href{https://arxiv.org/pdf/2110.00511}{TSDF} with voxel block grid
-  (parallel spatial hashing)~\cite{dong2022ash}
-\item
-  Incremental 3D Gaussian Splatting. See
-  \href{https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/}{here}
-  and \href{https://arxiv.org/abs/2312.06741}{MonoGS} for a description
-  of its backend \cite{matsuki2023gaussian, kerbl20233d}.
-\end{itemize}
-
-\hypertarget{supported-semantic-segmentation-methods}{%
-\subsection{Supported semantic segmentation
-methods}\label{supported-semantic-segmentation-methods}}
-
-\begin{itemize}
-\tightlist
-\item
-  \href{https://arxiv.org/abs/1706.05587}{DeepLabv3}~\cite{chen2017rethinking}: from \texttt{torchvision}, pre-trained on COCO/VOC.
-\item
-  \href{https://arxiv.org/abs/2105.15203}{Segformer}~\cite{xie2021segformer}: from \texttt{transformers}, pre-trained on Cityscapes or ADE20k.
-\item
-  \href{https://arxiv.org/abs/2212.09506}{CLIP}~\cite{lin2023clip}: from \texttt{f3rm} package for open-vocabulary support.
-\item
-  \href{https://arxiv.org/abs/2412.08628v1}{EOV\_SEG}~\cite{eov_seg}: EOV-Seg: Efficient Open-Vocabulary Panoptic Segmentation.
-\item
-  \href{https://arxiv.org/abs/2201.02605}{DETIC}~\cite{detic}: Detecting Twenty-thousand Classes using Image-level Supervision.
-\item
-  \href{https://arxiv.org/abs/2303.04803}{ODISE}~\cite{odise}: Open-Vocabulary Panoptic Segmentation with Text-to-Image Diffusion Models.
-\item
-  \href{https://arxiv.org/abs/2511.09554}{RFDETR}~\cite{rfdetr}: A real-time transformer architecture for object detection and instance segmentation, built on a DINOv2 vision transformer backbone.
-\item
-  \href{https://arxiv.org/abs/2510.09653}{YOLO}~\cite{sapkota2025ultralytics}: One of the most influential and widely adopted series of models for real-time object detection, that attains an excellent balance
-between high accuracy and inference speed.
-\end{itemize}
-\hypertarget{supported-models-for-feed-forward-inference-of-3d-scenes-from-multiple-images}{%
-\subsubsection{Supported models for feed-forward inference of 3D scenes
-from multiple
-images}\label{supported-models-for-feed-forward-inference-of-3d-scenes-from-multiple-images}}
-
-\begin{itemize}
-\tightlist
-\item
-  \href{https://arxiv.org/abs/2312.14132}{DUSt3R}\cite{wang2023dust3r}: Geometric 3D Vision
-  Made Easy
-\item
-  \href{https://arxiv.org/abs/2406.09756}{MASt3R}\cite{master}: Grounding Image
-  Matching in 3D with MASt3R 
-\item
-  \href{https://arxiv.org/abs/2511.10647}{Depth Anything V3}\cite{depthanything3}: Recovering
-  the Visual Space from Any Views
-\item
-  \href{https://github.com/naver/mvdust3r}{MVDust3r}\cite{mvduster}: Multi-view DUSt3R
-  variant
-\item
-  \href{https://github.com/facebookresearch/vggt}{VGGT}\cite{wang2025vggt}: Visual Geometry
-  Grounded Transformer
-\item
-  \href{https://github.com/cvlab-kaist/RobustVGGT.git}{Robust VGGT}\cite{vggt_robust}:
-  Emergent Outlier View Rejection in Visual Geometry Grounded
-  Transformers
-\item
-  \href{https://arxiv.org/abs/2501.13928}{Fast3R}\cite{yang2025fast3r}: Fast3R: Towards 3D Reconstruction of 1000+ Images in One Forward Pass
-\end{itemize}
-
-See \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/scene_from_views/README.md}{here} for further details about
-\texttt{SceneFromViews} architecture.
-
-%\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
-
 \hypertarget{configuration}{%
-\subsection{Configuration}\label{configuration}}
+\section{Configuration}\label{configuration}}
 
 \hypertarget{main-configuration-file}{%
-\subsubsection{Main configuration file}\label{main-configuration-file}}
+\subsection{Main configuration file}\label{main-configuration-file}}
 
 Refer to
 \protect\hyperlink{selecting-a-dataset-and-different-configuration-parameters}{this
@@ -1920,7 +2144,7 @@ section} for how to update the main configuration file
 parameters in \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/config_parameters.py}{config\_parameters.py}.
 
 \hypertarget{datasets}{%
-\subsubsection{Datasets}\label{datasets}}
+\subsection{Datasets}\label{datasets}}
 
 The following datasets are supported:
 
@@ -1934,6 +2158,8 @@ odometry data set} \cite{Geiger2012CVPR} &
 \texttt{type:\ KITTI\_DATASET} \tabularnewline
 \href{https://vision.in.tum.de/data/datasets/rgbd-dataset/download}{TUM
 dataset} \cite{sturm12iros} & \texttt{type:\ TUM\_DATASET} \tabularnewline
+\href{https://cvg.cit.tum.de/data/datasets/visual-inertial-dataset}{TUM-VI
+dataset} \cite{schubert2018tumvi} & \texttt{type:\ TUM\_VI\_DATASET} \tabularnewline
 \href{https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html}{ICL-NUIM
 dataset} \cite{handa:etal:ICRA2014} & \texttt{type:\ ICL\_NUIM\_DATASET}\tabularnewline
 \href{https://projects.asl.ethz.ch/datasets/euroc-mav/}{EUROC
@@ -1945,7 +2171,7 @@ dataset} \cite{replica19arxiv} & \texttt{type:\ REPLICA\_DATASET}\tabularnewline
 \href{https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/}{Seven Scenes dataset} \cite{seven_scenes} &
 \texttt{type:\ SEVEN\_SCENES\_DATASET}\tabularnewline
 \href{https://github.com/dazinovic/neural-rgbd-surface-reconstruction}{Neural RGBD dataset} \cite{Azinovic_2022_CVPR} &
-\texttt{type:\ NEURAL\_RGBD}\tabularnewline
+\texttt{type:\ NEURAL\_RGBD\_DATASET}\tabularnewline
 \href{https://iis-esslingen.github.io/rover/}{Rover dataset} \cite{schmidt2025rover} &
 \texttt{type:\ ROVER\_DATASET}\tabularnewline
 \href{http://www.scan-net.org/}{ScanNet dataset} \cite{dai2017scannet} &
@@ -1966,8 +2192,10 @@ Folder of images & \texttt{type:\ FOLDER\_DATASET}\tabularnewline
 Use the download scripts available in the folder \texttt{scripts} to
 download some of the following datasets.
 
+File-based datasets prefetch decoded images in a background thread, using the optional C++ \texttt{data\_thread\_reader} module, so that image decoding overlaps with tracking. Prefetching can be disabled with the environment variable \texttt{PYSLAM\_DISABLE\_IMAGE\_PREFETCH=1}. Supported readers, build instructions, and memory behavior are described \href{https://github.com/luigifreda/pyslam/blob/master/cpp/modules/data_thread_reader/README.md}{here}.
+
 \hypertarget{kitti-datasets}{%
-\paragraph{KITTI Datasets}\label{kitti-datasets}}
+\subsubsection{KITTI Datasets}\label{kitti-datasets}}
 
 pySLAM code expects the following structure in the specified KITTI path
 folder (specified in the section \texttt{KITTI\_DATASET} of the file
@@ -2000,7 +2228,7 @@ folder (specified in the section \texttt{KITTI\_DATASET} of the file
 \end{enumerate}
 
 \hypertarget{tum-datasets}{%
-\paragraph{TUM Datasets}\label{tum-datasets}}
+\subsubsection{TUM Datasets}\label{tum-datasets}}
 
 pySLAM code expects a file \texttt{associations.txt} in each TUM dataset
 folder (specified in the section \texttt{TUM\_DATASET:} of the file
@@ -2023,13 +2251,31 @@ folder (specified in the section \texttt{TUM\_DATASET:} of the file
   \texttt{TUM\_DATASET:\ settings:} in the file \texttt{config.yaml}).
 \end{enumerate}
 
+\hypertarget{tum-vi-datasets}{%
+\subsubsection{TUM-VI Datasets}\label{tum-vi-datasets}}
+
+pySLAM reads the 512$\times$512 image sequences of TUM-VI~\cite{schubert2018tumvi}; IMU measurements are not used. Each sequence folder (the \texttt{name} field of the section \texttt{TUM\_VI\_DATASET} in \texttt{config.yaml}) is expected to contain \texttt{mav0/cam0/data.csv}, \texttt{mav0/cam0/data/<timestamp>.png}, the same two entries for \texttt{cam1}, and \texttt{mav0/mocap0/data.csv}.
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Download a 512$\times$512 sequence from
+  \href{https://cvg.cit.tum.de/data/datasets/visual-inertial-dataset}{cvg.cit.tum.de/data/datasets/visual-inertial-dataset}
+  and uncompress it under \texttt{TUM\_VI\_DATASET:\ base\_path}.
+\item
+  Set \texttt{DATASET.type:\ TUM\_VI\_DATASET}. Set \texttt{sensor\_type} to \texttt{stereo} or \texttt{mono}, and \texttt{stereo\_mode} to \texttt{native} (original Kannala--Brandt images) or \texttt{rectified} (fisheye images remapped to a pinhole stereo pair). For monocular fisheye tracking use \texttt{sensor\_type:\ mono} with \texttt{stereo\_mode:\ native}. See Sect.~\ref{camera-models} for the differences between the two modes.
+\item
+  Select \texttt{settings/TUM\_VI.yaml}. With \texttt{groundtruth\_file:\ auto}, the motion-capture poses are converted to the tracking camera frame. Calibration, rectification, and ground-truth conversion are detailed \href{https://github.com/luigifreda/pyslam/blob/master/docs/tum-vi.md}{here}.
+\end{enumerate}
+
 \hypertarget{icl-nuim-datasets}{%
-\paragraph{ICL-NUIM Datasets}\label{icl-nuim-datasets}}
+\subsubsection{ICL-NUIM Datasets}\label{icl-nuim-datasets}}
 
 Follow the same instructions provided for the TUM datasets.
 
 \hypertarget{euroc-datasets}{%
-\paragraph{EuRoC Datasets}\label{euroc-datasets}}
+\subsubsection{EuRoC Datasets}\label{euroc-datasets}}
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -2050,7 +2296,7 @@ Follow the same instructions provided for the TUM datasets.
 \end{enumerate}
 
 \hypertarget{replica-datasets}{%
-\paragraph{Replica Datasets}\label{replica-datasets}}
+\subsubsection{Replica Datasets}\label{replica-datasets}}
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -2068,7 +2314,7 @@ Follow the same instructions provided for the TUM datasets.
 \end{enumerate}
 
 \hypertarget{tartanair-datasets}{%
-\paragraph{Tartanair Datasets}\label{tartanair-datasets}}
+\subsubsection{Tartanair Datasets}\label{tartanair-datasets}}
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -2085,7 +2331,7 @@ Follow the same instructions provided for the TUM datasets.
 \end{enumerate}
 
 \hypertarget{scenes-dataset}{%
-\paragraph{7 Scenes dataset}\label{scenes-dataset}}
+\subsubsection{7 Scenes dataset}\label{scenes-dataset}}
 
 To dowload the dataset follow the instructions at
 https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/.
@@ -2094,7 +2340,7 @@ file \texttt{config.yaml}.A calibration file
 \texttt{settings/SEVEN\_SCENES.yaml} is already available.
 
 \hypertarget{neural-rgbd-dataset}{%
-\paragraph{Neural RGBD dataset}\label{neural-rgbd-dataset}}
+\subsubsection{Neural RGBD dataset}\label{neural-rgbd-dataset}}
 
 To dowload the dataset follow the instructions at
 https://github.com/dazinovic/neural-rgbd-surface-reconstruction. Select
@@ -2103,7 +2349,7 @@ the section \texttt{NEURAL\_RGBD\_DATASET:\ settings:} in the file
 \texttt{settings/NEURAL\_RGBD.yaml} is already available.
 
 \hypertarget{rover-dataset}{%
-\paragraph{Rover dataset}\label{rover-dataset}}
+\subsubsection{Rover dataset}\label{rover-dataset}}
 
 To dowload the dataset follow the instructions at
 https://iis-esslingen.github.io/rover/. Select the section
@@ -2113,7 +2359,7 @@ calibration file for the \texttt{d435i} camera is already available:
 supported in the future.
 
 \hypertarget{scannet-datasets}{%
-\paragraph{ScanNet Datasets}\label{scannet-datasets}}
+\subsubsection{ScanNet Datasets}\label{scannet-datasets}}
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -2159,7 +2405,7 @@ supported in the future.
 \end{enumerate}
 
 \hypertarget{clio-datasets}{%
-\paragraph{CLIO Datasets}\label{clio-datasets}}
+\subsubsection{CLIO Datasets}\label{clio-datasets}}
 
 pySLAM supports the RGB-D sequences released with
 \href{https://github.com/MIT-SPARK/Clio}{Clio} \cite{kim2024clio}
@@ -2211,7 +2457,7 @@ automatically uses Sim(3) alignment for the ground-truth overlay and ATE
 metrics.
 
 \hypertarget{ros1-bags}{%
-\paragraph{ROS1 bags}\label{ros1-bags}}
+\subsubsection{ROS1 bags}\label{ros1-bags}}
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -2230,7 +2476,7 @@ metrics.
 \end{enumerate}
 
 \hypertarget{ros2-bags}{%
-\paragraph{ROS2 bags}\label{ros2-bags}}
+\subsubsection{ROS2 bags}\label{ros2-bags}}
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -2250,12 +2496,12 @@ metrics.
 
 
 \hypertarget{mcap-file}{%
-\paragraph{MCAP file}\label{mcap-file}}
+\subsubsection{MCAP file}\label{mcap-file}}
 
 A concise introduction of the MCAP format is available at \href{https://foxglove.dev/blog/introducing-the-mcap-file-format}{https://foxglove.dev/blog/introducing-the-mcap-file-format}. These files can be also recorded and played back by using ROS2 tools.  
 
 \hypertarget{video-and-folder-datasets}{%
-\paragraph{Video and Folder Datasets}\label{video-and-folder-datasets}}
+\subsubsection{Video and Folder Datasets}\label{video-and-folder-datasets}}
 
 You can use the \texttt{VIDEO\_DATASET} and \texttt{FOLDER\_DATASET}
 types to read generic video files and image folders (specifying a glob
@@ -2271,6 +2517,8 @@ can be used for testing the code. These are the same used in the
 framework \href{https://github.com/raulmur/ORB_SLAM2}{ORB-SLAM2} \cite{ORB_SLAM2}. You
 can easily modify one of those files for creating your own new
 calibration file (for your new datasets).
+
+A settings file that does not set \texttt{Camera.type} uses the linear pinhole model: \texttt{Camera.k1}, \ldots, \texttt{Camera.k3} are used only to undistort keypoints. Setting \texttt{Camera.type} to \texttt{kannala\_brandt4}, \texttt{pinhole\_radtan8}, or \texttt{double\_sphere} selects the corresponding model of Sect.~\ref{camera-models}. Note that \texttt{Camera.k3} and \texttt{Camera.k4} are the higher-order polynomial coefficients in a Kannala--Brandt file, not the tangential coefficients. A non-pinhole stereo rig requires an explicit right camera (\texttt{Stereo.right}) and the relative pose \texttt{Stereo.T\_right\_left}. Parameters and pixel conventions of each model are detailed \href{https://github.com/luigifreda/pyslam/blob/master/cpp/modules/camera_models/README.md}{here}.
 
 In order to calibrate your camera, you can use the scripts in the folder
 \texttt{calibration}. In particular: 1. Use the script
@@ -2294,115 +2542,5 @@ If you want to \textbf{use your camera}, you have to:
 \end{itemize}
 
 
-%\hypertarget{Comparison pySLAM vs ORB-SLAM3}{%
-%\section{Comparison pySLAM vs ORB-SLAM3}\label{comparison-pySLAM-ORBSLAM3}}
-%
-%For a comparative evaluation, \textit{online} trajectory estimated by pySLAM vs \textit{final} trajectories estimated by ORB-SLAM3, see this nice \href{https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb}{notebook}. 
-%Note that pySLAM is able to save both online and final pose estimates. On the other end, ORB-SLAM3 pose estimates are saved at the end of the full dataset playback. 
-%For further details about online/final trajectories and trajectory saving, see the section~\ref{trajectory-saving}.
-
-% \hypertarget{pySLAM Performances and Comparative Evaluations}{%
-% \section{pySLAM Performances and Comparative Evaluations}\label{comparison-pySLAM}}
-
-% For a comparative evaluation of the \textbf{"online"} trajectory estimated by pySLAM versus the \textbf{"final"} trajectory estimated by ORB-SLAM3, check out this nice 
-% \href{https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb}{notebook}. 
-% For more details about \textit{"online"} and \textit{"final"} trajectories, refer to this \hyperref[trajectory-saving]{section}.
-
-% \textbf{Note}: pySLAM saves both online and final pose estimates, whereas ORB-SLAM3 only saves final estimates (pose data is recorded at the end of the entire dataset playback). 
-% For instructions on how to save trajectories with pySLAM, see this \hyperref[trajectory-saving]{section}. 
-% When you press the GUI button \texttt{Draw Ground Truth} (see \hyperref[slam-gui]{here}), you can visualize the history of the Absolute Trajectory Error (ATE or \textit{RMSE}) and evaluate both online and offline errors.
-
-\hypertarget{credits}{%
-\section{Credits}\label{credits}}
-
-A list of the frameworks that inspired or has been integrated into pySLAM are available \href{https://github.com/luigifreda/pyslam?tab=readme-ov-file#credits}{here}. Many thanks to their Authors for their great work.
-%
-%\begin{itemize}
-%\tightlist
-%\item
-%  \href{https://github.com/stevenlovegrove/Pangolin}{Pangolin}
-%\item
-%  \href{https://github.com/uoip/g2opy}{g2opy}
-%\item
-%  \href{https://github.com/raulmur/ORB_SLAM2}{ORBSLAM2} \cite{ORB_SLAM2}
-%\item
-%  \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPointPretrainedNetwork} \cite{detone18superpoint}
-%\item
-%  \href{https://github.com/vbalnt/tfeat}{Tfeat} \cite{Tfeat}
-%\item
-%  \href{https://github.com/vcg-uvic/image-matching-benchmark-baselines}{Image Matching Benchmark Baselines} \cite{ImageMatchingBenchmarkBaselines}
-%\item
-%  \href{https://github.com/DagnyT/hardnet.git}{Hardnet} \cite{Hardnet}
-%\item
-%  \href{https://github.com/lzx551402/geodesc.git}{GeoDesc} \cite{GeoDesc}
-%\item
-%  \href{https://github.com/yuruntian/SOSNet.git}{SOSNet} \cite{SOSNet}
-%\item
-%  \href{https://github.com/yuruntian/L2-Net}{L2Net} \cite{L2Net}
-%\item
-%  \href{https://github.com/cvlab-epfl/log-polar-descriptors}{Log-polar descriptor} \cite{LogPolarDescriptor}
-%\item
-%  \href{https://github.com/mihaidusmanu/d2-net}{D2-Net} \cite{D2Net}
-%\item
-%  \href{https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md}{DELF} \cite{DELF}
-%\item
-%  \href{https://github.com/lzx551402/contextdesc}{Contextdesc} \cite{Contextdesc}
-%\item
-%  \href{https://github.com/vcg-uvic/lf-net-release}{LFNet} \cite{LFNet}
-%\item
-%  \href{https://github.com/naver/r2d2}{R2D2} \cite{R2D2}
-%\item
-%  \href{https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf}{BEBLID} \cite{BEBLID}
-%\item
-%  \href{https://arxiv.org/abs/2006.13566}{DISK} \cite{DISK}
-%\item
-%  \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{Xfeat}
-%\item
-%  \href{https://arxiv.org/abs/2306.13643}{LightGlue} \cite{LightGlue}
-%\item
-%  \href{https://github.com/axelBarroso/Key.Net}{Key.Net} \cite{barroso2020key}
-%\item
-%  \href{https://github.com/geohot/twitchslam}{Twitchslam} 
-%\item
-%  \href{https://github.com/uoip/monoVO-python}{MonoVO} 
-%\item
-%  \href{https://github.com/stschubert/VPR_Tutorial.git}{VPR\_Tutorial} \cite{VPR_Tutorial}
-%\item
-%  \href{https://github.com/DepthAnything/Depth-Anything-V2}{DepthAnythingV2} \cite{DepthAnythingV2}
-%\item
-%  \href{https://github.com/apple/ml-depth-pro}{DepthPro} \cite{depthpro2023}
-%\item
-%  \href{https://github.com/princeton-vl/RAFT-Stereo}{RAFT-Stereo} \cite{RAFTStereo}
-%\item
-%  \href{https://github.com/megvii-research/CREStereo}{CREStereo} and
-%  \href{https://github.com/ibaiGorordo/CREStereo-Pytorch}{CREStereo-Pytorch} \cite{CREStereo}
-%\item
-%  \href{https://github.com/muskie82/MonoGS}{MonoGS} \cite{MonoGS}
-%\item
-%  \href{https://github.com/naver/mast3r}{MASt3R} \cite{master}
-%\item
-%  \href{https://github.com/facebookresearch/mvdust3r}{MV-DUSt3R} \cite{mvduster}
-%\item
-%  Many thanks to \href{https://github.com/anathonic}{Anathonic} for
-%  adding the first version of the trajectory-saving feature and for the comparison notebook:
-%  \href{https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb}{pySLAM vs ORB-SLAM3}.
-%\item 
-%	Many thanks to \href{https://github.com/dvdmc}{David Morilla Cabello} for his great work on creating the first version of sparse semantic mapping module in pySLAM~\cite{pyslamSemantic2025}.
-%\end{itemize}
-
-
-%\hypertarget{contributing-to-pyslam}{%
-%\section{Contributing to pySLAM}\label{contributing-to-pyslam}}
-%
-%If you like pySLAM and would like to contribute to the code base, you
-%can report bugs, leave comments and proposing new features through
-%issues and pull requests on github. Feel free to get in touch at
-%\emph{luigifreda(at)gmail{[}dot{]}com}. Thank you!
-
-
-%\section*{References}
-
-\bibliographystyle{plain}
-\bibliography{bibliography}
 
 \end{document}

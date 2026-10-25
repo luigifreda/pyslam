@@ -9,7 +9,6 @@
 - [Camera models](./cameras.md)
 - [TUM-VI visual mono and stereo](./tum-vi.md)
 - [Dataset image prefetching](./image-prefetching.md)
-- [Camera review and validation (2026-10-18)](./camera-review-2026-10-18.md)
 - [C++ sparse-SLAM core](../cpp/core/slam/README.md)
 - [Semantic Mapping and Segmentation](./semantics.md)
 - [Volumetric Mapping](./volumetric_mapping.md)

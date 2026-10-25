@@ -31,7 +31,7 @@ import cv2
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = os.path.abspath(os.path.join(kScriptFolder, "../../../.."))
-kDataFolder = os.path.join(kRootFolder, "test/data")
+kDataFolder = os.path.join(kRootFolder, "examples/data")
 
 sys.path.insert(0, kRootFolder)
 

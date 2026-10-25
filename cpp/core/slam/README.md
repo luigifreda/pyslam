@@ -16,7 +16,7 @@ This directory contains the **C++ implementations** of the core SLAM classes, ex
 
 The C++ core reimplements the sparse SLAM originally implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11. The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names (see the [table](#table-of-corresponding-files) below). The bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++ when possible.
 
-- To **enable** the C++ sparse-SLAM core, set `USE_CPP_CORE = True` in `pyslam/config_parameters.py`. 
+- The C++ sparse-SLAM core is **enabled by default** (`USE_CPP_CORE = True` in `pyslam/config_parameters.py`). Set it to `False`, or launch with `PYSLAM_USE_CPP=false`, to run the Python core instead.
 - To **rebuild** the C++ core module, run
     ```bash
     . pyenv-activate.sh 
@@ -59,7 +59,7 @@ While this may be self-evident, it is important to keep in mind that when `USE_C
 
 The codebase is organized into the following categories:
 
-- **Core SLAM Classes** — Main C++ implementations (`frame.cpp/h`, `keyframe.cpp/h`, `map_point.cpp/h`, `map.cpp/h`, `camera.cpp/h`, `camera_pose.cpp/h`, `optimizer_g2o.cpp/h`, `tracking_core.cpp/h`, `local_mapping_core.cpp/h`).
+- **Core SLAM Classes** — Main C++ implementations (`frame.cpp/h`, `keyframe.cpp/h`, `map_point.cpp/h`, `map.cpp/h`, `camera.cpp/h`, `camera_pose.cpp/h`, `optimizer_g2o.cpp/h`, `slam.cpp/h`, `tracking.cpp/h`, `tracking_core.cpp/h`, `local_mapping.cpp/h`, `local_mapping_core.cpp/h`).
 
 - **Serialization** — JSON and NumPy serialization modules (`*_serialization_json.cpp`, `*_serialization_py.cpp`) for data persistence and Python interop.
 
@@ -69,7 +69,7 @@ The codebase is organized into the following categories:
 
 - **Utilities** — `utils/` houses helper functions for geometry, features, descriptors, image processing, NumPy/Eigen operations, and serialization.
 
-- **Tests** — `tests_cpp/` and `tests_py/` contain C++ unit tests and Python integration tests respectively. See [test/cpp/README.md](../../../test/cpp/README.md) for how to run them.
+- **Tests** — `tests_cpp/` and `tests_py/` contain C++ unit tests and Python integration tests respectively. See [tests/README.md](../../../tests/README.md) for how to run them.
 
 ---
 
@@ -84,7 +84,11 @@ The codebase is organized into the following categories:
 | `map.cpp/h` | `pyslam/slam/map.py` | Map class managing keyframes and map points |
 | `camera.cpp/h`, `camera_models.cpp/h`, `camera_model_math.h` | `pyslam/slam/camera.py` | Pinhole, Kannala–Brandt4, rational pinhole, and double-sphere cameras |
 | `camera_pose.cpp/h` | `pyslam/slam/camera_pose.py` | Camera pose representation |
+| `slam.cpp/h` | `pyslam/slam/slam.py` | SLAM system; unported collaborators (feature tracker, loop closing, ...) stay Python objects |
+| `slam_dynamic_config.cpp/h` | `pyslam/slam/slam_dynamic_config.py` | Running statistics that adapt the descriptor-distance and reprojection-error thresholds |
+| `tracking.cpp/h` | `pyslam/slam/tracking.py` | Tracking control flow |
 | `tracking_core.cpp/h` | `pyslam/slam/tracking_core.py` | Core tracking functionality |
+| `local_mapping.cpp/h` | `pyslam/slam/local_mapping.py` | Local mapping queue, idle flag, and thread |
 | `local_mapping_core.cpp/h` | `pyslam/slam/local_mapping_core.py` | Local mapping core operations |
 | `geometry_matchers.cpp/h` | `pyslam/slam/geometry_matchers.py` | Geometric matching utilities |
 | **Optimizers** |

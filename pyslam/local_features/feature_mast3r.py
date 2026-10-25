@@ -84,7 +84,7 @@ class Mast3rFeature2D:
         output = inference(
             [tuple(imgs_preproc)], self.model, self.device, batch_size=1, verbose=False
         )
-        # check test/dust3r/test_mast3r_2images.py
+        # check examples/dust3r/example_mast3r_2images.py
         view1 = output["view1"]
         pred1 = output["pred1"]
         # extract descriptors

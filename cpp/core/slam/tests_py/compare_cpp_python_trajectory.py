@@ -264,10 +264,6 @@ def compare(python_path, cpp_path):
 def _spawn(use_cpp, output_path, python_frontend=False):
     env = os.environ.copy()
     env["PYSLAM_USE_CPP"] = "1" if use_cpp else "0"
-    # Python MapPoint.remove_frame_view keeps debug asserts that disagree with
-    # Frame.clean_outlier_map_points, which clears the match before the call.
-    # Those asserts are not part of the estimator. Skip them so both runs finish.
-    env["PYTHONOPTIMIZE"] = "1"
     env["PYTHONPATH"] = kRootFolder + os.pathsep + env.get("PYTHONPATH", "")
     command = [sys.executable, os.path.abspath(__file__), "--run", output_path]
     if python_frontend:

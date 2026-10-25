@@ -170,6 +170,31 @@ def _make_test_pinhole_camera(module_type: str, module: Any) -> Any:
     return module.PinholeCamera(config)
 
 
+def _make_test_stereo_pinhole_camera(module_type: str, module: Any) -> Any:
+    """Helper to create a rectified stereo test camera"""
+    cam_settings = {
+        "Camera.width": 640,
+        "Camera.height": 480,
+        "Camera.fx": 500.0,
+        "Camera.fy": 500.0,
+        "Camera.cx": 320.0,
+        "Camera.cy": 240.0,
+        "Camera.fps": 30,
+        "Camera.bf": 40.0,
+        "ThDepth": 40.0,
+    }
+    dataset_settings = {
+        "sensor_type": "stereo",
+    }
+    # The C++ camera reads dataset_settings, the Python camera reads sensor_type.
+    config = {
+        "cam_settings": cam_settings,
+        "dataset_settings": dataset_settings,
+        "sensor_type": "stereo",
+    }
+    return module.PinholeCamera(config)
+
+
 class CameraProjectionTest(TestUnit):
     """Test camera point projection"""
 
@@ -183,6 +208,21 @@ class CameraProjectionTest(TestUnit):
         cam = _make_test_pinhole_camera(module_type, module)
         uv, zs = cam.project(self.test_points)
         return uv, zs
+
+
+class CameraStereoProjectionTest(TestUnit):
+    """Test camera stereo point projection (u, v, ur)"""
+
+    def __init__(self):
+        super().__init__("Camera Stereo Projection")
+        rng = np.random.default_rng(42)
+        self.test_points = rng.uniform(-5, 5, (200, 3))
+        self.test_points[:, 2] = np.abs(self.test_points[:, 2]) + 0.5
+
+    def run_test(self, module_type: str, module: Any) -> Tuple[np.ndarray, np.ndarray]:
+        cam = _make_test_stereo_pinhole_camera(module_type, module)
+        uvr, zs = cam.project_stereo(self.test_points)
+        return uvr, zs
 
 
 class CameraUnprojectionTest(TestUnit):
@@ -268,7 +308,7 @@ class FrameExtractionTest(TestUnit):
     kScriptPath = os.path.realpath(__file__)
     kScriptFolder = os.path.dirname(kScriptPath)
     kRootFolder = kScriptFolder + "/../../../.."
-    kDataFolder = kRootFolder + "/test/data"
+    kDataFolder = kRootFolder + "/examples/data"
 
     def __init__(self):
         super().__init__("Frame Extraction", detailed=True)
@@ -365,6 +405,25 @@ class CameraProjectionPerformance(PerformanceTestUnit):
         cam = _make_test_pinhole_camera(module_type, module)
         start_time = time.perf_counter()
         uv, zs = cam.project(self.test_points)
+        return time.perf_counter() - start_time
+
+
+class CameraStereoProjectionPerformance(PerformanceTestUnit):
+    """Performance test for camera stereo projection"""
+
+    def __init__(self):
+        super().__init__("Camera Stereo Projection Performance")
+        self.test_points = None
+
+    def setup(self):
+        np.random.seed(42)
+        self.test_points = np.random.uniform(-5, 5, (5000, 3)).astype(np.float64)
+        self.test_points[:, 2] = np.abs(self.test_points[:, 2]) + 1.0
+
+    def run_benchmark(self, module_type: str, module: Any) -> float:
+        cam = _make_test_stereo_pinhole_camera(module_type, module)
+        start_time = time.perf_counter()
+        uvr, zs = cam.project_stereo(self.test_points)
         return time.perf_counter() - start_time
 
 
@@ -471,6 +530,7 @@ def setup_test_suite() -> TestSuite:
     suite.add_functional_test(CameraPoseRotationTranslationTest())
     suite.add_functional_test(CameraPoseQuaternionTest())
     suite.add_functional_test(CameraProjectionTest())
+    suite.add_functional_test(CameraStereoProjectionTest())
     suite.add_functional_test(CameraUnprojectionTest())
     suite.add_functional_test(CameraInImageTest())
     suite.add_functional_test(FrameProjectionTest())
@@ -480,6 +540,7 @@ def setup_test_suite() -> TestSuite:
 
     # Add performance tests
     suite.add_performance_test(CameraProjectionPerformance())
+    suite.add_performance_test(CameraStereoProjectionPerformance())
     suite.add_performance_test(CameraUnprojectionPerformance())
     suite.add_performance_test(CameraPoseOperationsPerformance())
     suite.add_performance_test(MapPointOperationsPerformance())

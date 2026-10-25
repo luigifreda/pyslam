@@ -140,7 +140,6 @@ See the demo **video** for release v2.10.0
 ```bash
 ├── cpp
 │   ├── modules          # utility extensions: hamming, glutils, solvers, volumetric, camera_models, ...
-│   │   └── tests        # smoke tests for those extensions
 │   ├── casters          # shared OpenCV pybind11 type casters
 │   ├── core
 │   │   ├── slam         # sparse-SLAM C++ core, exposed as the cpp_core module
@@ -163,7 +162,8 @@ See the demo **video** for release v2.10.0
 │   ├── viz
 ├── scripts              # Shell utility scripts
 ├── settings             # Dataset/configuration files
-├── test                 # Tests and usage examples
+├── examples             # Usage examples
+├── tests                # Automated tests
 ├── thirdparty           # External dependencies
 ```
 
@@ -187,7 +187,7 @@ See the demo **video** for release v2.10.0
 
 * `main_scene_from_views.py` infers 3D scenes from multiple images using models like DUSt3R, Mast3r, MV-DUSt3R, VGGT, Robust VGGT, DepthFromAnythingV3, and Fast3R (see [here](#feed-forward-inference-of-3d-scenes-from-multiple-image-views)).  
 
-Other *test/example scripts* are provided in the `test` folder.
+Other usage scripts are in the `examples` folder. Automated checks are in `tests`; see [tests/README.md](./tests/README.md).
 
 ### System overview      
 
@@ -296,7 +296,7 @@ Open a new terminal and start experimenting with the scripts. In each new termin
 ```
 If you are using `pixi` then just run `pixi shell` to activate the `pyslam` environment.
 The file [config.yaml](./config.yaml) serves as a single entry point to configure the system and its global configuration parameters contained in [pyslam/config_parameters.py](./pyslam/config_parameters.py). 
-- To **enable the C++ sparse-SLAM core**, set `USE_CPP_CORE = True` in the file `config_parameters.py`.
+- The **C++ sparse-SLAM core** is enabled by default (`USE_CPP_CORE = True` in `pyslam/config_parameters.py`). Set it to `False`, or launch with `PYSLAM_USE_CPP=false`, to use the Python core.
 - Further information on how to configure pySLAM are provided [here](#selecting-a-dataset-and-different-configuration-parameters).
 
  
@@ -370,7 +370,7 @@ If you just want to test the basic feature extraction and matching capabilities 
 
 In any SLAM and VO, you can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#supported-local-features)* below for further information). 
 
-Some basic examples are available in the subfolder `test/cv`. In particular, as for feature detection/description, you may want to take a look at [test/cv/test_feature_manager.py](./test/cv/test_feature_manager.py) too.
+Some basic examples are available in the subfolder `examples/cv`. In particular, as for feature detection/description, you may want to take a look at [examples/cv/example_feature_manager.py](./examples/cv/example_feature_manager.py) too.
 
 ---
 
@@ -385,7 +385,7 @@ Many [loop closing methods](#loop-closing) are available, combining different [a
 
 While running full SLAM, loop closing is enabled by default and can be disabled by setting `kUseLoopClosing=False` in `pyslam/config_parameters.py`. Different configuration options `LoopDetectorConfigs` can be found in [pyslam/loop_closing/loop_detector_configs.py](./pyslam/loop_closing/loop_detector_configs.py): Code comments provide additional useful details.
 
-One can start experimenting with loop closing methods by using the examples in `test/loopclosing`. The example [test/loopclosing/test_loop_detector.py](./test/loopclosing/test_loop_detector.py) is the recommended entry point.
+One can start experimenting with loop closing methods by using the examples in `examples/loopclosing`. The example [examples/loopclosing/example_loop_detector.py](./examples/loopclosing/example_loop_detector.py) is the recommended entry point.
 
 
 #### Vocabulary management 
@@ -394,11 +394,11 @@ One can start experimenting with loop closing methods by using the examples in `
 
 To create a new vocabulary, follow these steps:
 
-1. **Generate an array of descriptors**: Use the script `test/loopclosing/test_gen_des_array_from_imgs.py` to generate the array of descriptors that will be used to train the new vocabulary. Select your desired descriptor type via the tracker configuration. 
+1. **Generate an array of descriptors**: Use the script `examples/loopclosing/example_gen_des_array_from_imgs.py` to generate the array of descriptors that will be used to train the new vocabulary. Select your desired descriptor type via the tracker configuration. 
 
-2.  **DBOW vocabulary generation**: Train your target DBOW vocabulary by using the script `test/loopclosing/test_gen_dbow_voc_from_des_array.py`.
+2.  **DBOW vocabulary generation**: Train your target DBOW vocabulary by using the script `examples/loopclosing/example_gen_dbow_voc_from_des_array.py`.
 
-3. **VLAD vocabulary generation**: Train your target VLAD "vocabulary" by using the script `test/loopclosing/test_gen_vlad_voc_from_des_array.py`.
+3. **VLAD vocabulary generation**: Train your target VLAD "vocabulary" by using the script `examples/loopclosing/example_gen_vlad_voc_from_des_array.py`.
 
 Once you have trained the vocabulary, you can add it in [pyslam/loop_closing/loop_detector_vocabulary.py](./pyslam/loop_closing/loop_detector_vocabulary.py) and correspondingly create a new loop detector configuration in [pyslam/loop_closing/loop_detector_configs.py](./pyslam/loop_closing/loop_detector_configs.py) that uses it.
 
@@ -466,8 +466,8 @@ You can check the output pointcloud/mesh by using [CloudCompare](https://www.clo
 
 In the case of a saved Gaussian splatting model, you can visualize it by:
 1. Using the [superslat editor](https://playcanvas.com/supersplat/editor) (drag and drop the saved Gaussian splatting `.ply` pointcloud in the editor interface). 
-2. Getting into the folder `test/gaussian_splatting` and running:      
-    `python test_gsm.py --load <gs_checkpoint_path>`      
+2. Getting into the folder `examples/gaussian_splatting` and running:      
+    `python example_gsm.py --load <gs_checkpoint_path>`      
     The directory ` <gs_checkpoint_path>` is expected to have the following structure:      
     ```bash
     ├── gs_checkpoint_path
@@ -625,7 +625,7 @@ The system provides a modular sparse-SLAM core, implemented in both C++ and Pyth
 
 The C++ core reimplements the sparse SLAM originally implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11. The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names (see this [table](./cpp/core/slam/README.md#table-of-corresponding-files)). When feasible, the bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++.
 
-- To enable the C++ sparse-SLAM core, set `USE_CPP_CORE = True` in `pyslam/config_parameters.py`. 
+- The C++ sparse-SLAM core is enabled by default (`USE_CPP_CORE = True` in `pyslam/config_parameters.py`). Set it to `False`, or launch with `PYSLAM_USE_CPP=false`, to run the Python core instead.
 - To rebuild the C++ core module, run
   ```bash
   . pyenv-activate.sh 
@@ -847,9 +847,9 @@ The following feature **descriptors** are supported:
 * *[Xfeat](https://arxiv.org/abs/2404.19174)*
 * *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)* (KeyNet detector + AffNet + HardNet descriptor).
   
-For more information, refer to [pyslam/local_features/feature_types.py](pyslam/local_features/feature_types.py) file. Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `main_feature_matching.py`.
+For more information, refer to [pyslam/local_features/feature_types.py](pyslam/local_features/feature_types.py) file. Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `examples/cv/example_feature_manager.py` and `main_feature_matching.py`.
 
-In both the scripts `main_vo.py` and `main_slam.py`, you can create your preferred detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [local_features/feature_tracker.configs.py](local_features/feature_tracker_configs.py)
+In both the scripts `main_vo.py` and `main_slam.py`, you can create your preferred detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [pyslam/local_features/feature_tracker_configs.py](pyslam/local_features/feature_tracker_configs.py)
 
 The function `feature_tracker_factory()` can be found in the file `pyslam/local_features/feature_tracker.py`. Take a look at the file `pyslam/local_features/feature_manager.py` for further details.
 
@@ -963,7 +963,7 @@ The following datasets are supported:
 | [TARTANAIR dataset](https://theairlab.org/tartanair-dataset/)                                                                                | `type: TARTANAIR_DATASET`    |
 | [SEVEN_SCENES dataset](https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/)                                             | `type: SEVEN_SCENES_DATASET` |
 | [NEURAL_RGBD dataset](https://github.com/dazinovic/neural-rgbd-surface-reconstruction)                                                       | `type: NEURAL_RGBD_DATASET`  |
-| [ROVER dataset](https://iis-esslingen.github.io/rover/)                                                                                      | `type: NEURAL_RGBD_DATASET`  |
+| [ROVER dataset](https://iis-esslingen.github.io/rover/)                                                                                      | `type: ROVER_DATASET`        |
 | [ScanNet dataset](http://www.scan-net.org/)                                                                                                  | `type: SCANNET_DATASET`      |
 | [CLIO dataset](https://github.com/MIT-SPARK/Clio)                                                                                            | `type: CLIO_DATASET`         |
 | [ROS1  bags](https://wiki.ros.org/Bags)                                                                                                      | `type: ROS1BAG_DATASET`      |

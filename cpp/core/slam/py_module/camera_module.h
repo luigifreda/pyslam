@@ -187,12 +187,13 @@ void bind_camera(py::module &m) {
             },
             py::arg("uvs"), py::arg("depths"), py::arg("Kinv"))
         .def_static(
-            "backproject_3d", // same as unproject_points_3d (for Python compatibility)
+            "backproject_3d", // takes K, like the Python CameraUtils.backproject_3d
             [](const pyslam::MatNx2dRef uvs, const pyslam::VecNdRef depths,
-               const pyslam::Mat3dRef Kinv) {
+               const pyslam::Mat3dRef K) {
+                const Eigen::Matrix3d Kinv = K.inverse();
                 return pyslam::CameraUtils::unproject_points_3d<double>(uvs, depths, Kinv);
             },
-            py::arg("uvs"), py::arg("depths"), py::arg("Kinv"))
+            py::arg("uvs"), py::arg("depths"), py::arg("K"))
         .def_static(
             "are_in_image",
             [](const pyslam::MatNxMdRef uvs, const pyslam::VecNdRef zs, double u_min, double u_max,
