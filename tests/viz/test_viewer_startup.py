@@ -128,6 +128,31 @@ class ViewerStartupTests(unittest.TestCase):
         finally:
             viewer.quit()
 
+    def test_startup_failure_stops_ground_truth_aligner(self):
+        for viewer_class, error, timeout in (
+            (FailedViewer, RuntimeError, 30),
+            (StalledViewer, TimeoutError, 0.1),
+        ):
+            with self.subTest(viewer=viewer_class.__name__):
+                viewer = viewer_class()
+                try:
+                    viewer.set_gt_trajectory(np.zeros((20, 3)), np.arange(20))
+                    aligner = viewer.trajectory_aligner
+                    deadline = time.monotonic() + 30
+                    while not viewer.is_aligner_running.value and time.monotonic() < deadline:
+                        time.sleep(0.01)
+                    self.assertTrue(aligner.is_alive())
+                    self.assertEqual(viewer.is_aligner_running.value, 1)
+
+                    with self.assertRaises(error):
+                        viewer.wait_for_ready(timeout=timeout)
+
+                    self.assertFalse(aligner.is_alive())
+                    self.assertIsNotNone(aligner.exitcode)
+                    self.assertEqual(viewer.is_aligner_running.value, 0)
+                finally:
+                    viewer.quit()
+
 
 if __name__ == "__main__":
     unittest.main()

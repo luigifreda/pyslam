@@ -584,6 +584,9 @@ class Viewer3D(object):
             self._stop_viewer_process(timeout=0)
             if self.slam_drawer_thread is not None:
                 self.slam_drawer_thread.quit()
+            # Ground-truth alignment can start before viewer readiness.
+            if self.trajectory_aligner is not None:
+                self.trajectory_aligner.quit()
             self._close_queues()
             raise
         Printer.green("Viewer3D: ready")
