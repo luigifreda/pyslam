@@ -8,7 +8,9 @@ For each match, errors are computed against the ground-truth camera motion and g
   depth-dependent (adds DA3 depth): symmetric reprojection error
 A match counts as correct under a metric if its error is below ERR_PX. For each weight w
 of the geometric descriptor the table prints #matches, #wrong and per-metric precision,
-plus median errors.   Run from the repo root:  python -m geomatch.demo [--show]
+plus median errors. Then, for the same putative matches, all filter configurations in
+FILTER_CONFIGS (see geomatch/filtering.py) are compared: kept matches and precision after
+filtering.   Run from the repo root:  python -m geomatch.demo [--show]
 """
 
 import sys
@@ -18,6 +20,7 @@ import numpy as np
 
 from geomatch.core import concat, depth_at, depth_descriptor, detect, match
 from geomatch.depth import predict_depth
+from geomatch.filtering import MatchContext, filter_matches
 
 VIDEO = "data/videos/kitti06/video_color.mp4"
 POSES = "data/videos/kitti06/06.txt"  # KITTI format: 3x4 camera-to-world per frame
@@ -135,10 +138,19 @@ poses[:, :3] = np.loadtxt(POSES).reshape(-1, 3, 4)
 frames = read_frames({i for s in STARTS for i in (s, s + GAP)})
 
 WEIGHTS = [0.0, 0.1, 0.3, 0.5]
+# filter configurations compared on the same putative matches: label -> filter_matches kwargs
+FILTER_CONFIGS = [
+    ("none",                 dict(method="none", ransac="none")),
+    ("ransac",               dict(method="none", ransac="after")),
+    ("depth_valid+ransac",   dict(method="depth_valid", ransac="after")),
+    ("desc_thresh+ransac",   dict(method="desc_threshold", ransac="after", max_dist=1.0)),
+    ("gt_epipolar (oracle)", dict(method="gt_epipolar", ransac="none")),  # upper bound, uses GT
+]
 # per w: matches, and #correct under each metric (epi, sym-epi, sampson, triang, reproj)
 totals = {w: np.zeros(6) for w in WEIGHTS}
 tri_errors = {w: [] for w in WEIGHTS}   # per-match triangulation errors (depth-independent)
 rep_errors = {w: [] for w in WEIGHTS}   # per-match reprojection errors (depth-dependent)
+fstats = {}                             # (w, label) -> [kept, correct(epi), correct(reproj)]
 
 for s in STARTS:
     img1, img2 = frames[s], frames[s + GAP]
@@ -164,6 +176,20 @@ for s in STARTS:
         tri_errors[w].append(tri)
         rep_errors[w].append(rep)
 
+        # compare all filter configurations on the same putative matches
+        ctx = MatchContext(i1=i1, i2=i2, pts1=pts1, pts2=pts2,
+                           des1=concat(des1, g1, w), des2=concat(des2, g2, w),
+                           depth1=depth1, depth2=depth2, z1=z1, z2=z2, K=K, T1=T1, T2=T2)
+        for label, cfg in FILTER_CONFIGS:
+            keep = filter_matches(ctx, **cfg)
+            k1, k2 = i1[keep], i2[keep]
+            if len(k1):
+                f_epi = (epipolar_error(pts1[k1], pts2[k2], T1, T2) < ERR_PX).sum()
+                f_rep = (reprojection_error(pts1[k1], pts2[k2], z1[k1], z2[k2], T1, T2) < ERR_PX).sum()
+            else:
+                f_epi = f_rep = 0.0
+            fstats[(w, label)] = [len(k1), f_epi, f_rep]
+
 print(f"\n{len(STARTS)} pairs, gap {GAP} frames; a match is 'correct' under a metric if its error < {ERR_PX} px")
 print("'wrong' = matches - correct(epipolar); all errors in pixels; prec = share of matches correct\n")
 
@@ -182,6 +208,16 @@ for w, (n, c_epi, c_sym, c_sam, c_tri, c_rep) in totals.items():
 print("\nlegend: epi = epipolar distance to GT line | sym-epi = symmetric epipolar distance | "
       "sampson = Sampson distance | triang = GT-pose triangulation reprojection (cheirality enforced) | "
       "reproj = symmetric reprojection using predicted depth")
+
+for w in WEIGHTS:
+    print(f"\nFILTER COMPARISON for w={w} (same putative matches, filter applied on top)")
+    print(f"{'filter':>22} | {'kept':>6} {'of':>6} | {'epi prec':>8} {'reproj prec':>11}")
+    n_all = totals[w][0]
+    for label, _ in FILTER_CONFIGS:
+        kept, c_epi, c_rep = fstats[(w, label)]
+        prec_epi = c_epi / kept if kept else 0.0
+        prec_rep = c_rep / kept if kept else 0.0
+        print(f"{label:>22} | {kept:6.0f} {n_all:6.0f} | {prec_epi:8.1%} {prec_rep:11.1%}")
 
 SHOW_PAIR = 0     # which pair to plot (index into STARTS)
 SHOW_W = 0.0      # geometry weight for the plotted matches (0 = SIFT only)
