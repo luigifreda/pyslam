@@ -2,9 +2,13 @@
 KITTI 06 image pairs with ground-truth poses.   Run from the repo root:
     python -m geomatch.demo [--show]
 
-A match counts as correct if the point in image 2 lies within ERR_PX of the epipolar line
-given by the ground-truth camera motion. For each weight w of the geometric descriptor it
-prints: #matches, #correct, #wrong, precision.
+For each match, errors are computed against the ground-truth camera motion and grouped:
+  depth-independent (GT pose only): epipolar, symmetric epipolar, Sampson distance,
+      triangulation reprojection (+ cheirality)
+  depth-dependent (adds DA3 depth): symmetric reprojection error
+A match counts as correct under a metric if its error is below ERR_PX. For each weight w
+of the geometric descriptor the table prints #matches, #wrong and per-metric precision,
+plus median errors.   Run from the repo root:  python -m geomatch.demo [--show]
 """
 
 import sys
@@ -12,7 +16,7 @@ import sys
 import cv2
 import numpy as np
 
-from geomatch.core import concat, depth_descriptor, detect, match
+from geomatch.core import concat, depth_at, depth_descriptor, detect, match
 from geomatch.depth import predict_depth
 
 VIDEO = "data/videos/kitti06/video_color.mp4"
@@ -36,17 +40,94 @@ def read_frames(idxs):
     return out
 
 
-def epipolar_error(p1, p2, T1, T2):
-    """Distance (px) of each p2 to the epipolar line of p1, using the GT relative pose."""
+def fundamental_matrix(T1, T2):
+    """Fundamental matrix from the GT relative camera motion (camera 1 -> camera 2)."""
     T21 = np.linalg.inv(T2) @ T1                       # camera 1 -> camera 2
     R, t = T21[:3, :3], T21[:3, 3]
     tx = np.array([[0, -t[2], t[1]], [t[2], 0, -t[0]], [-t[1], t[0], 0]])
     Kinv = np.linalg.inv(K)
-    F = Kinv.T @ tx @ R @ Kinv                         # fundamental matrix
+    return Kinv.T @ tx @ R @ Kinv
+
+
+def epipolar_error(p1, p2, T1, T2):
+    """Distance (px) of each p2 to the epipolar line of p1, using the GT relative pose."""
+    F = fundamental_matrix(T1, T2)
     x1 = np.c_[p1, np.ones(len(p1))]
     x2 = np.c_[p2, np.ones(len(p2))]
     lines = x1 @ F.T                                   # epipolar lines in image 2
     return np.abs(np.sum(x2 * lines, 1)) / np.hypot(lines[:, 0], lines[:, 1])
+
+
+def symmetric_epipolar_error(p1, p2, T1, T2):
+    """Mean of the point-to-epipolar-line distances in both images (px), GT relative pose."""
+    F = fundamental_matrix(T1, T2)
+    x1 = np.c_[p1, np.ones(len(p1))]
+    x2 = np.c_[p2, np.ones(len(p2))]
+    l2 = x1 @ F.T                                      # epipolar lines in image 2
+    l1 = x2 @ F                                        # epipolar lines in image 1
+    d2 = np.abs(np.sum(x2 * l2, 1)) / np.hypot(l2[:, 0], l2[:, 1])
+    d1 = np.abs(np.sum(x1 * l1, 1)) / np.hypot(l1[:, 0], l1[:, 1])
+    return 0.5 * (d1 + d2)
+
+
+def sampson_error(p1, p2, T1, T2):
+    """Sampson distance (px): first-order approximation of the geometric error w.r.t.
+    the fundamental matrix from the GT relative pose."""
+    F = fundamental_matrix(T1, T2)
+    x1 = np.c_[p1, np.ones(len(p1))]
+    x2 = np.c_[p2, np.ones(len(p2))]
+    Fx1 = x1 @ F.T                                     # F x1
+    Ftx2 = x2 @ F                                      # F^T x2
+    num = np.sum(x2 * Fx1, 1) ** 2
+    denom = Fx1[:, 0] ** 2 + Fx1[:, 1] ** 2 + Ftx2[:, 0] ** 2 + Ftx2[:, 1] ** 2
+    return np.sqrt(num / np.maximum(denom, 1e-12))
+
+
+def triangulation_error(p1, p2, T1, T2):
+    """Triangulate each match with the GT relative pose and return the mean reprojection
+    error (px) of the triangulated 3D point in both cameras. Cheirality is enforced:
+    matches whose 3D point lies behind either camera get infinite error.
+    Depth-independent: uses only the GT pose, never the predicted depth."""
+    T21 = np.linalg.inv(T2) @ T1                       # camera 1 -> camera 2
+    R, t = T21[:3, :3], T21[:3, 3]
+    P1 = K @ np.hstack([np.eye(3), np.zeros((3, 1))])  # projection in camera 1 frame
+    P2 = K @ T21[:3]                                   # projection of camera 2 in camera 1 frame
+    Xh = cv2.triangulatePoints(P1, P2, p1.T, p2.T)     # 4xN homogeneous, camera 1 frame
+    X = (Xh[:3] / Xh[3]).T                             # Nx3 in camera 1
+    X2 = X @ R.T + t                                   # in camera 2
+
+    def project(Xc):
+        proj = Xc @ K.T
+        return proj[:, :2] / np.maximum(proj[:, 2:3], 1e-9)
+
+    err = 0.5 * (np.linalg.norm(p1 - project(X), axis=1) + np.linalg.norm(p2 - project(X2), axis=1))
+    err[(X[:, 2] <= 1e-6) | (X2[:, 2] <= 1e-6)] = np.inf  # cheirality violation
+    return err
+
+
+def _reproject_one_way(p_src, p_dst, z_src, T_src, T_dst):
+    """Pixel distance between p_dst and the projection into the destination camera of
+    p_src's 3D point, obtained by back-projecting p_src with depth z_src and applying
+    the GT relative pose. Points landing behind the destination camera get infinite error."""
+    T_sd = np.linalg.inv(T_dst) @ T_src                # source -> destination camera
+    R, t = T_sd[:3, :3], T_sd[:3, 3]
+    Kinv = np.linalg.inv(K)
+    xs = np.c_[p_src, np.ones(len(p_src))]
+    Xs = (xs @ Kinv.T) * z_src[:, None]                # Nx3 points in source camera
+    Xd = Xs @ R.T + t                                  # in destination camera
+    proj = Xd @ K.T
+    uv = proj[:, :2] / np.maximum(proj[:, 2:3], 1e-9)
+    err = np.linalg.norm(p_dst - uv, axis=1)
+    err[Xd[:, 2] <= 1e-6] = np.inf                     # behind destination camera
+    return err
+
+
+def reprojection_error(p1, p2, z1, z2, T1, T2):
+    """Symmetric reprojection error: mean of the 1->2 and 2->1 pixel reprojection errors,
+    each computed by back-projecting with the point's own depth and applying the GT relative
+    pose. Each direction absorbs only its own depth error, so the average is more robust than
+    the one-sided version. Infinite if the 3D point is behind either camera."""
+    return 0.5 * (_reproject_one_way(p1, p2, z1, T1, T2) + _reproject_one_way(p2, p1, z2, T2, T1))
 
 
 poses = np.tile(np.eye(4), (1101, 1, 1))
@@ -54,7 +135,10 @@ poses[:, :3] = np.loadtxt(POSES).reshape(-1, 3, 4)
 frames = read_frames({i for s in STARTS for i in (s, s + GAP)})
 
 WEIGHTS = [0.0, 0.1, 0.3, 0.5]
-totals = {w: np.zeros(2) for w in WEIGHTS}  # matches, correct
+# per w: matches, and #correct under each metric (epi, sym-epi, sampson, triang, reproj)
+totals = {w: np.zeros(6) for w in WEIGHTS}
+tri_errors = {w: [] for w in WEIGHTS}   # per-match triangulation errors (depth-independent)
+rep_errors = {w: [] for w in WEIGHTS}   # per-match reprojection errors (depth-dependent)
 
 for s in STARTS:
     img1, img2 = frames[s], frames[s + GAP]
@@ -63,17 +147,41 @@ for s in STARTS:
     pts2, sizes2, des2 = detect(img2)
     g1 = depth_descriptor(depth1, pts1, sizes1)
     g2 = depth_descriptor(depth2, pts2, sizes2)
+    z1 = depth_at(depth1, pts1)
+    z2 = depth_at(depth2, pts2)
+    T1, T2 = poses[s], poses[s + GAP]
 
     for w in WEIGHTS:
         i1, i2 = match(concat(des1, g1, w), concat(des2, g2, w))
         p1, p2 = pts1[i1], pts2[i2]
-        correct = epipolar_error(p1, p2, poses[s], poses[s + GAP]) < ERR_PX
-        totals[w] += [len(p1), correct.sum()]
+        epi = epipolar_error(p1, p2, T1, T2)
+        sym = symmetric_epipolar_error(p1, p2, T1, T2)
+        sam = sampson_error(p1, p2, T1, T2)
+        tri = triangulation_error(p1, p2, T1, T2)
+        rep = reprojection_error(p1, p2, z1[i1], z2[i2], T1, T2)
+        totals[w] += [len(p1), (epi < ERR_PX).sum(), (sym < ERR_PX).sum(),
+                      (sam < ERR_PX).sum(), (tri < ERR_PX).sum(), (rep < ERR_PX).sum()]
+        tri_errors[w].append(tri)
+        rep_errors[w].append(rep)
 
-print(f"\n{len(STARTS)} pairs, gap {GAP} frames, correct = within {ERR_PX}px of GT epipolar line")
-print(f"{'w':>4} | {'matches':>7} {'correct':>7} {'wrong':>6} {'precision':>9}")
-for w, (n, c) in totals.items():
-    print(f"{w:4.1f} | {n:7.0f} {c:7.0f} {n-c:6.0f} {c/n:9.1%}")
+print(f"\n{len(STARTS)} pairs, gap {GAP} frames; a match is 'correct' under a metric if its error < {ERR_PX} px")
+print("'wrong' = matches - correct(epipolar); all errors in pixels; prec = share of matches correct\n")
+
+print("DEPTH-INDEPENDENT metrics (ground-truth pose only)")
+print(f"{'w':>4} | {'matches':>7} {'wrong':>6} | {'epi prec':>8} {'sym-epi':>8} {'sampson':>8} {'triang':>8} {'med tri err':>11}")
+for w, (n, c_epi, c_sym, c_sam, c_tri, c_rep) in totals.items():
+    med_tri = np.median(np.concatenate(tri_errors[w]))
+    print(f"{w:4.1f} | {n:7.0f} {n-c_epi:6.0f} | {c_epi/n:8.1%} {c_sym/n:8.1%} {c_sam/n:8.1%} {c_tri/n:8.1%} {med_tri:11.2f}")
+
+print("\nDEPTH-DEPENDENT metrics (add DA3 predicted depth)")
+print(f"{'w':>4} | {'reproj prec':>11} {'med rep err':>11}")
+for w, (n, c_epi, c_sym, c_sam, c_tri, c_rep) in totals.items():
+    med_rep = np.median(np.concatenate(rep_errors[w]))
+    print(f"{w:4.1f} | {c_rep/n:11.1%} {med_rep:11.2f}")
+
+print("\nlegend: epi = epipolar distance to GT line | sym-epi = symmetric epipolar distance | "
+      "sampson = Sampson distance | triang = GT-pose triangulation reprojection (cheirality enforced) | "
+      "reproj = symmetric reprojection using predicted depth")
 
 SHOW_PAIR = 0     # which pair to plot (index into STARTS)
 SHOW_W = 0.0      # geometry weight for the plotted matches (0 = SIFT only)
