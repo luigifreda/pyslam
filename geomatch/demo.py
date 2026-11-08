@@ -191,7 +191,7 @@ for s in STARTS:
                 f_rep = (reprojection_error(pts1[k1], pts2[k2], z1[k1], z2[k2], T1, T2) < ERR_PX).sum()
             else:
                 f_epi = f_rep = 0.0
-            fstats[(w, label)] = [len(k1), f_epi, f_rep]
+            fstats[(w, label)] = fstats.get((w, label), np.zeros(3)) + [len(k1), f_epi, f_rep]
 
 print(f"\n{len(STARTS)} pairs, gap {GAP} frames; a match is 'correct' under a metric if its error < {ERR_PX} px")
 print("'wrong' = matches - correct(epipolar); all errors in pixels; prec = share of matches correct\n")
