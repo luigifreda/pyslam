@@ -140,18 +140,18 @@ frames = read_frames({i for s in STARTS for i in (s, s + GAP)})
 WEIGHTS = [0.0, 0.1, 0.3, 0.5]
 # filter configurations compared on the same putative matches: label -> filter_matches kwargs
 FILTER_CONFIGS = [
-    ("none",                    dict(method="none", ransac="none")),
-    ("ransac",                  dict(method="none", ransac="after")),
-    ("depth_valid",             dict(method="depth_valid", ransac="none")),
-    ("desc_thresh",             dict(method="desc_threshold", ransac="none", max_dist=1.0)),
-    ("rel_depth_thresh_0.1",    dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.1)),
+    ("none",                        dict(method="none", ransac="none")),
+    ("ransac",                      dict(method="none", ransac="after")),
+    ("depth_valid",                 dict(method="depth_valid", ransac="none")),
+    ("desc_thresh",                 dict(method="desc_threshold", ransac="none", max_dist=1.0)),
+    ("rel_depth_thresh_0.1",        dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.1)),
     ("rel_depth_thresh_0.1+ransac", dict(method="relative_depth_threshold", ransac="after", rel_depth_thresh=0.1)),
     ("ransac+rel_depth_thresh_0.1", dict(method="relative_depth_threshold", ransac="before", rel_depth_thresh=0.1)),
-    ("rel_depth_thresh_0.5",    dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.5)),
+    ("rel_depth_thresh_0.5",        dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.5)),
     ("rel_depth_thresh_0.5+ransac", dict(method="relative_depth_threshold", ransac="after", rel_depth_thresh=0.5)),
     ("ransac+rel_depth_thresh_0.5", dict(method="relative_depth_threshold", ransac="before", rel_depth_thresh=0.5)),
-    ("rel_depth_thresh_0.9",    dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.9)),
-    ("gt_epipolar (oracle)",    dict(method="gt_epipolar", ransac="none")),  # upper bound, uses GT
+    ("rel_depth_thresh_0.9",        dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.9)),
+    ("gt_epipolar (oracle)",        dict(method="gt_epipolar", ransac="none")),  # upper bound, uses GT
 ]
 # per w: matches, and #correct under each metric (epi, sym-epi, sampson, triang, reproj)
 totals = {w: np.zeros(6) for w in WEIGHTS}
@@ -216,15 +216,16 @@ print("\nlegend: epi = epipolar distance to GT line | sym-epi = symmetric epipol
       "sampson = Sampson distance | triang = GT-pose triangulation reprojection (cheirality enforced) | "
       "reproj = symmetric reprojection using predicted depth")
 
+label_w = max(len("filter"), max(len(label) for label, _ in FILTER_CONFIGS))
 for w in WEIGHTS:
     print(f"\nFILTER COMPARISON for w={w} (same putative matches, filter applied on top)")
-    print(f"{'filter':>22} | {'kept':>6} {'of':>6} | {'epi prec':>8} {'reproj prec':>11}")
+    print(f"{'filter':>{label_w}} | {'kept':>6} {'of':>6} | {'epi prec':>8} {'reproj prec':>11}")
     n_all = totals[w][0]
     for label, _ in FILTER_CONFIGS:
         kept, c_epi, c_rep = fstats[(w, label)]
         prec_epi = c_epi / kept if kept else 0.0
         prec_rep = c_rep / kept if kept else 0.0
-        print(f"{label:>22} | {kept:6.0f} {n_all:6.0f} | {prec_epi:8.1%} {prec_rep:11.1%}")
+        print(f"{label:>{label_w}} | {kept:6.0f} {n_all:6.0f} | {prec_epi:8.1%} {prec_rep:11.1%}")
 
 SHOW_PAIR = 0     # which pair to plot (index into STARTS)
 SHOW_W = 0.0      # geometry weight for the plotted matches (0 = SIFT only)
