@@ -147,3 +147,11 @@ def _gt_epipolar(ctx, err_px=4.0, **params):
     lines = x1 @ F.T
     err = np.abs(np.sum(x2 * lines, 1)) / np.hypot(lines[:, 0], lines[:, 1])
     return err < err_px
+
+
+@register("relative_depth_threshold")
+def _relative_depth_threshold(ctx, rel_depth_thresh=0.5, **params):
+    """Keep matches whose absolute difference in depth divided by 
+    the sum of depths is below rel_depth_thresh."""
+    rel_depth = np.abs(ctx.z1[ctx.i1] - ctx.z2[ctx.i2]) / (ctx.z1[ctx.i1] + ctx.z2[ctx.i2])
+    return rel_depth < rel_depth_thresh

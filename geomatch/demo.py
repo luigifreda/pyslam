@@ -142,8 +142,11 @@ WEIGHTS = [0.0, 0.1, 0.3, 0.5]
 FILTER_CONFIGS = [
     ("none",                 dict(method="none", ransac="none")),
     ("ransac",               dict(method="none", ransac="after")),
-    ("depth_valid+ransac",   dict(method="depth_valid", ransac="after")),
-    ("desc_thresh+ransac",   dict(method="desc_threshold", ransac="after", max_dist=1.0)),
+    ("depth_valid",          dict(method="depth_valid", ransac="none")),
+    ("desc_thresh",          dict(method="desc_threshold", ransac="none", max_dist=1.0)),
+    ("rel_depth_thresh_0.1", dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.1)),
+    ("rel_depth_thresh_0.5", dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.5)),
+    ("rel_depth_thresh_0.9", dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.9)),
     ("gt_epipolar (oracle)", dict(method="gt_epipolar", ransac="none")),  # upper bound, uses GT
 ]
 # per w: matches, and #correct under each metric (epi, sym-epi, sampson, triang, reproj)
