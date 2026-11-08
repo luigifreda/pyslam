@@ -140,14 +140,18 @@ frames = read_frames({i for s in STARTS for i in (s, s + GAP)})
 WEIGHTS = [0.0, 0.1, 0.3, 0.5]
 # filter configurations compared on the same putative matches: label -> filter_matches kwargs
 FILTER_CONFIGS = [
-    ("none",                 dict(method="none", ransac="none")),
-    ("ransac",               dict(method="none", ransac="after")),
-    ("depth_valid",          dict(method="depth_valid", ransac="none")),
-    ("desc_thresh",          dict(method="desc_threshold", ransac="none", max_dist=1.0)),
-    ("rel_depth_thresh_0.1", dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.1)),
-    ("rel_depth_thresh_0.5", dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.5)),
-    ("rel_depth_thresh_0.9", dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.9)),
-    ("gt_epipolar (oracle)", dict(method="gt_epipolar", ransac="none")),  # upper bound, uses GT
+    ("none",                    dict(method="none", ransac="none")),
+    ("ransac",                  dict(method="none", ransac="after")),
+    ("depth_valid",             dict(method="depth_valid", ransac="none")),
+    ("desc_thresh",             dict(method="desc_threshold", ransac="none", max_dist=1.0)),
+    ("rel_depth_thresh_0.1",    dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.1)),
+    ("rel_depth_thresh_0.1+ransac", dict(method="relative_depth_threshold", ransac="after", rel_depth_thresh=0.1)),
+    ("ransac+rel_depth_thresh_0.1", dict(method="relative_depth_threshold", ransac="before", rel_depth_thresh=0.1)),
+    ("rel_depth_thresh_0.5",    dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.5)),
+    ("rel_depth_thresh_0.5+ransac", dict(method="relative_depth_threshold", ransac="after", rel_depth_thresh=0.5)),
+    ("ransac+rel_depth_thresh_0.5", dict(method="relative_depth_threshold", ransac="before", rel_depth_thresh=0.5)),
+    ("rel_depth_thresh_0.9",    dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.9)),
+    ("gt_epipolar (oracle)",    dict(method="gt_epipolar", ransac="none")),  # upper bound, uses GT
 ]
 # per w: matches, and #correct under each metric (epi, sym-epi, sampson, triang, reproj)
 totals = {w: np.zeros(6) for w in WEIGHTS}
