@@ -147,6 +147,12 @@ FILTER_CONFIGS = [
     ("rel_depth_thresh_0.1",        dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.1)),
     ("rel_depth_thresh_0.1+ransac", dict(method="relative_depth_threshold", ransac="after", rel_depth_thresh=0.1)),
     ("ransac+rel_depth_thresh_0.1", dict(method="relative_depth_threshold", ransac="before", rel_depth_thresh=0.1)),
+    ("rel_depth_thresh_0.2",        dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.2)),
+    ("rel_depth_thresh_0.2+ransac", dict(method="relative_depth_threshold", ransac="after", rel_depth_thresh=0.2)),
+    ("ransac+rel_depth_thresh_0.2", dict(method="relative_depth_threshold", ransac="before", rel_depth_thresh=0.2)),
+    ("rel_depth_thresh_0.4",        dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.4)),
+    ("rel_depth_thresh_0.4+ransac", dict(method="relative_depth_threshold", ransac="after", rel_depth_thresh=0.4)),
+    ("ransac+rel_depth_thresh_0.4", dict(method="relative_depth_threshold", ransac="before", rel_depth_thresh=0.4)),
     ("rel_depth_thresh_0.5",        dict(method="relative_depth_threshold", ransac="none", rel_depth_thresh=0.5)),
     ("rel_depth_thresh_0.5+ransac", dict(method="relative_depth_threshold", ransac="after", rel_depth_thresh=0.5)),
     ("ransac+rel_depth_thresh_0.5", dict(method="relative_depth_threshold", ransac="before", rel_depth_thresh=0.5)),
@@ -155,9 +161,11 @@ FILTER_CONFIGS = [
 ]
 # per w: matches, and #correct under each metric (epi, sym-epi, sampson, triang, reproj)
 totals = {w: np.zeros(6) for w in WEIGHTS}
+epi_errors = {w: [] for w in WEIGHTS}   # per-match epipolar errors (depth-independent)
 tri_errors = {w: [] for w in WEIGHTS}   # per-match triangulation errors (depth-independent)
 rep_errors = {w: [] for w in WEIGHTS}   # per-match reprojection errors (depth-dependent)
 fstats = {}                             # (w, label) -> [kept, correct(epi), correct(reproj)]
+fstats_epi = {}                         # (w, label) -> list of per-match epipolar errors of kept matches
 
 for s in STARTS:
     img1, img2 = frames[s], frames[s + GAP]
@@ -180,6 +188,7 @@ for s in STARTS:
         rep = reprojection_error(p1, p2, z1[i1], z2[i2], T1, T2)
         totals[w] += [len(p1), (epi < ERR_PX).sum(), (sym < ERR_PX).sum(),
                       (sam < ERR_PX).sum(), (tri < ERR_PX).sum(), (rep < ERR_PX).sum()]
+        epi_errors[w].append(epi)
         tri_errors[w].append(tri)
         rep_errors[w].append(rep)
 
@@ -191,11 +200,14 @@ for s in STARTS:
             keep = filter_matches(ctx, **cfg)
             k1, k2 = i1[keep], i2[keep]
             if len(k1):
-                f_epi = (epipolar_error(pts1[k1], pts2[k2], T1, T2) < ERR_PX).sum()
+                f_epi_err = epipolar_error(pts1[k1], pts2[k2], T1, T2)
+                f_epi = (f_epi_err < ERR_PX).sum()
                 f_rep = (reprojection_error(pts1[k1], pts2[k2], z1[k1], z2[k2], T1, T2) < ERR_PX).sum()
             else:
+                f_epi_err = np.empty(0)
                 f_epi = f_rep = 0.0
             fstats[(w, label)] = fstats.get((w, label), np.zeros(3)) + [len(k1), f_epi, f_rep]
+            fstats_epi.setdefault((w, label), []).append(f_epi_err)
 
 print(f"\n{len(STARTS)} pairs, gap {GAP} frames; a match is 'correct' under a metric if its error < {ERR_PX} px")
 print("'wrong' = matches - correct(epipolar); all errors in pixels; prec = share of matches correct\n")
@@ -212,6 +224,14 @@ for w, (n, c_epi, c_sym, c_sam, c_tri, c_rep) in totals.items():
     med_rep = np.median(np.concatenate(rep_errors[w]))
     print(f"{w:4.1f} | {c_rep/n:11.1%} {med_rep:11.2f}")
 
+EPILINE_THRESHOLDS = list(range(1, 11))  # px
+print("\nEPIPOLAR DISTANCE sweep (depth-independent, GT pose): precision at each threshold + avg/median")
+print(f"{'w':>4} |" + "".join(f"{f'epi@{t}px':>8}" for t in EPILINE_THRESHOLDS) + f" | {'avg epi':>8} {'med epi':>8}")
+for w in WEIGHTS:
+    epi_all = np.concatenate(epi_errors[w])
+    print(f"{w:4.1f} |" + "".join(f"{(epi_all < t).mean():8.1%}" for t in EPILINE_THRESHOLDS)
+          + f" | {epi_all.mean():8.2f} {np.median(epi_all):8.2f}")
+
 print("\nlegend: epi = epipolar distance to GT line | sym-epi = symmetric epipolar distance | "
       "sampson = Sampson distance | triang = GT-pose triangulation reprojection (cheirality enforced) | "
       "reproj = symmetric reprojection using predicted depth")
@@ -226,6 +246,18 @@ for w in WEIGHTS:
         prec_epi = c_epi / kept if kept else 0.0
         prec_rep = c_rep / kept if kept else 0.0
         print(f"{label:>{label_w}} | {kept:6.0f} {n_all:6.0f} | {prec_epi:8.1%} {prec_rep:11.1%}")
+
+    print(f"\nFILTER COMPARISON epipolar sweep for w={w} (precision of KEPT matches at each threshold)")
+    print(f"{'filter':>{label_w}} |" + "".join(f"{f'@{t}px':>7}" for t in EPILINE_THRESHOLDS)
+          + f" | {'avg':>7} {'med':>7}")
+    for label, _ in FILTER_CONFIGS:
+        parts = fstats_epi.get((w, label), [])
+        e = np.concatenate(parts) if parts else np.empty(0)
+        if len(e):
+            row = "".join(f"{(e < t).mean():7.1%}" for t in EPILINE_THRESHOLDS) + f" | {e.mean():7.2f} {np.median(e):7.2f}"
+        else:
+            row = "".join(f"{0.0:7.1%}" for t in EPILINE_THRESHOLDS) + f" | {'-':>7} {'-':>7}"
+        print(f"{label:>{label_w}} |{row}")
 
 SHOW_PAIR = 0     # which pair to plot (index into STARTS)
 SHOW_W = 0.0      # geometry weight for the plotted matches (0 = SIFT only)
