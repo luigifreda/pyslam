@@ -1,0 +1,30 @@
+# geomatch: minimal environment (no pyslam needed). Versions = tested working env (Python 3.11, macOS arm64).
+#
+# Setup:
+#   python3.11 -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements.txt
+#   pip install --no-deps "git+https://github.com/ByteDance-Seed/depth-anything-3@ed6989a23cd389e975ed9f7cbd7385396e6d867e"
+#   (--no-deps: DA3 lists xformers/gsplat, which are CUDA-only and optional)
+
+# geomatch
+numpy==1.26.4
+opencv-python==4.11.0.86
+matplotlib==3.7.5
+torch==2.6.0
+torchvision==0.21.0
+
+# Depth Anything 3 runtime (imported by depth_anything_3.api)
+addict==2.4.0
+einops==0.8.2
+huggingface_hub==2.4.0
+omegaconf==2.4.0
+safetensors==0.8.0
+pillow==12.3.0
+imageio==2.34.2
+scipy==1.17.1
+tqdm==4.66.4
+trimesh==5.2.0
+plyfile==1.1.3
+evo==1.38.1
+pycolmap==4.2.1
+moviepy==1.0.3
