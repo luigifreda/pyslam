@@ -82,7 +82,7 @@ if(NOT OpenCV_DIR)
     endif()
 endif()
 
-find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d features2d flann imgcodecs)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc video calib3d features2d flann imgcodecs)
 message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
 message(STATUS "OpenCV_LIBS (cpp_core links these only; avoids pulling opencv_dnn/protobuf into Python): ${OpenCV_LIBS}")
 message(STATUS "OpenCV_DIR: ${OpenCV_DIR}")
@@ -242,6 +242,7 @@ find_package(Boost REQUIRED COMPONENTS thread filesystem)
 
 
 include_directories(${PYSLAM_SLAM_SRC})
+include_directories(${PYSLAM_ROOT}/cpp/core)
 include_directories(${PYSLAM_SEMANTICS_SRC})
 # OpenCV casters live once, in cpp/casters. Slam-local casters are searched first.
 include_directories(${PYSLAM_ROOT}/cpp)
@@ -409,6 +410,11 @@ set(SLAM_CPP_CORE_SOURCES
     ${PYSLAM_SLAM_SRC}/tracking.cpp
     ${PYSLAM_SLAM_SRC}/local_mapping.cpp
     ${PYSLAM_SLAM_SRC}/slam.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_params.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_aligner.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/semi_direct_tracker.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_backend.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_frontend.cpp
 )
 
 if (USE_PYTHON)
@@ -446,6 +452,7 @@ set(SLAM_CPP_CORE_HEADERS
     ${PYSLAM_SLAM_SRC}/optimizer_common.h
     ${PYSLAM_SLAM_SRC}/utils/descriptor_helpers.h
     ${PYSLAM_SLAM_SRC}/utils/eigen_helpers.h
+    ${PYSLAM_SLAM_SRC}/utils/feature_trails.h
     ${PYSLAM_SLAM_SRC}/utils/features.h
     ${PYSLAM_SLAM_SRC}/utils/messages.h    
     ${PYSLAM_SLAM_SRC}/utils/image_processing.h
@@ -466,6 +473,13 @@ set(SLAM_CPP_CORE_HEADERS
     ${PYSLAM_SLAM_SRC}/tracking.h
     ${PYSLAM_SLAM_SRC}/local_mapping.h
     ${PYSLAM_SLAM_SRC}/slam.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/se3.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_params.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_aligner.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/semi_direct_tracker.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_map.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_backend.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_frontend.h
 )
 
 if (USE_PYTHON)
@@ -527,6 +541,7 @@ set(SLAM_CPP_PYBIND_MODULE_HEADERS
     ${PYSLAM_SLAM_SRC}/py_module/geometry_matchers_module.h
     ${PYSLAM_SLAM_SRC}/py_module/local_mapping_core_module.h
     ${PYSLAM_SLAM_SRC}/py_module/slam_pipeline_module.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/py_module/direct_slam_module.h
     # semantics
     ${PYSLAM_SEMANTICS_SRC}/py_module/semantic_mapping_shared_resources_module.h
 )

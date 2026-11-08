@@ -27,6 +27,7 @@ There are two pytest passes because `pyslam.slam` binds its classes to one core 
 | `python_core/` | Python-core-only back end: local-mapping culling, essential-graph optimization (g2o, GTSAM), and local BA aborted just before g2o's first iteration (only the Python core can raise the flag at that exact point; the timed aborts in `slam/` cover both cores). |
 | `camera/` | Camera models, local-map limits, triangulation, trajectory evaluation (C++ core). |
 | `cv/` | Pose estimators and depth from point clouds. |
+| `viz/` | Viewer startup/shutdown, pending queue data on close, and direct-SLAM map/trajectory snapshots. |
 | `loopclosing/` | Loop detector database, VPR extractors, loop group consistency. |
 | `semantics/` | Semantic fusion methods. |
 | `dataset/`, `dust3r/` | Dataset readers, image prefetching, DUSt3R processing. |

@@ -12,6 +12,7 @@
     - [Volumetric Integrator](#volumetric-integrator)
     - [Semantic Mapping](#semantic-mapping)
   - [C++ Core for Sparse SLAM](#c-core-for-sparse-slam)
+  - [Direct and Semi-Direct SLAM](#direct-and-semi-direct-slam)
   - [Scene from Views](#scene-from-views)
 
 <!-- /TOC -->
@@ -175,6 +176,14 @@ The C++ implementation follows a streamlined design where all core data resides 
 A detailed overview of the C++ core architecture, design principles, and implementation details is provided in this [document](../cpp/core/slam/README.md).
 
 --- 
+
+## Direct and Semi-Direct SLAM
+
+[`main_direct_slam.py`](../main_direct_slam.py) is a separate C++ stereo/RGBD pipeline with GFTT/LK geometric tracking, optional sparse photometric refinement and a synchronous local bundle-adjustment backend. It stores persistent landmark observations and corrects both keyframe and accepted non-keyframe trajectory poses. It shares the standard viewers and feature-trail renderer, while omitting the full pipeline's loop closure and dense/semantic modules.
+
+See the [Direct and Semi-Direct SLAM guide](./direct_slam.md) for architecture, tracking/recovery and BA diagrams, camera restrictions, parameter descriptions, and run commands.
+
+---
 
 ## Scene from Views
 

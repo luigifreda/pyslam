@@ -126,6 +126,7 @@ core_classes = [
     "Tracking",
     "LocalMapping",
     "Slam",
+    "DirectSlam",
 ]
 
 
@@ -178,6 +179,7 @@ def _import_cpp_core():
             "Tracking": cpp_core.Tracking,
             "LocalMapping": cpp_core.LocalMapping,
             "Slam": cpp_core.Slam,
+            "DirectSlam": cpp_core.DirectSlam,
         }
 
         out_classes = {}
@@ -265,6 +267,7 @@ def _import_python_core():
             "Tracking": None,
             "LocalMapping": None,
             "Slam": None,
+            "DirectSlam": None,
         }
         out_classes = {}
         # we check the coverage here to ensure we have all the classes

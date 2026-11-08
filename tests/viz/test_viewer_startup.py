@@ -57,6 +57,32 @@ class StalledViewer(Viewer3D):
         time.sleep(60)
 
 
+class SelfClosingOutputViewer(Viewer3D):
+    """Run the real child lifecycle with fake graphics and unconsumed outbound data."""
+
+    def viewer_run(self, *args):
+        from types import ModuleType
+
+        pangolin = ModuleType("pypangolin")
+        pangolin.ShouldQuit = lambda: self._test_refreshes > 0
+        opengl = ModuleType("OpenGL")
+        opengl.GL = ModuleType("OpenGL.GL")
+        with patch.dict(sys.modules, {
+            "pypangolin": pangolin, "glutils": ModuleType("glutils"),
+            "OpenGL": opengl, "OpenGL.GL": opengl.GL,
+        }):
+            super().viewer_run(*args)
+
+    def viewer_init(self, *args):
+        self._test_refreshes = 0
+
+    def viewer_refresh(self, *args):
+        payload = np.zeros((65536, 3), dtype=np.float64)
+        self.alignment_gt_data_queue.put(payload)
+        self.aligner_input_queue.put(payload)
+        self._test_refreshes += 1
+
+
 class ViewerStartupTests(unittest.TestCase):
     def test_main_import_does_not_load_optional_native_libraries(self):
         subprocess.run(
@@ -97,6 +123,21 @@ class ViewerStartupTests(unittest.TestCase):
             [sys.executable, str(Path(__file__).with_name("viewer_queue_shutdown_probe.py"))],
             check=True, timeout=30,
         )
+
+    def test_self_close_with_unconsumed_alignment_data_exits_cleanly(self):
+        viewer = SelfClosingOutputViewer()
+        try:
+            deadline = time.monotonic() + 30
+            while not viewer.is_closed() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(viewer.is_closed(), "viewer never reached loop exit")
+            with patch.object(viewer.vp, "terminate", wraps=viewer.vp.terminate) as terminate:
+                viewer.quit()
+                terminate.assert_not_called()
+            self.assertEqual(viewer.vp.exitcode, 0)
+            self.assertEqual(viewer._is_looping.value, 0)
+        finally:
+            viewer.quit()
 
     @unittest.skipUnless(os.name == "posix", "POSIX signal behavior")
     def test_timeout_kills_child_that_ignores_termination(self):

@@ -18,6 +18,7 @@
  */
 
 #include "frame.h"
+#include "utils/feature_trails.h"
 #include "camera.h"
 #include "camera_pose.h"
 #include "config_parameters.h"
@@ -38,14 +39,6 @@
 #endif
 
 namespace pyslam {
-
-// NOTE: This is just a convenience representation of the feature radius for drawing purposes.
-inline constexpr auto kDrawFeatureRadius = []() {
-    std::array<int, 100> a{};
-    for (std::size_t i = 0; i < a.size(); ++i)
-        a[i] = static_cast<int>(i) * 5;
-    return a;
-}();
 
 // Static member definitions for FrameBase
 std::atomic<int> FrameBase::_id{0};
@@ -1639,8 +1632,6 @@ cv::Mat Frame::draw_feature_trails_(const cv::Mat &img, const std::vector<int> &
     pts.reserve(trail_max_length);
 
     // Pre-compute common colors
-    const cv::Scalar color_green(0, 255, 0);
-    const cv::Scalar color_red(255, 0, 0);
     const cv::Scalar color_black(0, 0, 0);
 
     // use distorted coordinates when drawing on distorted original image
@@ -1652,7 +1643,6 @@ cv::Mat Frame::draw_feature_trails_(const cv::Mat &img, const std::vector<int> &
         if (mp && !mp->is_bad()) {
             // there is a corresponding 3D map point
 
-            const int radius = kDrawFeatureRadius[octaves[idx]]; // fake size for visualization
             const auto p_frame_views = mp->frame_views();        // list of (Frame, idx)
             if (!p_frame_views.empty()) {
                 // draw the trail (for each keypoint, its trail_max_length corresponding points
@@ -1678,32 +1668,8 @@ cv::Mat Frame::draw_feature_trails_(const cv::Mat &img, const std::vector<int> &
                     }
                 }
 
-                cv::Scalar cv_point_color;
-                if constexpr (with_level_radius) {
-                    cv_point_color = (p_frame_views.size() > 2) ? color_green : color_red;
-                } else {
-                    const auto color =
-                        pyslam::ColorTableGenerator::instance().color_from_int(mp->id);
-                    cv_point_color = cv::Scalar(color.r, color.g, color.b);
-                }
-
-                // Draw the trail
-                const size_t num_pts = pts.size();
-                if (num_pts > 1) {
-                    if constexpr (with_level_radius) {
-                        const auto trail_color = pyslam::Colors::myjet_color_x_255(num_pts);
-                        const auto cv_trail_color =
-                            cv::Scalar(trail_color[0], trail_color[1], trail_color[2]);
-                        cv::polylines(img_out, pts, false, cv_trail_color, 1, cv::LINE_AA);
-                    } else {
-                        cv::polylines(img_out, pts, false, cv_point_color, 1, cv::LINE_AA);
-                    }
-                }
-                if constexpr (with_level_radius) {
-                    cv::circle(img_out, cv::Point(uv[0], uv[1]), radius, cv_point_color, 1);
-                } else {
-                    cv::circle(img_out, cv::Point(uv[0], uv[1]), 4, cv_point_color, -1);
-                }
+                draw_feature_trail<with_level_radius>(img_out, cv::Point(uv[0], uv[1]), mp->id,
+                                                       pts, p_frame_views.size(), octaves[idx]);
             }
         } else {
             // no corresponding 3D map point

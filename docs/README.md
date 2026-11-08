@@ -10,6 +10,7 @@
 - [TUM-VI visual mono and stereo](./tum-vi.md)
 - [Dataset image prefetching](./image-prefetching.md)
 - [C++ sparse-SLAM core](../cpp/core/slam/README.md)
+- [Direct and semi-direct SLAM](./direct_slam.md)
 - [Semantic Mapping and Segmentation](./semantics.md)
 - [Volumetric Mapping](./volumetric_mapping.md)
 - [Scene from Views](./scene_from_views.md)

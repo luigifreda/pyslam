@@ -8,11 +8,14 @@ cpp/
     tests/          # smoke tests for those extensions
   casters/          # shared OpenCV pybind11 type casters
   core/slam/        # sparse-SLAM C++ core
+  core/slam_direct/ # direct/semi-direct tracking and local BA, compiled into cpp_core
   core/semantics/   # compiled into cpp_core
   lib/              # utility extension binaries
 ```
 
 Python imports `cpp_core` through `pyslam/slam/cpp`. The other extension names (`pyslam_utils`, `glutils`, `hamming`, `volumetric`, and so on) are unchanged.
+
+The direct/semi-direct tracking and local BA pipeline is introduced in the [direct-SLAM guide](../docs/direct_slam.md), with source layout and regression checks in [core/slam_direct/README.md](core/slam_direct/README.md).
 
 ## Available Modules
 

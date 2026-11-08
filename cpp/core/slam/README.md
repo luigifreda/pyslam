@@ -27,6 +27,8 @@ While this may be self-evident, it is important to keep in mind that when `USE_C
 - The Python implementation of the sparse SLAM core is effectively bypassed, and any modifications to it will have no effect at runtime.
 - All functional changes to the sparse SLAM C++ codebase must be rebuilt using `./build_cpp_core.sh` (as explained above) in order to take effect.
 
+The adjacent [`slam_direct`](../slam_direct/README.md) sources provide a separate direct/semi-direct frontend and local BA backend through the same `cpp_core` module. Its entry point, `main_direct_slam.py`, requires the C++ core and has no Python-core fallback. See the [direct-SLAM guide](../../../docs/direct_slam.md) for its architecture and usage.
+
 ### macOS, conda Python, and local OpenCV
 
 `cpp_core` links **OpenCV** from `thirdparty/opencv/install` and **TBB** must be the same library that **`libopencv_core`** was built against (CMake now infers it from `otool -L` / `ldd`). If OpenCV was built with **Homebrew** TBB but you run **conda** Python, you can get a **segfault on `import cpp_core`** (mixed allocators / duplicate TBB).
@@ -48,6 +50,10 @@ While this may be self-evident, it is important to keep in mind that when `USE_C
 │   └── core
 │       ├── semantics
 │       │   └── py_module   # pybind11 bindings compiled into cpp_core
+│       ├── slam_direct     # direct/semi-direct frontend and local BA
+│       │   ├── py_module   # DirectSlam bindings in cpp_core
+│       │   ├── tests_cpp   # synthetic C++ regression tests
+│       │   └── tests_python # binding and snapshot checks
 │       └── slam            # sparse-SLAM C++ core
 │           ├── py_module   # pybind11 module definitions for sparse slam
 │           ├── casters     # pybind11 type casters for Eigen, JSON, dictionaries

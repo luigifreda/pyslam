@@ -532,6 +532,47 @@ def align_trajectories_with_ransac(
     return T_gt_est, error, aligned_gt_data
 
 
+def _cancel_queue_join_threads(*queues):
+    """Do not wait for queue feeder threads at process exit.
+
+    The viewer is the consumer of the aligner output and is stopped first.
+    The feeder then blocks on a full pipe, and joining it at shutdown hangs
+    until the parent kills this process.
+    """
+    for queue in queues:
+        try:
+            if queue is not None and hasattr(queue, "cancel_join_thread"):
+                queue.cancel_join_thread()
+        except Exception:
+            pass
+
+
+def _stop_aligner_process(process, is_running_flag, input_queue, name):
+    print(f"{name}: quitting...")
+    try:
+        is_running_flag.value = 0
+    except Exception as e:
+        print(f"{name}: Error clearing running flag: {e}")
+    # Wake a blocked get. None is treated as a shutdown signal.
+    try:
+        if input_queue is not None:
+            input_queue.put_nowait(None)
+    except Exception:
+        pass
+    timeout = 5 if mp.get_start_method() != "spawn" else 10
+    process.join(timeout=timeout)
+    if process.is_alive():
+        print(f"Warning: {name} process did not terminate in time, forcing kill.")
+        # terminate() sends SIGTERM. pycolmap's glog handler catches it and
+        # prints an abort stack. SIGKILL cannot be intercepted.
+        try:
+            process.kill()
+        except Exception as e:
+            print(f"{name}: Error killing process: {e}")
+        process.join(timeout=1.0)
+    print(f"{name}: closed")
+
+
 class TrajectoryAlignerProcessBatch(mp.Process):
     def __init__(
         self,
@@ -571,18 +612,9 @@ class TrajectoryAlignerProcessBatch(mp.Process):
         self.daemon = True
 
     def quit(self):
-        print("TrajectoryAlignerProcessBatch: quitting...")
-        self.is_running_flag.value = 0
-        timeout = 5 if mp.get_start_method() != "spawn" else 10
-        self.join(timeout=timeout)
-        if self.is_alive():
-            print(
-                f"Warning: TrajectoryAlignerProcessBatch process did not terminate in time, forcing kill."
-            )
-            self.terminate()
-            # Wait a bit more after terminate
-            self.join(timeout=1.0)
-        print("TrajectoryAlignerProcessBatch: closed")
+        _stop_aligner_process(
+            self, self.is_running_flag, self.input_queue, "TrajectoryAlignerProcessBatch"
+        )
 
     def run(self):
         self.is_running_flag.value = 1
@@ -590,11 +622,16 @@ class TrajectoryAlignerProcessBatch(mp.Process):
         self._last_num_poses = 0
         self._last_frame_id = 0
 
-        while self.is_running_flag.value == 1:
-            try:
-                data = get_last_item_from_queue(self.input_queue)
-                # Check if data is a valid tuple/list with 2 elements
-                if data is not None:
+        try:
+            while self.is_running_flag.value == 1:
+                try:
+                    data = get_last_item_from_queue(self.input_queue)
+                    # None is either an empty queue or an explicit shutdown signal.
+                    if data is None:
+                        if self.is_running_flag.value == 0:
+                            break
+                        time.sleep(0.1)
+                        continue
                     try:
                         if isinstance(data, (tuple, list)) and len(data) == 2:
                             pose_timestamps, estimated_trajectory = data
@@ -605,22 +642,22 @@ class TrajectoryAlignerProcessBatch(mp.Process):
                         # Invalid data format - skip this item
                         Printer.red(f"TrajectoryAlignerProcessBatch: Invalid data format: {e}")
                         time.sleep(0.1)
-                else:
-                    time.sleep(0.1)
-            except (EOFError, OSError, ValueError) as e:
-                # Queue closed or invalid state - exit cleanly
-                break
-            except Exception as e:
-                Printer.red(f"TrajectoryAlignerProcessBatch: Error: {e}")
-                # Continue for other errors, but check flag
-                if self.is_running_flag.value == 0:
+                except (EOFError, OSError, ValueError) as e:
+                    # Queue closed or invalid state - exit cleanly
                     break
-                time.sleep(0.1)
-        try:
-            empty_queue(self.input_queue)
-        except Exception as e:
-            print(f"TrajectoryAlignerProcessBatch: Error emptying input queue: {e}")
-        print("TrajectoryAlignerProcessBatch: run: closed")
+                except Exception as e:
+                    Printer.red(f"TrajectoryAlignerProcessBatch: Error: {e}")
+                    # Continue for other errors, but check flag
+                    if self.is_running_flag.value == 0:
+                        break
+                    time.sleep(0.1)
+            try:
+                empty_queue(self.input_queue)
+            except Exception as e:
+                print(f"TrajectoryAlignerProcessBatch: Error emptying input queue: {e}")
+        finally:
+            _cancel_queue_join_threads(self.input_queue, self.output_queue)
+            print("TrajectoryAlignerProcessBatch: run: closed")
 
     def _process_alignment(self, pose_timestamps, estimated_trajectory):
         align_trajectories_fun = align_trajectories_with_svd
@@ -734,28 +771,12 @@ class TrajectoryAlignerProcessIncremental(mp.Process):
         self.daemon = True
 
     def quit(self):
-        print("TrajectoryAlignerProcessIncremental: quitting...")
-        self.is_running_flag.value = 0
-        # Put a sentinel value in the queue to wake up the process if it's blocked
-        try:
-            if hasattr(self, "input_queue") and self.input_queue:
-                # Put None to signal exit - this will wake up get_last_item_from_queue
-                try:
-                    self.input_queue.put_nowait(None)
-                except:
-                    pass  # Queue might be full or closed, that's okay
-        except Exception as e:
-            print(f"TrajectoryAlignerProcessIncremental: Error signaling queue: {e}")
-        timeout = 5 if mp.get_start_method() != "spawn" else 10
-        self.join(timeout=timeout)
-        if self.is_alive():
-            print(
-                f"Warning: TrajectoryAlignerProcessIncremental process did not terminate in time, forcing kill."
-            )
-            self.terminate()
-            # Wait a bit more after terminate
-            self.join(timeout=1.0)
-        print("TrajectoryAlignerProcessIncremental: closed")
+        _stop_aligner_process(
+            self,
+            self.is_running_flag,
+            self.input_queue,
+            "TrajectoryAlignerProcessIncremental",
+        )
 
     def run(self):
         self.is_running_flag.value = 1
@@ -763,14 +784,16 @@ class TrajectoryAlignerProcessIncremental(mp.Process):
         self._last_num_poses = 0
         self._last_frame_id = 0
 
-        while self.is_running_flag.value == 1:
-            try:
-                data = get_last_item_from_queue(self.input_queue)
-                # Check if we received a shutdown signal (None)
-                if data is None:
-                    break
-                # Check if data is a valid tuple/list with 2 elements
-                if data is not None:
+        try:
+            while self.is_running_flag.value == 1:
+                try:
+                    data = get_last_item_from_queue(self.input_queue)
+                    # None is either an empty queue or an explicit shutdown signal.
+                    if data is None:
+                        if self.is_running_flag.value == 0:
+                            break
+                        time.sleep(0.1)
+                        continue
                     try:
                         if isinstance(data, (tuple, list)) and len(data) == 2:
                             pose_timestamps, estimated_trajectory = data
@@ -783,23 +806,23 @@ class TrajectoryAlignerProcessIncremental(mp.Process):
                             f"TrajectoryAlignerProcessIncremental: Invalid data format: {e}"
                         )
                         time.sleep(0.1)
-                else:
-                    time.sleep(0.1)
-            except (EOFError, OSError, ValueError) as e:
-                # Queue closed or invalid state - exit cleanly
-                break
-            except Exception as e:
-                Printer.red(f"TrajectoryAlignerProcessIncremental: Error: {e}")
-                # Continue for other errors, but check flag
-                if self.is_running_flag.value == 0:
+                except (EOFError, OSError, ValueError) as e:
+                    # Queue closed or invalid state - exit cleanly
                     break
-                time.sleep(0.1)
+                except Exception as e:
+                    Printer.red(f"TrajectoryAlignerProcessIncremental: Error: {e}")
+                    # Continue for other errors, but check flag
+                    if self.is_running_flag.value == 0:
+                        break
+                    time.sleep(0.1)
 
-        try:
-            empty_queue(self.input_queue)
-        except Exception as e:
-            print(f"TrajectoryAlignerProcessIncremental: Error emptying input queue: {e}")
-        print("TrajectoryAlignerProcessIncremental: run: closed")
+            try:
+                empty_queue(self.input_queue)
+            except Exception as e:
+                print(f"TrajectoryAlignerProcessIncremental: Error emptying input queue: {e}")
+        finally:
+            _cancel_queue_join_threads(self.input_queue, self.output_queue)
+            print("TrajectoryAlignerProcessIncremental: run: closed")
 
     def _process_alignment(self, pose_timestamps, estimated_trajectory):
         try:

@@ -143,6 +143,7 @@ See the demo **video** for release v2.10.0
 │   ├── casters          # shared OpenCV pybind11 type casters
 │   ├── core
 │   │   ├── slam         # sparse-SLAM C++ core, exposed as the cpp_core module
+│   │   ├── slam_direct  # direct/semi-direct frontend and local BA, also in cpp_core
 │   │   └── semantics    # semantic-mapping sources compiled into cpp_core
 │   └── lib              # built Python extension modules
 ├── data                 # Sample input/output data
@@ -172,6 +173,8 @@ See the demo **video** for release v2.10.0
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ relative to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this basic, "educational" approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing, dense mapping and depth inference in order to estimate the camera trajectory and build both a sparse and dense map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline.
+
+* `main_direct_slam.py` runs the C++ direct/semi-direct frontend with GFTT/LK tracking, optional sparse photometric alignment, and local bundle adjustment of shared landmarks and keyframe poses. It requires stereo or RGBD input with an undistorted pinhole left camera and reuses the standard 3D viewer and tracked-feature drawing. It does not include loop closure or dense/semantic mapping. See the [direct and semi-direct SLAM guide](./docs/direct_slam.md) for modes, parameters, architecture diagrams, and trajectory export.
 
 * `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features. 
 
@@ -338,6 +341,16 @@ Similarly, you can test the **full SLAM** by running `main_slam.py`:
 ```
 
 This will process the same default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by clicking on one of the open windows and pressing the key 'Q' or closing the 3D Pangolin GUI. 
+
+For **direct or semi-direct SLAM**, select a stereo or RGBD dataset and matching undistorted pinhole camera settings in `config.yaml`, build `cpp_core` with `./build_cpp_core.sh`, then run:
+
+```bash
+python main_direct_slam.py -c config.yaml
+# Or run without viewers for a short check:
+python main_direct_slam.py -c config.yaml --headless --max-frames 100
+```
+
+`DIRECT_SLAM.mode` selects `semi_direct` or `direct`; `--mode` overrides it for a run. Local BA is enabled by default and `--no-local-ba` disables automatic solves. Details and configuration comments are in the [direct-SLAM guide](./docs/direct_slam.md) and [C++ component README](./cpp/core/slam_direct/README.md).
 
 --- 
 

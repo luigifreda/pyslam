@@ -163,6 +163,7 @@ class Viewer3DMapInput:
         self.gt_trajectory = None
         self.gt_timestamps = None
         self.align_gt_with_scale = False
+        self.estimated_trajectory = None  # Optional Nx3 world camera centers, independent of keyframes.
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -655,6 +656,12 @@ class Viewer3D(object):
         aligner_output_queue,
         is_aligner_running,
     ):
+        # The parent may never consume alignment diagnostics (e.g. direct SLAM).
+        # Do not join these child-owned feeder threads when Esc closes the viewer:
+        # pending visualization data is disposable once its consumer has stopped.
+        alignment_gt_data_queue.cancel_join_thread()
+        aligner_input_queue.cancel_join_thread()
+
         if os.environ.get("PYSLAM_VIEWER_TRACE") == "1":
             import faulthandler
             import linecache
@@ -711,40 +718,43 @@ class Viewer3D(object):
         if os.environ.get("PYSLAM_VIEWER_TRACE") == "1":
             sys.settrace(None)
             faulthandler.cancel_dump_traceback_later()
-        while not pangolin.ShouldQuit() and (is_running.value == 1):
-            ts = time.time()
-            try:
-                self.viewer_refresh(
-                    qmap,
-                    qvo,
-                    qdense,
-                    qcams,
-                    is_paused,
-                    is_map_save,
-                    is_bundle_adjust,
-                    do_step,
-                    do_reset,
-                    is_draw_features_with_radius,
-                    is_draw_objects,
-                    is_gt_set,
-                    aligner_input_queue,
-                    aligner_output_queue,
-                    is_aligner_running,
-                )
-                sleep = (time.time() - ts) - kRefreshDurationTime
-                if sleep > 0:
-                    time.sleep(sleep)
-            except Exception as e:
-                Printer.red(f"Viewer3D: viewer_run - error: {e}")
-                traceback.print_exc()
+        try:
+            while not pangolin.ShouldQuit() and (is_running.value == 1):
+                ts = time.time()
+                try:
+                    self.viewer_refresh(
+                        qmap,
+                        qvo,
+                        qdense,
+                        qcams,
+                        is_paused,
+                        is_map_save,
+                        is_bundle_adjust,
+                        do_step,
+                        do_reset,
+                        is_draw_features_with_radius,
+                        is_draw_objects,
+                        is_gt_set,
+                        aligner_input_queue,
+                        aligner_output_queue,
+                        is_aligner_running,
+                    )
+                    sleep = (time.time() - ts) - kRefreshDurationTime
+                    if sleep > 0:
+                        time.sleep(sleep)
+                except Exception as e:
+                    Printer.red(f"Viewer3D: viewer_run - error: {e}")
+                    traceback.print_exc()
 
-        empty_queue(qmap)  # empty the queue before exiting
-        empty_queue(qvo)  # empty the queue before exiting
-        empty_queue(qdense)  # empty the queue before exiting
-        empty_queue(qcams)
-        is_running.value = 0
-        is_closed.value = 1
-        print("Viewer3D: loop exit...")
+        finally:
+            is_running.value = 0
+            is_looping.value = 0
+            is_closed.value = 1
+            empty_queue(qmap)
+            empty_queue(qvo)
+            empty_queue(qdense)
+            empty_queue(qcams)
+            print("Viewer3D: loop exit...")
 
     # Init
     def viewer_init(self, w, h):
@@ -1061,6 +1071,12 @@ class Viewer3D(object):
                 # draw predicted pose in red
                 gl.glColor3f(1.0, 0.0, 0.0)
                 glutils.DrawCamera(cur_frame_data.predicted_pose, self.scale)
+
+            # Draw accepted-frame centers, rather than joining only keyframe cameras.
+            trajectory = self.map_state.estimated_trajectory
+            if trajectory is not None and len(trajectory) > 1:
+                gl.glColor3f(0.0, 0.25, 1.0)
+                glutils.DrawTrajectory(trajectory, 2)
 
             if self.draw_fov_centers and len(map_data.fov_centers) > 0:
                 # draw keypoints with their color
