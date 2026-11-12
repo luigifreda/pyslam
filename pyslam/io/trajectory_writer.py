@@ -137,13 +137,12 @@ class TrajectoryWriter:
 
     def _write_euroc_trajectory(self, R, t, timestamp) -> None:
         fmt = self._get_format_func(t)
-        timestamp_fmt = self._get_format_func(timestamp)
-        # q = quaternion.from_rotation_matrix(R)
+        # Internal timestamps are seconds; EuRoC CSV uses integer nanoseconds.
+        timestamp_ns = round(float(timestamp) * 1e9)
         q = R_scipy.from_matrix(R).as_quat()  # [x, y, z, w]
         t_str = ", ".join(fmt(x) for x in t)
-        # q_str = ', '.join(fmt(x) for x in [q.x, q.y, q.z, q.w])
-        q_str = ", ".join(fmt(x) for x in [q[0], q[1], q[2], q[3]])
-        self.file.write(f"{timestamp_fmt(timestamp)}, {t_str}, {q_str}\n")
+        q_str = ", ".join(fmt(x) for x in [q[3], q[0], q[1], q[2]])  # [w, x, y, z]
+        self.file.write(f"{timestamp_ns}, {t_str}, {q_str}\n")
 
     @staticmethod
     def generate_filename():
