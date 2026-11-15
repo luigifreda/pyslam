@@ -25,7 +25,11 @@ import trimesh
 import tempfile
 import os
 
-from .scene_from_views_base import SceneFromViewsBase, SceneFromViewsResult
+from .scene_from_views_base import (
+    SceneFromViewsBase,
+    SceneFromViewsResult,
+    depth_from_world_points,
+)
 from pyslam.utilities.dust3r import convert_mv_output_to_geometry
 from pyslam.utilities.torch import to_numpy
 from pyslam.utilities.geometry import inv_poseRt
@@ -102,7 +106,8 @@ class SceneFromViewsFast3r(SceneFromViewsBase):
 
         # Save images temporarily to disk for Fast3R's load_images function
         # Fast3R expects file paths, not numpy arrays
-        temp_dir = tempfile.mkdtemp(suffix="_fast3r_images")
+        # Removed automatically at the end of reconstruct()
+        temp_dir = self._make_temp_dir(suffix="_fast3r_images")
         filelist = []
 
         for i, img in enumerate(images):
@@ -115,7 +120,8 @@ class SceneFromViewsFast3r(SceneFromViewsBase):
                 img_rgb = img
 
             # Save image
-            img_path = os.path.join(temp_dir, f"image_{i:04d}.jpg")
+            # PNG (lossless): avoid re-encoding artifacts on the input images
+            img_path = os.path.join(temp_dir, f"image_{i:04d}.png")
             cv2.imwrite(img_path, cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR))
             filelist.append(img_path)
 
@@ -129,8 +135,6 @@ class SceneFromViewsFast3r(SceneFromViewsBase):
             crop_to_landscape=kwargs.get("crop_to_landscape", False),
         )
 
-        # Store temp_dir for cleanup in postprocess
-        self._temp_dir = temp_dir
 
         return processed_images
 
@@ -199,6 +203,7 @@ class SceneFromViewsFast3r(SceneFromViewsBase):
             "output_dict": output_dict,
             "profiling_info": profiling_info if profiling else None,
             "niter_PnP": kwargs.get("niter_PnP", self.niter_PnP),
+            "min_conf_thr_percentile": min_conf_thr_percentile,
             "focal_length_estimation_method": kwargs.get(
                 "focal_length_estimation_method", self.focal_length_estimation_method
             ),
@@ -231,6 +236,9 @@ class SceneFromViewsFast3r(SceneFromViewsBase):
         output_dict = raw_output["output_dict"]
         niter_PnP = raw_output["niter_PnP"]
         focal_length_estimation_method = raw_output["focal_length_estimation_method"]
+        min_conf_thr_percentile = raw_output.get(
+            "min_conf_thr_percentile", self.min_conf_thr_percentile
+        )
 
         # Estimate camera poses using PnP
         # Note: estimate_camera_poses expects preds with batch dimension and as torch.Tensor
@@ -375,8 +383,8 @@ class SceneFromViewsFast3r(SceneFromViewsBase):
                 else:
                     conf = np.ones((h, w), dtype=np.float32)
 
-            # Extract depth from points (z-component)
-            depth = pts3d[:, :, 2]
+            # Extract depth: pts3d are in the global frame: transform them into the camera frame
+            depth = depth_from_world_points(pts3d, camera_poses[i])
             depth_predictions.append(depth)
 
             # Store confidence
@@ -384,7 +392,7 @@ class SceneFromViewsFast3r(SceneFromViewsBase):
 
             # Create per-view point cloud
             # Apply confidence threshold
-            conf_threshold = np.percentile(conf, self.min_conf_thr_percentile)
+            conf_threshold = np.percentile(conf, min_conf_thr_percentile)
             mask = conf > conf_threshold
 
             # Ensure mask has correct shape
@@ -477,7 +485,8 @@ class SceneFromViewsFast3r(SceneFromViewsBase):
                     img_valid = img_rgb[mask].reshape(-1, 3)
 
             # Ensure colors are contiguous and in RGB format (uint8 [0, 255])
-            img_valid = np.ascontiguousarray(img_valid, dtype=np.uint8)
+            # RGB -> BGR (consistent with the global point cloud and processed images)
+            img_valid = np.ascontiguousarray(img_valid[:, ::-1], dtype=np.uint8)
 
             if len(pts_valid) > 0:
                 pc = trimesh.PointCloud(vertices=pts_valid, colors=img_valid)
@@ -490,6 +499,8 @@ class SceneFromViewsFast3r(SceneFromViewsBase):
         all_pts = []
         all_colors = []
         all_masks = []
+        mesh_pts3d = []  # per-view pointmaps aligned with all_masks (for mesh creation)
+        mesh_imgs = []  # per-view BGR images aligned with all_masks (for mesh creation)
 
         for i, (pred, img) in enumerate(zip(preds, images_pred)):
             if "pts3d_local_aligned_to_global" in pred:
@@ -537,7 +548,7 @@ class SceneFromViewsFast3r(SceneFromViewsBase):
                 else:
                     conf = np.ones((h, w), dtype=np.float32)
 
-            conf_threshold = np.percentile(conf, self.min_conf_thr_percentile)
+            conf_threshold = np.percentile(conf, min_conf_thr_percentile)
             mask = conf > conf_threshold
 
             # Ensure mask has correct shape
@@ -635,6 +646,16 @@ class SceneFromViewsFast3r(SceneFromViewsBase):
                 all_pts.append(pts_valid)
                 all_colors.append(img_valid)
                 all_masks.append(mask)
+                mesh_pts3d.append(pts3d)
+                # images_pred may keep a batch dim (1, H, W, 3): bring it to (H, W, 3)
+                img_mesh = np.asarray(img)
+                while img_mesh.ndim > 3 and img_mesh.shape[0] == 1:
+                    img_mesh = img_mesh[0]
+                if img_mesh.shape[:2] != pts3d.shape[:2]:
+                    img_mesh = cv2.resize(
+                        img_mesh, (pts3d.shape[1], pts3d.shape[0]), interpolation=cv2.INTER_LINEAR
+                    )
+                mesh_imgs.append(np.ascontiguousarray(img_mesh[..., ::-1]))  # RGB -> BGR
 
         if len(all_pts) > 0:
             global_pts = np.concatenate(all_pts, axis=0)
@@ -648,29 +669,11 @@ class SceneFromViewsFast3r(SceneFromViewsBase):
             if as_pointcloud:
                 global_mesh = None
             else:
-                # Create mesh from point cloud
-                # Prepare pts3d list for convert_mv_output_to_geometry
-                pts3d_list = []
-                for pred in preds:
-                    if "pts3d_local_aligned_to_global" in pred:
-                        pts3d = pred["pts3d_local_aligned_to_global"]
-                    elif "pts3d_in_other_view" in pred:
-                        pts3d = pred["pts3d_in_other_view"]
-                    else:
-                        pts3d = pred.get("pts3d_local", None)
-
-                    if pts3d is not None:
-                        if isinstance(pts3d, torch.Tensor):
-                            pts3d = to_numpy(pts3d)
-                        if pts3d.ndim == 4 and pts3d.shape[0] == 1:
-                            pts3d = pts3d[0]
-                        pts3d_list.append(pts3d)
-                    else:
-                        pts3d_list.append(None)
-
-                global_mesh, global_pc = convert_mv_output_to_geometry(
-                    imgs=images_pred,
-                    pts3d=pts3d_list,
+                # Create mesh from the per-view pointmaps (same views/masks as the point cloud).
+                # convert_mv_output_to_geometry() returns (global_pc, global_mesh).
+                global_pc, global_mesh = convert_mv_output_to_geometry(
+                    imgs=mesh_imgs,
+                    pts3d=mesh_pts3d,
                     mask=all_masks,
                     as_pointcloud=False,
                 )
@@ -743,15 +746,6 @@ class SceneFromViewsFast3r(SceneFromViewsBase):
             )
         elif len(sanitized_images) > len(camera_poses):
             sanitized_images = sanitized_images[: len(camera_poses)]
-
-        # Clean up temporary directory
-        if hasattr(self, "_temp_dir") and os.path.exists(self._temp_dir):
-            import shutil
-
-            try:
-                shutil.rmtree(self._temp_dir)
-            except Exception as e:
-                print(f"Warning: Could not remove temp directory {self._temp_dir}: {e}")
 
         return SceneFromViewsResult(
             global_point_cloud=global_pc,

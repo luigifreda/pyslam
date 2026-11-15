@@ -20,7 +20,7 @@
 
 #include "optimizer_g2o.h"
 #include "sim3_pose.h"
-#include "utils/messages.h"
+#include "common/messages.h"
 
 #include "py_wrappers.h"
 

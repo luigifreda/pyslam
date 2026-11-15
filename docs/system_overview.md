@@ -12,7 +12,7 @@
     - [Volumetric Integrator](#volumetric-integrator)
     - [Semantic Mapping](#semantic-mapping)
   - [C++ Core for Sparse SLAM](#c-core-for-sparse-slam)
-  - [Direct and Semi-Direct SLAM](#direct-and-semi-direct-slam)
+  - [Direct SLAM (KLT and Hybrid Tracking)](#direct-slam-klt-and-hybrid-tracking)
   - [Scene from Views](#scene-from-views)
 
 <!-- /TOC -->
@@ -163,7 +163,7 @@ This paper provides a presentation of the first version of sparse semantic mappi
 
 The camera exposes projection, unprojection, and analytic projection Jacobians. Omitting `Camera.type` keeps the linear pinhole used by the existing datasets: detected points are undistorted, and projection does not apply distortion. `kannala_brandt4`, `pinhole_radtan8`, and `double_sphere` project detected pixels directly. Mono, RGB-D, and calibrated native stereo use the corresponding model-aware factors; rectified stereo retains pinhole geometry, and Sim(3) uses undistorted coordinates.
 
-The model parameters, pixel conventions, and factor layout are described in [Camera models](../cpp/modules/camera_models/README.md).
+The model parameters, pixel conventions, and factor layout are described in [Camera models](../cpp/modules/camera_models/README.md). The C++ implementation used by `cpp_core` is in [`cpp/core/camera`](../cpp/core/camera/README.md).
 
 New-model mapping uses raw-pixel measurements consistently. RGB-D and calibrated native stereo use model-aware native factors, and serialization preserves camera subclasses and rig extrinsics. Pinhole observations retain their native optimizer paths. See [TUM-VI](./tum-vi.md) for native and rectified modes, and [Camera models](../cpp/modules/camera_models/README.md#tests) for the regression suite.
 
@@ -173,15 +173,15 @@ The system provides a modular **sparse-SLAM core**, implemented in **both Python
 
 The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names. The bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++ when possible. The C++ sparse-SLAM core is enabled by default (`USE_CPP_CORE = True` in `pyslam/config_parameters.py`); set it to `False`, or launch with `PYSLAM_USE_CPP=false`, to run the Python core.
 
-A detailed overview of the C++ core architecture, design principles, and implementation details is provided in this [document](../cpp/core/slam/README.md).
+A detailed overview of the C++ core architecture, design principles, and implementation details is provided in this [document](../cpp/core/slam/README.md). The C++ camera classes live in [`cpp/core/camera`](../cpp/core/camera/README.md), and the headers shared by `camera`, `slam`, `slam_direct` and `semantics` live in [`cpp/core/common`](../cpp/core/common/README.md); both are compiled into `cpp_core`.
 
 --- 
 
-## Direct and Semi-Direct SLAM
+## Direct SLAM (KLT and Hybrid Tracking)
 
-[`main_direct_slam.py`](../main_direct_slam.py) is a separate C++ stereo/RGBD pipeline with GFTT/LK geometric tracking, optional sparse photometric refinement and a synchronous local bundle-adjustment backend. It stores persistent landmark observations and corrects both keyframe and accepted non-keyframe trajectory poses. It shares the standard viewers and feature-trail renderer, while omitting the full pipeline's loop closure and dense/semantic modules.
+[`main_direct_slam.py`](../main_direct_slam.py) is a separate C++ stereo/RGBD pipeline, descriptor-free in tracking, with grid FAST or GFTT corners, pyramidal Lucas-Kanade tracking, optional sparse photometric refinement and a synchronous local bundle-adjustment backend. It stores persistent landmark observations and corrects both keyframe and accepted non-keyframe trajectory poses. It shares the standard viewers and feature-trail renderer. With loop closing enabled, it also runs the full pipeline's `LoopClosing` thread on separately extracted descriptor keyframes and writes the corrected poses back into the direct map. Dense and semantic modules remain omitted.
 
-See the [Direct and Semi-Direct SLAM guide](./direct_slam.md) for architecture, tracking/recovery and BA diagrams, camera restrictions, parameter descriptions, and run commands.
+See the [Direct SLAM (KLT and Hybrid Tracking) guide](./direct_slam.md) for architecture, tracking/recovery and BA diagrams, camera restrictions, parameter descriptions, and run commands.
 
 ---
 

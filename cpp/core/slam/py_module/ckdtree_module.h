@@ -26,8 +26,8 @@
 #include <vector>
 
 #include "ckdtree_eigen.h"
-#include "utils/messages.h"
-#include "utils/numpy_helpers.h"
+#include "common/messages.h"
+#include "common/numpy_helpers.h"
 
 namespace py = pybind11;
 

@@ -19,8 +19,8 @@
 
 #pragma once
 
-#include "camera_pose.h"
-#include "eigen_aliases.h"
+#include "camera/camera_pose.h"
+#include "common/eigen_aliases.h"
 
 #include <opencv2/core.hpp>
 
@@ -52,7 +52,7 @@ struct DirectKeyframe {
     int img_id = -1;
     double timestamp = 0.0;
     CameraPose pose;
-    cv::Mat gray; // Optional image storage; the frontend currently retains only last_gray_.
+    cv::Mat gray; // Kept only by semi_direct, while this keyframe is the tracking reference or owns seeds.
     std::vector<DirectPoint> points;
 };
 
@@ -60,6 +60,11 @@ struct DirectKeyframe {
 struct DirectLandmark {
     Vec3d position_w = Vec3d::Zero();
     bool bad = false;
+    // Monocular scale anchor: inverse depth in prior_keyframe's camera.
+    bool has_inverse_prior = false;
+    double inverse_depth_mu = 0.0;
+    double inverse_depth_sigma2 = 0.0;
+    int prior_keyframe = -1;
 };
 
 // An accepted frame pose with a reference-keyframe transform for later BA corrections.
@@ -91,7 +96,28 @@ class DirectMap {
         }
     }
 
-    void add_keyframe(DirectKeyframe keyframe) { keyframes_.push_back(std::move(keyframe)); }
+    // A seed promoted after the keyframe was stored still has to join the observer index.
+    void note_observation(int keyframe_id, int64_t landmark_id) {
+        auto &list = observers_[landmark_id];
+        if (list.empty() || list.back() != keyframe_id) {
+            list.push_back(keyframe_id);
+        }
+    }
+
+    void add_keyframe(DirectKeyframe keyframe) {
+        for (const DirectPoint &obs : keyframe.points) {
+            auto &list = observers_[obs.id];
+            if (list.empty() || list.back() != keyframe.id) list.push_back(keyframe.id);
+        }
+        keyframes_.push_back(std::move(keyframe));
+    }
+
+    // Keyframe IDs that observed a landmark when they were added, in insertion
+    // order, or nullptr. Outlier flags are not tracked here; callers recheck them.
+    const std::vector<int> *observers(int64_t landmark_id) const {
+        const auto it = observers_.find(landmark_id);
+        return it == observers_.end() ? nullptr : &it->second;
+    }
 
     void add_pose(int img_id, double timestamp, const Eigen::Isometry3d &Tcw) {
         DirectTrajectoryPose pose;
@@ -113,12 +139,14 @@ class DirectMap {
         keyframes_.clear();
         trajectory_.clear();
         landmarks_.clear();
+        observers_.clear();
     }
 
   private:
     std::map<int64_t, DirectLandmark> landmarks_;
     std::vector<DirectKeyframe> keyframes_;
     std::vector<DirectTrajectoryPose> trajectory_;
+    std::map<int64_t, std::vector<int>> observers_; // landmark ID -> observing keyframe IDs
 };
 
 } // namespace pyslam

@@ -197,10 +197,15 @@ class SceneFromViewsVggt(SceneFromViewsBase):
         images_tensor = processed_images.to(self.device)
 
         # Run inference
-        dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
+        use_cuda = self.device.type == "cuda"
+        if use_cuda:
+            major, _ = torch.cuda.get_device_capability(self.device)
+            dtype = torch.bfloat16 if major >= 8 else torch.float16
+        else:
+            dtype = torch.float32
 
         with torch.no_grad():
-            with torch.cuda.amp.autocast(dtype=dtype):
+            with torch.autocast(device_type=self.device.type, dtype=dtype, enabled=use_cuda):
                 predictions = self.model(images_tensor)
 
         # Convert pose encoding to extrinsic and intrinsic matrices
@@ -233,24 +238,31 @@ class SceneFromViewsVggt(SceneFromViewsBase):
         predictions["world_points_from_depth"] = world_points
 
         # Convert to numpy
-        def _to_numpy_cpu(data):
-            """Recursively move torch tensors to CPU and convert them to numpy arrays."""
+        def _to_numpy_cpu(data, squeeze_batch=True):
+            """Recursively move torch tensors to CPU and convert them to numpy arrays.
+            If squeeze_batch, the leading batch dimension (of size 1) is removed."""
             if isinstance(data, torch.Tensor):
                 tensor = data.detach().cpu()
                 if tensor.dtype == torch.bfloat16:
                     tensor = tensor.to(torch.float32)
-                if tensor.ndim > 0 and tensor.shape[0] == 1:
+                if squeeze_batch and tensor.ndim > 0 and tensor.shape[0] == 1:
                     tensor = tensor.squeeze(0)
                 return tensor.numpy()
             if isinstance(data, dict):
-                return {key: _to_numpy_cpu(value) for key, value in data.items()}
+                return {key: _to_numpy_cpu(value, squeeze_batch) for key, value in data.items()}
             if isinstance(data, list):
-                return [_to_numpy_cpu(item) for item in data]
+                return [_to_numpy_cpu(item, squeeze_batch) for item in data]
             if isinstance(data, tuple):
-                return tuple(_to_numpy_cpu(item) for item in data)
+                return tuple(_to_numpy_cpu(item, squeeze_batch) for item in data)
             return data
 
-        predictions = {key: _to_numpy_cpu(value) for key, value in predictions.items()}
+        # These entries already had their batch dimension removed above: squeezing them again
+        # would drop the view dimension when there is a single view (S=1).
+        already_unbatched = {"extrinsic", "intrinsic", "depth"}
+        predictions = {
+            key: _to_numpy_cpu(value, squeeze_batch=key not in already_unbatched)
+            for key, value in predictions.items()
+        }
 
         return {
             "predictions": predictions,
@@ -374,10 +386,14 @@ class SceneFromViewsVggt(SceneFromViewsBase):
         depth_predictions = []
         depth_maps = predictions.get("depth", None)
         if depth_maps is not None:
-            if depth_maps.ndim == 4:
-                # (S, 1, H, W) or (S, H, W)
-                if depth_maps.shape[1] == 1:
-                    depth_maps = depth_maps[:, 0]
+            if depth_maps.ndim == 2:
+                depth_maps = depth_maps[None]  # single view (H, W)
+            if depth_maps.ndim == 4 and depth_maps.shape[-1] == 1:
+                depth_maps = depth_maps[..., 0]  # (S, H, W, 1) -> (S, H, W)
+            elif depth_maps.ndim == 4 and depth_maps.shape[1] == 1:
+                depth_maps = depth_maps[:, 0]  # (S, 1, H, W) -> (S, H, W)
+            elif depth_maps.ndim == 3 and depth_maps.shape[-1] == 1 and S == 1:
+                depth_maps = depth_maps[None, ..., 0]  # single view (H, W, 1)
             for i in range(S):
                 depth_predictions.append(depth_maps[i])
         else:

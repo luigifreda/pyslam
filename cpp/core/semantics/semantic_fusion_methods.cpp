@@ -18,7 +18,7 @@
  */
 
 #include "semantic_fusion_methods.h"
-#include "utils/messages.h"
+#include "common/messages.h"
 
 #include <algorithm>
 #include <map>

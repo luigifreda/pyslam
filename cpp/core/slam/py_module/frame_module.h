@@ -31,9 +31,9 @@
 #include "utils/map_helpers.h"
 
 #include "config_parameters.h"
-#include "smart_pointers.h"
-#include "utils/messages.h"
-#include "utils/numpy_helpers.h"
+#include "common/smart_pointers.h"
+#include "common/messages.h"
+#include "common/numpy_helpers.h"
 
 namespace py = pybind11;
 

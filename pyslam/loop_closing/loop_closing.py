@@ -920,7 +920,7 @@ class LoopClosing:
             QimageViewer.get_instance().quit()
         LoopClosing.print("LoopClosing: done")
 
-    def add_keyframe(self, keyframe: KeyFrame, img, print=print):
+    def add_keyframe(self, keyframe: KeyFrame, img, print=print, feature_extraction=None):
         try:
 
             LoopClosing.print(
@@ -946,6 +946,7 @@ class LoopClosing:
                 task_type,
                 covisible_keyframes=covisible_keyframes,
                 connected_keyframes=connected_keyframes,
+                feature_extraction=feature_extraction,
             )
 
             self.loop_detecting_process.add_task(task)
@@ -985,7 +986,12 @@ class LoopClosing:
 
                     LoopClosing.print("..................................")
                     # retrieve the keyframe corresponding to the output img_id
-                    keyframe = self.keyframes_map[detection_output.frame_id]
+                    keyframe = self.keyframes_map.get(detection_output.frame_id)
+                    if keyframe is None:
+                        continue  # A reset can invalidate an in-flight result.
+                    if getattr(detection_output, "local_features", None) is not None:
+                        if not self.slam.prepare_loop_keyframe(keyframe, detection_output.local_features):
+                            continue
 
                     LoopClosing.print(
                         f"LoopClosing: processing KF: {keyframe.id}, detection: qin size: {self.loop_detecting_process.q_in.qsize()}, qout size: {self.loop_detecting_process.q_out.qsize()}"

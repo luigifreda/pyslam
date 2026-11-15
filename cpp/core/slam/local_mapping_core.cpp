@@ -17,9 +17,9 @@
  * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "local_mapping_core.h"
-#include "owned_g2o_optimizer.h"
+#include "common/owned_g2o_optimizer.h"
 #include "config_parameters.h"
-#include "eigen_aliases.h"
+#include "common/eigen_aliases.h"
 #include "geometry_matchers.h"
 #include "keyframe.h"
 #include "map.h"

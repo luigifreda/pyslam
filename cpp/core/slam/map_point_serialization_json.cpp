@@ -28,7 +28,7 @@
 #include <unordered_map>
 
 #include "semantic_serialization.h"
-#include "utils/serialization_json.h"
+#include "common/serialization_json.h"
 
 #include <nlohmann/json.hpp>
 

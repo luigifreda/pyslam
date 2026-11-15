@@ -26,7 +26,7 @@
 
 // Include ColorTableGenerator from cpp/core/slam/utils/color_helpers.h
 // Note: We need to use relative path from cpp/modules/color_utils to cpp/core/slam/utils
-#include "utils/color_helpers.h"
+#include "common/color_helpers.h"
 
 namespace pyslam {
 namespace {

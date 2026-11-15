@@ -19,17 +19,17 @@
 
 #include "optimizer_gtsam.h"
 
-#include "camera.h"
-#include "camera_factors_gtsam.h"
-#include "camera_pose.h"
+#include "camera/camera.h"
+#include "camera/camera_factors_gtsam.h"
+#include "camera/camera_pose.h"
 #include "config_parameters.h"
 #include "feature_shared_resources.h"
 #include "frame.h"
 #include "keyframe.h"
 #include "map.h"
 #include "map_point.h"
-#include "utils/eigen_helpers.h"
-#include "utils/messages.h"
+#include "common/eigen_helpers.h"
+#include "common/messages.h"
 
 // Include GTSAM headers - Point3 must come first as it's a typedef used by other headers
 #include <gtsam/geometry/Cal3_S2.h>

@@ -36,9 +36,9 @@
 #include <pybind11/pybind11.h>
 #endif
 
-#include "eigen_aliases.h"
+#include "common/eigen_aliases.h"
 #include "frame.h"
-#include "smart_pointers.h"
+#include "common/smart_pointers.h"
 
 namespace pyslam {
 

@@ -18,7 +18,7 @@
  */
 
 #include "utils/features.h"
-#include "utils/messages.h"
+#include "common/messages.h"
 
 #include <algorithm>
 #include <cmath>

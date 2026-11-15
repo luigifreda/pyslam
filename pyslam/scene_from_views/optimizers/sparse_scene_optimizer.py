@@ -249,7 +249,9 @@ class SparseSceneOptimizer(SceneOptimizerBase):
         )
 
         # Create scene object
-        scene = SparseGA(imgs, pairs_in, res_fine or res_coarse, anchors, canonical_paths)
+        scene = SparseGA(
+            imgs, pairs_in, res_fine or res_coarse, anchors, canonical_paths, subsample=subsample
+        )
 
         from .scene_optimizer_io import SceneOptimizerOutput
 

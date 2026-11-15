@@ -52,6 +52,7 @@ from pyslam.loop_closing.loop_detector_base import (
     LoopDetectorBase,
     LoopDetectorOutput,
 )
+from pyslam.loop_closing.loop_feature_extraction import LoopKeyframeFeatureExtractor
 
 import traceback
 
@@ -224,6 +225,7 @@ class LoopDetectingProcess:
                     empty_queue(q_out_reloc)
                     q_out_reloc_condition.notify_all()
                 # Now reset the loop detector in the launched parallel process
+                self.keyframe_feature_extractor.reset()
                 try:
                     loop_detector.reset()
                 except Exception as e:
@@ -271,6 +273,7 @@ class LoopDetectingProcess:
             LoopDetectorBase.print("LoopDetectingProcess: done")
 
     def init(self, loop_detector_config, slam_info: SlamFeatureManagerInfo):
+        self.keyframe_feature_extractor = LoopKeyframeFeatureExtractor()
         self.loop_detector = loop_detector_factory(**loop_detector_config, slam_info=slam_info)
         if slam_info.feature_descriptor_type is not None:
             loop_detector_config_check(self.loop_detector, slam_info.feature_descriptor_type)
@@ -406,11 +409,16 @@ class LoopDetectingProcess:
                             )
                             last_output = LoopDetectorOutput(self.last_input_task.task_type)
                         else:
-                            # run the other loop detection tasks.
+                            # Raw direct keyframes are prepared here; standard
+                            # SLAM tasks already contain frontend features.
+                            local_features = self.keyframe_feature_extractor.extract(self.last_input_task)
                             # first: check and compute if needed the local descriptors by using the independent local feature manager (if present).
                             loop_detector.compute_local_des_if_needed(self.last_input_task)
                             # next: run the requested loop detection task
                             last_output = loop_detector.run_task(self.last_input_task)
+                            if last_output is not None and local_features is not None:
+                                last_output.local_features = local_features
+                                self.keyframe_feature_extractor.remember(self.last_input_task, last_output)
                             if last_output is None:
                                 LoopDetectorBase.print(
                                     f"LoopDetectingProcess: loop detection task failed with None output"

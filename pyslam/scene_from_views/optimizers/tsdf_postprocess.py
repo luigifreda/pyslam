@@ -52,12 +52,13 @@ class TSDFPostProcess:
     Args:
         optimizer: Scene optimizer object (must have get_dense_pts3d, get_im_poses,
                    get_focals, get_principal_points methods)
-        subsample: Subsampling factor for canonical views (default: 8)
+        subsample: Subsampling factor for canonical views (default: None, i.e. use the
+                   subsample stored in the optimizer/scene)
         TSDF_thresh: TSDF threshold for filtering (default: 0.0, disabled)
         TSDF_batchsize: Batch size for TSDF queries (default: 1e7)
     """
 
-    def __init__(self, optimizer, subsample=8, TSDF_thresh=0.0, TSDF_batchsize=int(1e7)):
+    def __init__(self, optimizer, subsample=None, TSDF_thresh=0.0, TSDF_batchsize=int(1e7)):
         self.TSDF_thresh = TSDF_thresh
         self.TSDF_batchsize = TSDF_batchsize
         self.optimizer = optimizer
@@ -68,7 +69,7 @@ class TSDFPostProcess:
             import inspect
 
             sig = inspect.signature(optimizer.get_dense_pts3d)
-            if "subsample" in sig.parameters:
+            if "subsample" in sig.parameters and subsample is not None:
                 pts3d, depthmaps, confs = optimizer.get_dense_pts3d(
                     clean_depth=False, subsample=subsample
                 )

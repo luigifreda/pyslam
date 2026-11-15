@@ -167,7 +167,9 @@ def visualize_results(
 
     if show_3d:
         viewer3D = Viewer3D()
-        time.sleep(1)
+        # The viewer runs in a spawned process: wait until its window is up and looping.
+        # (is_running() is 0 until then, so checking it right away would quit immediately)
+        viewer3D.wait_for_ready()
 
         # Visualize point cloud or mesh
         viz_point_cloud = None
@@ -216,8 +218,8 @@ def visualize_results(
             camera_images=viz_camera_images if len(viz_camera_images) > 0 else None,
         )
 
-        # Wait for user to quit
-        while viewer3D.is_running():
+        # Wait for the user to close the viewer window (or press q/ESC in an OpenCV window)
+        while not viewer3D.is_closed():
             key = cv2.waitKey(10) & 0xFF
             if key == ord("q") or key == 27:
                 break

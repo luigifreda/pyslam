@@ -25,7 +25,7 @@
 #include <nlohmann/json.hpp>
 #include <opencv2/core.hpp>
 
-#include "camera.h"
+#include "camera/camera.h"
 #include "utils/test_utils.h"
 
 using namespace pyslam;

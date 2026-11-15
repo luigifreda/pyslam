@@ -289,6 +289,43 @@ def find_poses_associations(
     )
 
 
+def packed_xyz(points):
+    """Return Nx3 float64 points in packed xyz order.
+
+    OpenGL line drawers walk the buffer as consecutive xyz triples and ignore
+    numpy strides. Alignment transforms are built from column-major Eigen
+    matrices, so their results are Fortran-ordered and would be drawn scrambled.
+    """
+    array = np.asarray(points, dtype=np.float64)
+    if array.size == 0:
+        return np.zeros((0, 3), dtype=np.float64)
+    if array.ndim != 2 or array.shape[1] != 3:
+        array = array.reshape(-1, 3)
+    return np.ascontiguousarray(array)
+
+
+def apply_rigid_points(T, points):
+    points = packed_xyz(points)
+    transform = np.asarray(T, dtype=np.float64)
+    transformed = (transform[:3, :3] @ points.T).T + transform[:3, 3]
+    return packed_xyz(transformed)
+
+
+def store_aligned_trajectories(alignment_gt_data, gt_trajectory):
+    """Attach estimated-frame and ground-truth-frame trajectories in packed xyz order."""
+    alignment_gt_data.estimated_t_wi = packed_xyz(alignment_gt_data.estimated_t_wi)
+    alignment_gt_data.gt_t_wi = packed_xyz(alignment_gt_data.gt_t_wi)
+    alignment_gt_data.gt_trajectory_aligned = apply_rigid_points(
+        alignment_gt_data.T_est_gt, gt_trajectory
+    )
+    alignment_gt_data.gt_trajectory_aligned_associated = apply_rigid_points(
+        alignment_gt_data.T_est_gt, alignment_gt_data.gt_t_wi
+    )
+    alignment_gt_data.estimated_trajectory_aligned = apply_rigid_points(
+        alignment_gt_data.T_gt_est, alignment_gt_data.estimated_t_wi
+    )
+
+
 # Data representing the alignment of an estimated trajectory with ground truth
 class TrajectoryAlignementData:
     def __init__(
@@ -693,19 +730,9 @@ class TrajectoryAlignerProcessBatch(mp.Process):
                 find_scale=self.find_scale,
             )
 
-            T_est_gt = alignment_gt_data.T_est_gt
-            # compute all gt data aligned to the estimated trajectory
-            alignment_gt_data.gt_trajectory_aligned = (
-                T_est_gt[:3, :3] @ np.array(self.gt_trajectory).T
-            ).T + T_est_gt[:3, 3]
-            # compute only the associated gt samples aligned to the estimated samples
-            alignment_gt_data.gt_trajectory_aligned_associated = (
-                T_est_gt[:3, :3] @ np.array(alignment_gt_data.gt_t_wi).T
-            ).T + T_est_gt[:3, 3]
-            # compute the estimated trajectory aligned to the gt trajectory
-            alignment_gt_data.estimated_trajectory_aligned = (
-                T_gt_est[:3, :3] @ np.array(alignment_gt_data.estimated_t_wi).T
-            ).T + T_gt_est[:3, 3]
+            # Eigen poses are column-major. Pack the transformed points before the
+            # viewer reads them as consecutive xyz triples.
+            store_aligned_trajectories(alignment_gt_data, self.gt_trajectory)
 
             self.output_queue.put((T_gt_est, error, alignment_gt_data))
             print(f"TrajectoryAlignerProcessBatch: Aligned, RMS error: {error:.4f}")
@@ -897,19 +924,9 @@ class TrajectoryAlignerProcessIncremental(mp.Process):
                 max_error=max_error,
             )
 
-            T_est_gt = alignment_gt_data.T_est_gt
-            # compute all gt data aligned to the estimated trajectory
-            alignment_gt_data.gt_trajectory_aligned = (
-                T_est_gt[:3, :3] @ np.array(self.gt_trajectory).T
-            ).T + T_est_gt[:3, 3]
-            # compute only the associated gt samples aligned to the estimated samples
-            alignment_gt_data.gt_trajectory_aligned_associated = (
-                T_est_gt[:3, :3] @ np.array(alignment_gt_data.gt_t_wi).T
-            ).T + T_est_gt[:3, 3]
-            # compute the estimated trajectory aligned to the gt trajectory
-            alignment_gt_data.estimated_trajectory_aligned = (
-                T_gt_est[:3, :3] @ np.array(alignment_gt_data.estimated_t_wi).T
-            ).T + T_gt_est[:3, 3]
+            # Eigen poses are column-major. Pack the transformed points before the
+            # viewer reads them as consecutive xyz triples.
+            store_aligned_trajectories(alignment_gt_data, self.gt_trajectory)
 
             self.output_queue.put((T_gt_est, error, alignment_gt_data))
             print(

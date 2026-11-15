@@ -223,6 +223,8 @@ The remainder of this document is organized as follows. Section~\ref{main-featur
     
     \item A modular sparse SLAM \textbf{\protect\hyperlink{cpp-core}{Core}}, implemented both in Python and C++ (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes.
 
+    \item A C++ \textbf{\protect\hyperlink{direct-slam}{direct and semi-direct SLAM}} pipeline with three tracking modes: KLT tracks\cite{lucas1981iterative}, a hybrid mode with sparse photometric alignment, and an SVO-style\cite{forster2014svo} semi-direct mode with a Bayesian inverse-depth filter\cite{vogiatzis2011video}. It supports stereo and RGB-D input, and monocular input in the semi-direct mode, with local bundle adjustment and the same loop closing as the sparse pipeline.
+
     \item Several \textbf{\protect\hyperlink{camera-models}{camera models}} in the sparse pipeline: pinhole, Kannala--Brandt\cite{kannala2006generic}, rational distortion, and double sphere\cite{usenko2018double}, with native and rectified fisheye stereo on TUM-VI\cite{schubert2018tumvi}.
     
     \item Additional tools for VO (Visual Odometry) and SLAM, with built-in
@@ -245,7 +247,7 @@ descriptors}},
 \emph{\protect\hyperlink{volumetric-reconstruction-pipeline}{volumetric
 integration}}, \emph{\protect\hyperlink{depth-prediction}{depth
 prediction}}, \emph{\protect\hyperlink{semantic-mapping}{semantic
-mapping}}, \emph{\protect\hyperlink{scene-from-views}{scene from views}}, and \emph{\protect\hyperlink{cpp-core}{C++ core}}. It allows to explore, prototype and develop VO/SLAM
+mapping}}, \emph{\protect\hyperlink{scene-from-views}{scene from views}}, \emph{\protect\hyperlink{cpp-core}{C++ core}}, and \emph{\protect\hyperlink{direct-slam}{direct SLAM}}. It allows to explore, prototype and develop VO/SLAM
 pipelines. pySLAM is a research framework and a work in progress. It is
 not optimized for real-time performance.
 
@@ -255,6 +257,9 @@ not optimized for real-time performance.
 
 \paragraph{Feature-based visual SLAM.}
 PTAM~\cite{PTAM} introduced the separation of camera tracking and keyframe-based mapping into parallel threads, with bundle adjustment running in the background. ORB-SLAM2~\cite{ORB_SLAM2} built on this design and added loop closing, relocalization, and support for monocular, stereo, and RGB-D cameras, using ORB features~\cite{rublee2011orb} and a bag of binary words~\cite{galvez2012bags} for place recognition. ORB-SLAM3~\cite{campos2021orbslam3} extended the system to visual-inertial and multi-map SLAM and abstracted the camera model, so that pinhole and fisheye cameras share the same pipeline. pySLAM adopts the same tracking, local mapping, and loop closing decomposition (Sect.~\ref{sec:architecture}), but implements it as a modular framework in which each component, from the local features to the optimization backend, can be replaced through a factory interface. A broader overview of the SLAM problem and its open challenges is given in~\cite{cadena2017past}.
+
+\paragraph{Direct and semi-direct methods.}
+Direct methods estimate motion from image intensities instead of matched descriptors. LSD-SLAM~\cite{engel2014lsd} tracks semi-dense depth maps with photometric alignment, and DSO~\cite{engel2018dso} optimizes poses and sparse inverse depths jointly in a windowed photometric bundle adjustment. SVO~\cite{forster2014svo,forster2017svo} is semi-direct: sparse image alignment of small patches gives an initial pose, each feature is then aligned individually, and the pose and structure are refined on reprojection error. New points are estimated by a Bayesian inverse-depth filter~\cite{vogiatzis2011video}. KLT-based front ends such as VINS-Mono~\cite{qin2018vins} track Lucas--Kanade features~\cite{lucas1981iterative} and estimate the pose from reprojection error, so they are indirect. pySLAM offers both kinds of tracking in its direct-SLAM pipeline (Sect.~\ref{direct-slam}), and keeps a geometric local bundle adjustment.
 
 \paragraph{Place recognition and loop closing.}
 Loop detection has moved from aggregations of local descriptors, such as bags of words~\cite{galvez2012bags} and VLAD~\cite{jegou2010aggregating}, to global image descriptors learned end to end, such as NetVLAD~\cite{arandjelovic2016netvlad}, CosPlace~\cite{berton2023cosplace}, EigenPlaces~\cite{berton2023eigenplaces}, and MegaLoc~\cite{berton2025megaloc}. Schubert et al.~\cite{schubert2023visual} provide a tutorial on visual place recognition. pySLAM exposes both families behind the same loop detector interface, so they can be compared within a complete SLAM pipeline rather than in isolation.
@@ -291,6 +296,11 @@ camera pose estimation.
   camera trajectory and build both a sparse and dense map. It's a full
   SLAM pipeline and includes all the basic and advanced blocks which are
   necessary to develop a real visual SLAM pipeline.
+\item
+  \texttt{main\_direct\_slam.py} runs the C++ direct-SLAM pipeline
+  (Sect.~\ref{direct-slam}): KLT, hybrid, or semi-direct tracking, local
+  bundle adjustment, and, for stereo and RGB-D input, the same loop closing
+  thread as \texttt{main\_slam.py}.
 \item
   \texttt{main\_feature\_matching.py} shows how to use the basic feature
   tracker capabilities (\emph{feature detector} + \emph{feature
@@ -559,12 +569,14 @@ The C++ core is selected by default (\texttt{USE\_CPP\_CORE = True} in \texttt{p
 
 The codebase is organized into the following categories:
 \begin{itemize}
-\item \textbf{Core SLAM Classes}: Main C++ implementations (\texttt{frame.cpp/h}, \texttt{keyframe.cpp/h}, \texttt{map\_point.cpp/h}, \texttt{map.cpp/h}, \texttt{camera.cpp/h}, \texttt{camera\_pose.cpp/h}, \texttt{optimizer\_g2o.cpp/h}, \texttt{tracking\_core.cpp/h}, \texttt{local\_mapping\_core.cpp/h}).
+\item \textbf{Core SLAM Classes}: Main C++ implementations (\texttt{frame.cpp/h}, \texttt{keyframe.cpp/h}, \texttt{map\_point.cpp/h}, \texttt{map.cpp/h}, \texttt{optimizer\_g2o.cpp/h}, \texttt{tracking\_core.cpp/h}, \texttt{local\_mapping\_core.cpp/h}).
 \item \textbf{SLAM pipeline}: the \texttt{Slam}, \texttt{Tracking}, and \texttt{LocalMapping} classes (\texttt{slam.cpp/h}, \texttt{tracking.cpp/h}, \texttt{local\_mapping.cpp/h}), which follow the control flow of their Python counterparts. Components that have not been ported, such as the feature tracker and loop closing, remain Python objects held by these classes.
 \item \textbf{Serialization}: JSON and NumPy serialization modules for data persistence and Python interop.
 \item \textbf{Python Bindings}: pybind11 module definitions that expose C++ classes to Python.
-\item \textbf{Type Casters}: pybind11 type casters for custom type conversions (OpenCV, Eigen, JSON, dictionary types).
-\item \textbf{Utilities}: Helper functions for geometry, features, descriptors, image processing, NumPy/Eigen operations, and serialization.
+\item \textbf{Cameras} (\texttt{cpp/core/camera}): the camera classes (\texttt{camera.cpp/h}, \texttt{camera\_models.cpp/h}), the shared projection math (\texttt{camera\_model\_math.h}), \texttt{camera\_pose.cpp/h}, rig geometry, and the camera g2o edges and GTSAM factors with their bindings.
+\item \textbf{Shared headers} (\texttt{cpp/core/common}): utilities shared by the camera, sparse-SLAM, direct-SLAM, and semantic components, such as Eigen aliases, smart pointers, settings dictionaries, JSON and NumPy serialization, descriptor distances, and feature-trail drawing.
+\item \textbf{Type Casters}: pybind11 type casters for custom type conversions. The OpenCV, JSON, and dictionary casters are shared in \texttt{cpp/casters}.
+\item \textbf{Utilities}: SLAM helper functions for geometry, features, image processing, and map access.
 \item \textbf{Tests}: C++ unit tests and Python integration tests (see Sect.~\ref{testing}).
 \end{itemize}
 
@@ -576,6 +588,22 @@ The C++ core adopts a streamlined design philosophy:
 \item \textbf{RAII-based ownership}: C++ smart pointers manage object lifetimes safely and efficiently.
 \end{itemize}
 
+
+\hypertarget{direct-slam}{%
+\subsection{Direct and Semi-Direct SLAM}\label{direct-slam}}
+
+\texttt{main\_direct\_slam.py} runs a second visual SLAM pipeline, implemented in C++ (\texttt{cpp/core/slam\_direct}) and compiled into the same \texttt{cpp\_core} module. Its tracking and local-mapping correspondences come from image intensities on raw pixels, not from descriptor matching. It reuses the pySLAM cameras, settings, datasets, and viewers. The tracking mode is selected by \texttt{DIRECT\_SLAM.mode}:
+\begin{itemize}
+\item \texttt{klt}: grid FAST or GFTT corners are tracked by pyramidal Lucas--Kanade~\cite{lucas1981iterative} with a forward--backward check. The pose comes from PnP RANSAC followed by robust Gauss--Newton on reprojection error. In the usual taxonomy this mode is indirect.
+\item \texttt{hybrid}: the \texttt{klt} pose is refined by sparse photometric alignment of patches with known depth. If corner flow fails, photometric-only tracking can recover when enough reference landmarks support it.
+\item \texttt{semi\_direct}: the SVO-style mode~\cite{forster2014svo}. Each frame is aligned to the reference keyframe in three steps. First, a photometric solve aligns fronto-parallel 3D patches, which unproject every patch pixel at the feature depth. Then each projected patch is aligned on its own in 2D, with the pose fixed. Finally, the aligned pixels feed the same reprojection pose solver.
+\end{itemize}
+
+In \texttt{semi\_direct} mode, a corner without sensor depth becomes an inverse-depth seed. It is updated by the SVO depth filter~\cite{forster2014svo}, which uses the parametric model of Vogiatzis and Hern\'andez~\cite{vogiatzis2011video}. The inverse depth is a Gaussian inlier hypothesis mixed with a uniform outlier hypothesis over the depth range, and a Beta distribution models the inlier ratio. Each accepted frame searches along the seed's epipolar segment with zero-mean SSD on the same planar patch and refines the best match to subpixel. The measurement variance is the inverse-depth change caused by a one-pixel angular error on the current ray. A searched segment without a match counts as outlier evidence. Converged seeds are promoted to landmarks.
+
+\texttt{klt} and \texttt{hybrid} need stereo or RGB-D input. \texttt{semi\_direct} also accepts monocular input: the first frame becomes a keyframe at the identity, and tracking stays in its initialization state until enough seeds converge. Monocular scale follows the depth prior of the seeds. Undistorted pinhole cameras and the raw-pixel models of Sect.~\ref{camera-models} are supported without remapping the images.
+
+The backend runs synchronous local bundle adjustment with g2o on a window of recent keyframes. It uses Huber kernels and outlier rejection. Stereo and RGB-D measurements keep the metric scale, and monocular landmarks carry an inverse-depth prior from their seed. For stereo and RGB-D input, the runner also starts the standard loop-closing thread on separately extracted descriptor keyframes and writes the corrected poses back into the direct map. There is no photometric bundle adjustment.
 
 \hypertarget{scene-from-views}{%
 \subsection{3D Scene from Views}\label{scene-from-views}}
@@ -1236,9 +1264,9 @@ These are exploratory measurements on a short segment, not a controlled benchmar
 \hypertarget{conclusions}{%
 \section{Conclusions and Future Work}\label{conclusions}}
 
-This document presented pySLAM, an open-source framework for visual SLAM that combines a sparse SLAM core, available in both Python and C++, with interchangeable local features, loop detectors, depth estimators, semantic segmentation models, volumetric integrators, and feed-forward multi-view reconstruction models. A unified dataset interface, automated evaluation scripts, and a regression test suite make it possible to compare these components within a complete pipeline and across more than fifteen dataset types. The framework is intended as a research and teaching platform rather than a real-time system.
+This document presented pySLAM, an open-source framework for visual SLAM that combines a sparse SLAM core, available in both Python and C++, and a C++ direct and semi-direct SLAM pipeline with interchangeable local features, loop detectors, depth estimators, semantic segmentation models, volumetric integrators, and feed-forward multi-view reconstruction models. A unified dataset interface, automated evaluation scripts, and a regression test suite make it possible to compare these components within a complete pipeline and across more than fifteen dataset types. The framework is intended as a research and teaching platform rather than a real-time system.
 
-Several directions remain open. Inertial and LiDAR measurements are not yet integrated, and the tracker does not include direct methods. Object-level mapping is under development. For the camera models, wide fields of view beyond $180^\circ$ still need to be validated in initialization and Sim(3) estimation, and the native fisheye pipeline needs a full-sequence evaluation on TUM-VI and other fisheye datasets.
+Several directions remain open. Inertial and LiDAR measurements are not yet integrated. The direct-SLAM pipeline still lacks a photometric bundle adjustment and a full evaluation on RGB-D and monocular benchmarks. Object-level mapping is under development. For the camera models, wide fields of view beyond $180^\circ$ still need to be validated in initialization and Sim(3) estimation, and the native fisheye pipeline needs a full-sequence evaluation on TUM-VI and other fisheye datasets.
 
 %\hypertarget{Comparison pySLAM vs ORB-SLAM3}{%
 %\section{Comparison pySLAM vs ORB-SLAM3}\label{comparison-pySLAM-ORBSLAM3}}
@@ -1434,6 +1462,23 @@ video (available in the folder \texttt{data/videos}) by using its
 corresponding camera calibration file (available in the folder
 \texttt{settings}). You can stop it by clicking on one of the
 opened windows and pressing the key `Q' or closing the 3D pangolin GUI.
+
+\hypertarget{direct-slam-usage}{%
+\subsection{Direct SLAM}\label{direct-slam-usage}}
+
+To run the direct-SLAM pipeline of Sect.~\ref{direct-slam}, select a stereo or RGB-D dataset in \texttt{config.yaml} (or a monocular one with \texttt{semi\_direct}), build \texttt{cpp\_core} with \texttt{./build\_cpp\_core.sh}, and run \texttt{main\_direct\_slam.py}:\\
+
+\begin{scriptsize}
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{$ }\ExtensionTok{./main_direct_slam.py} \AttributeTok{-c}\NormalTok{ config.yaml}
+\NormalTok{$ }\ExtensionTok{./main_direct_slam.py} \AttributeTok{-c}\NormalTok{ config.yaml }\AttributeTok{--headless --max-frames}\NormalTok{ 100}
+\NormalTok{$ }\ExtensionTok{./main_direct_slam.py} \AttributeTok{-c}\NormalTok{ config.yaml }\AttributeTok{--mode}\NormalTok{ semi_direct}
+\end{Highlighting}
+\end{Shaded}
+\end{scriptsize}
+
+\texttt{--mode} overrides \texttt{DIRECT\_SLAM.mode} (\texttt{klt}, \texttt{hybrid}, or \texttt{semi\_direct}). \texttt{--no-local-ba} and \texttt{--no-loop-closing} disable the automatic local bundle adjustment and the loop-closing thread. The full parameter reference is in \texttt{docs/direct\_slam.md}.
 \hypertarget{selecting-a-dataset-and-different-configuration-parameters}{%
 \subsection{Selecting a dataset and different configuration
 parameters}\label{selecting-a-dataset-and-different-configuration-parameters}}

@@ -24,7 +24,7 @@
 
 #include <Eigen/Dense>
 
-#include "camera_model_math.h"
+#include "camera/camera_model_math.h"
 
 using namespace pyslam::camera_model;
 

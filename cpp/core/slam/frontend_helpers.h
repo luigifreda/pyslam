@@ -19,7 +19,7 @@
 #pragma once
 
 #include "feature_shared_resources.h"
-#include "utils/descriptor_helpers.h"
+#include "common/descriptor_helpers.h"
 
 #include <Eigen/Dense>
 #include <algorithm>

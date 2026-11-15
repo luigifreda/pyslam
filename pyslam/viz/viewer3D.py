@@ -43,6 +43,7 @@ from pyslam.utilities.geometry import poseRt, inv_poseRt, inv_T
 from pyslam.utilities.geom_trajectory import (
     TrajectoryAlignerProcessBatch,
     TrajectoryAlignerProcessIncremental,
+    packed_xyz,
 )
 from pyslam.utilities.logging import Printer
 from pyslam.utilities.data_management import empty_queue, get_last_item_from_queue
@@ -739,7 +740,8 @@ class Viewer3D(object):
                         aligner_output_queue,
                         is_aligner_running,
                     )
-                    sleep = (time.time() - ts) - kRefreshDurationTime
+                    # sleep only for the remainder of the refresh period (if any)
+                    sleep = kRefreshDurationTime - (time.time() - ts)
                     if sleep > 0:
                         time.sleep(sleep)
                 except Exception as e:
@@ -1163,28 +1165,8 @@ class Viewer3D(object):
                     if self.thread_gt_aligned:
                         gl.glLineWidth(1)
                         gl.glColor3f(1.0, 0.0, 0.0)
-                        glutils.DrawTrajectory(self.thread_gt_trajectory_aligned, 2)
-
-                        if self.draw_gt_associations:
-                            num_associations = len(self.thread_est_associated_traj)
-                            is_draw_gt_associations_ok = (
-                                self.thread_gt_trajectory_aligned_associated is not None
-                            ) and (
-                                len(self.thread_gt_trajectory_aligned_associated)
-                                == num_associations
-                            )
-                            if num_associations > 0 and is_draw_gt_associations_ok:
-                                # visualize the data associations between the aligned gt and the estimated trajectory
-                                # gt_to_est_lines = [[*self.thread_gt_trajectory_aligned_associated[i], *self.thread_est_associated_traj[i]] for i in range(num_associations)]
-                                gl.glLineWidth(2)
-                                gl.glColor3f(0.5, 1.0, 1.0)
-                                # glutils.DrawLines(gt_to_est_lines,2)
-                                glutils.DrawLines2(
-                                    self.thread_gt_trajectory_aligned_associated,
-                                    self.thread_est_associated_traj,
-                                    2,
-                                )
-                                gl.glLineWidth(1)
+                        # Drawers read packed xyz. Alignment results arrive column-major.
+                        glutils.DrawTrajectory(packed_xyz(self.thread_gt_trajectory_aligned), 2)
 
             if len(map_data.poses) > 1:
                 # draw keyframe poses in green
@@ -1227,6 +1209,10 @@ class Viewer3D(object):
                     gl.glColor3f(0.5, 0.0, 0.5)
                     glutils.DrawLines(map_data.loops, 3)
                     gl.glLineWidth(1)
+
+            # After cameras and map lines. Those are drawn first and reject later
+            # fragments at the same depth, which hid the short association segments.
+            self._draw_gt_associations()
 
         # ==============================
         # draw dense stuff
@@ -1588,6 +1574,32 @@ class Viewer3D(object):
                 else glutils.GlObjectSetF()
             )
         self.gl_object_set.set_bounding_box_line_width(2)
+
+    def _draw_gt_associations(self):
+        if not (
+            self.draw_gt
+            and self.draw_gt_associations
+            and self.thread_gt_aligned
+            and self.thread_est_associated_traj is not None
+            and self.thread_gt_trajectory_aligned_associated is not None
+        ):
+            return
+        estimated = packed_xyz(self.thread_est_associated_traj)
+        ground_truth = packed_xyz(self.thread_gt_trajectory_aligned_associated)
+        # Index i pairs the two arrays only when both come from the same alignment
+        # update. Skip a mismatched frame rather than join unrelated samples.
+        count = len(estimated)
+        if count == 0 or count != len(ground_truth):
+            return
+        # Overlay: each segment joins one aligned ground-truth sample to its camera center.
+        gl.glDisable(gl.GL_DEPTH_TEST)
+        try:
+            gl.glColor3f(0.0, 0.75, 0.85)
+            gl.glLineWidth(2)
+            glutils.DrawLines2(ground_truth, estimated, 6)
+        finally:
+            gl.glLineWidth(1)
+            gl.glEnable(gl.GL_DEPTH_TEST)
 
     # draw sparse map
     def draw_map(self, map_state: Viewer3DMapInput):

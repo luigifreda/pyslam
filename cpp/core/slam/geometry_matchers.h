@@ -20,9 +20,9 @@
 #pragma once
 
 #include "config_parameters.h"
-#include "eigen_aliases.h"
+#include "common/eigen_aliases.h"
 #include "sim3_pose.h"
-#include "smart_pointers.h"
+#include "common/smart_pointers.h"
 
 #include <Eigen/Dense>
 #include <opencv2/opencv.hpp>

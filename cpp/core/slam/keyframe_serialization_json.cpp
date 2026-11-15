@@ -18,7 +18,7 @@
  */
 
 #include "keyframe.h"
-#include "utils/serialization_json.h"
+#include "common/serialization_json.h"
 
 #include <nlohmann/json.hpp>
 

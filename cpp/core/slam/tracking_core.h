@@ -24,11 +24,11 @@
 #include <vector>
 
 #include "config_parameters.h"
-#include "eigen_aliases.h"
+#include "common/eigen_aliases.h"
 #include "frame.h"
 #include "map.h"
 #include "map_point.h"
-#include "smart_pointers.h"
+#include "common/smart_pointers.h"
 #include "utils/cv_ops.h"
 
 #include <tuple>

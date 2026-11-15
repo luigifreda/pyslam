@@ -23,7 +23,7 @@
 // The factors are the shared templates in cpp/core/slam/camera_projection_factors_gtsam.h.
 
 #include "camera_model.h"
-#include "camera_projection_factors_gtsam.h"
+#include "camera/camera_projection_factors_gtsam.h"
 
 namespace camera_models {
 

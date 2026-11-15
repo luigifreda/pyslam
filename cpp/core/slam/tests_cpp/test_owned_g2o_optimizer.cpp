@@ -17,7 +17,7 @@
  * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "owned_g2o_optimizer.h"
+#include "common/owned_g2o_optimizer.h"
 #include <g2o/core/block_solver.h>
 #include <g2o/core/optimization_algorithm_levenberg.h>
 #include <g2o/core/robust_kernel_impl.h>

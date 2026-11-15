@@ -26,7 +26,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "eigen_aliases.h"
+#include "common/eigen_aliases.h"
 #include "map.h"
 #include "optimizer_g2o_bind_helpers.h"
 #include "py_wrappers.h"

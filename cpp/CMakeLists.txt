@@ -16,6 +16,8 @@ set(WITH_MARCH_NATIVE ON CACHE BOOL "Build with -march=native")
 
 set(PYSLAM_ROOT ${PROJECT_SOURCE_DIR}/..)
 set(PYSLAM_SLAM_CPP_SRC ${PYSLAM_ROOT}/cpp/core/slam)
+# Parent of core/camera and core/common: headers are included as "camera/..." and "common/...".
+set(PYSLAM_CORE_CPP_SRC ${PYSLAM_ROOT}/cpp/core)
 
 # Set base optimization flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -fPIC -DNDEBUG")
@@ -326,17 +328,17 @@ add_library(color_utils_lib STATIC
 target_link_libraries(color_utils_lib PRIVATE 
     ${OpenCV_LIBS}
 )
-# Include directory for color_helpers.h
+# Include directory for common/color_helpers.h
 target_include_directories(color_utils_lib PRIVATE
-    ${PYSLAM_SLAM_CPP_SRC}
+    ${PYSLAM_CORE_CPP_SRC}
 )
 
 pybind11_add_module(color_utils 
 modules/color_utils/color_utils_module.cpp)
 target_link_libraries(color_utils PRIVATE color_utils_lib)
-# Include directory for color_helpers.h
+# Include directory for common/color_helpers.h
 target_include_directories(color_utils PRIVATE
-    ${PYSLAM_SLAM_CPP_SRC}
+    ${PYSLAM_CORE_CPP_SRC}
 )
 
 # pybind11_add_module(cv2_pyslam cv2_pyslam_module.cpp)
@@ -355,7 +357,7 @@ target_link_libraries(hamming PRIVATE)
 
 #=======================================
 # Camera models used by the Python core.
-# Formulas stay in cpp/core/slam/camera_model_math.h. The camera type lives in
+# Formulas stay in cpp/core/camera/camera_model_math.h. The camera type lives in
 # one shared library so the factor modules share its type info. g2o and gtsam
 # are separate modules: no translation unit includes both, and importing
 # camera_models does not load either optimizer library.
@@ -366,6 +368,7 @@ set(CAMERA_MODELS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/camera_models")
 add_library(camera_model_core SHARED modules/camera_models/camera_model.cpp)
 target_include_directories(camera_model_core PUBLIC
     ${CAMERA_MODELS_DIR}
+    ${PYSLAM_CORE_CPP_SRC}
     ${PYSLAM_SLAM_CPP_SRC}
     ${EIGEN3_INCLUDE_DIR}
     ${OpenCV_INCLUDE_DIRS})
@@ -382,6 +385,7 @@ endfunction()
 pybind11_add_module(camera_models modules/camera_models/camera_models_module.cpp)
 target_include_directories(camera_models PRIVATE
     ${CAMERA_MODELS_DIR}
+    ${PYSLAM_CORE_CPP_SRC}
     ${PYSLAM_SLAM_CPP_SRC}
     ${EIGEN3_INCLUDE_DIR}
     ${OpenCV_INCLUDE_DIRS})
@@ -396,6 +400,7 @@ if(CAMERA_MODELS_G2O_LIBRARIES)
     pybind11_add_module(camera_models_g2o modules/camera_models/camera_models_g2o_module.cpp)
     target_include_directories(camera_models_g2o PRIVATE
         ${CAMERA_MODELS_DIR}
+        ${PYSLAM_CORE_CPP_SRC}
         ${PYSLAM_SLAM_CPP_SRC}
         ${G2O_INCLUDE_DIRS}
         ${EIGEN3_INCLUDE_DIR}
@@ -417,6 +422,7 @@ if(GTSAM_FOUND)
     pybind11_add_module(camera_models_gtsam modules/camera_models/camera_models_gtsam_module.cpp)
     target_include_directories(camera_models_gtsam PRIVATE
         ${CAMERA_MODELS_DIR}
+        ${PYSLAM_CORE_CPP_SRC}
         ${PYSLAM_SLAM_CPP_SRC}
         ${GTSAM_INCLUDE_DIR}
         ${GTSAM_FACTORS_INCLUDE_DIRS}

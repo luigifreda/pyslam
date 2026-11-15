@@ -25,7 +25,11 @@ import trimesh
 import copy
 import os
 
-from .scene_from_views_base import SceneFromViewsBase, SceneFromViewsResult
+from .scene_from_views_base import (
+    SceneFromViewsBase,
+    SceneFromViewsResult,
+    depth_from_world_points,
+)
 from pyslam.utilities.dust3r import (
     Dust3rImagePreprocessor,
     convert_mv_output_to_geometry,
@@ -41,6 +45,39 @@ config.cfg.set_lib("mvdust3r")
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + "/../.."
+
+
+def compute_mvdust3r_view_order(n: int) -> List[int]:
+    """
+    Return the view permutation used to feed MVDust3r (reference views are moved to the
+    first positions, as in the original test script).
+
+    Returns:
+        order: list where order[k] is the input index of the view placed at position k
+    """
+    order = list(range(n))
+
+    def _swap(a, b):
+        order[a], order[b] = order[b], order[a]
+
+    if n < 12:
+        if n > 3:
+            _swap(1, 3)
+        if n > 6:
+            _swap(2, 6)
+    else:
+        _swap(1, n // 4 + 1)
+        _swap(2, (n * 2) // 4 + 1)
+        _swap(3, (n * 3) // 4 + 1)
+    return order
+
+
+def restore_view_order(items, view_order: List[int]) -> list:
+    """Put per-view items (given in the permuted order) back in the input order."""
+    restored = [None] * len(view_order)
+    for pos, input_idx in enumerate(view_order):
+        restored[input_idx] = items[pos]
+    return restored
 
 
 class SceneFromViewsMvdust3r(SceneFromViewsBase):
@@ -161,42 +198,26 @@ class SceneFromViewsMvdust3r(SceneFromViewsBase):
         """
         min_conf_thr = kwargs.get("min_conf_thr", self.min_conf_thr)
 
-        imgs_preproc = processed_images
+        # Work on shallow copies so the caller's list/dicts are not modified
+        imgs_preproc = [dict(img) for img in processed_images]
 
         # Handle single image case
         if len(imgs_preproc) == 1:
             imgs_preproc = [imgs_preproc[0], copy.deepcopy(imgs_preproc[0])]
             imgs_preproc[1]["idx"] = 1
 
-        # Rearrange images for better matching (from test file)
-        if len(imgs_preproc) < 12:
-            if len(imgs_preproc) > 3:
-                imgs_preproc[1], imgs_preproc[3] = copy.deepcopy(imgs_preproc[3]), copy.deepcopy(
-                    imgs_preproc[1]
-                )
-            if len(imgs_preproc) > 6:
-                imgs_preproc[2], imgs_preproc[6] = copy.deepcopy(imgs_preproc[6]), copy.deepcopy(
-                    imgs_preproc[2]
-                )
-        else:
-            change_id = len(imgs_preproc) // 4 + 1
-            imgs_preproc[1], imgs_preproc[change_id] = copy.deepcopy(
-                imgs_preproc[change_id]
-            ), copy.deepcopy(imgs_preproc[1])
-            change_id = (len(imgs_preproc) * 2) // 4 + 1
-            imgs_preproc[2], imgs_preproc[change_id] = copy.deepcopy(
-                imgs_preproc[change_id]
-            ), copy.deepcopy(imgs_preproc[2])
-            change_id = (len(imgs_preproc) * 3) // 4 + 1
-            imgs_preproc[3], imgs_preproc[change_id] = copy.deepcopy(
-                imgs_preproc[change_id]
-            ), copy.deepcopy(imgs_preproc[3])
+        # Rearrange images for better matching (from test file).
+        # view_order[k] = index (in imgs_preproc before reordering) of the view at position k.
+        # The outputs are put back in the input order in postprocess_results().
+        view_order = compute_mvdust3r_view_order(len(imgs_preproc))
+        imgs_preproc = [imgs_preproc[k] for k in view_order]
 
         # Run inference
         from mvdust3r.dust3r.inference import inference_mv
 
         for img in imgs_preproc:
-            img["true_shape"] = torch.from_numpy(img["true_shape"]).long()
+            if isinstance(img["true_shape"], np.ndarray):
+                img["true_shape"] = torch.from_numpy(img["true_shape"]).long()
 
         output = inference_mv(imgs_preproc, self.model, self.device, verbose=True)
 
@@ -208,6 +229,7 @@ class SceneFromViewsMvdust3r(SceneFromViewsBase):
         return {
             "output": output,
             "imgs_preproc": imgs_preproc,
+            "view_order": view_order,
             "min_conf_thr": min_conf_thr,
         }
 
@@ -235,6 +257,8 @@ class SceneFromViewsMvdust3r(SceneFromViewsBase):
         output = raw_output["output"]
         imgs_preproc = raw_output["imgs_preproc"]
         min_conf_thr = raw_output["min_conf_thr"]
+        view_order = raw_output.get("view_order", None)
+        device = self.device
 
         # Extract 3D dense map
         _, h, w = output["pred1"]["rgb"].shape[0:3]
@@ -251,7 +275,10 @@ class SceneFromViewsMvdust3r(SceneFromViewsBase):
         )
 
         conf_sorted = conf.reshape(-1).sort()[0]
-        conf_thres = conf_sorted[int(conf_sorted.shape[0] * float(min_conf_thr) * 0.01)]
+        # min_conf_thr is a percentile in [0, 100]
+        conf_idx = int(conf_sorted.shape[0] * float(min_conf_thr) * 0.01)
+        conf_idx = min(max(conf_idx, 0), conf_sorted.shape[0] - 1)
+        conf_thres = conf_sorted[conf_idx]
         msk = conf >= conf_thres
 
         # Estimate focal length
@@ -262,7 +289,7 @@ class SceneFromViewsMvdust3r(SceneFromViewsBase):
         valid_first = valid_first.reshape(h, w)
 
         focals = (
-            estimate_focal_knowing_depth(pts3d[0][None].cuda(), valid_first[None].cuda())
+            estimate_focal_knowing_depth(pts3d[0][None].to(device), valid_first[None].to(device))
             .cpu()
             .item()
         )
@@ -272,18 +299,18 @@ class SceneFromViewsMvdust3r(SceneFromViewsBase):
         intrinsics[1, 1] = focals
         intrinsics[0, 2] = w / 2
         intrinsics[1, 2] = h / 2
-        intrinsics = intrinsics.cuda()
+        intrinsics = intrinsics.to(device)
 
         # Estimate camera poses
         y_coords, x_coords = torch.meshgrid(torch.arange(h), torch.arange(w), indexing="ij")
-        pixel_coords = torch.stack([x_coords, y_coords], dim=-1).float().cuda()
+        pixel_coords = torch.stack([x_coords, y_coords], dim=-1).float().to(device)
 
         c2ws = []
         for pr_pt, valid in zip(pts3d, msk):
             c2ws_i = calibrate_camera_pnpransac(
-                pr_pt.cuda().flatten(0, 1)[None],
+                pr_pt.to(device).flatten(0, 1)[None],
                 pixel_coords.flatten(0, 1)[None],
-                valid.cuda().flatten(0, 1)[None],
+                valid.to(device).flatten(0, 1)[None],
                 intrinsics[None],
             )
             c2ws.append(c2ws_i[0])
@@ -298,17 +325,25 @@ class SceneFromViewsMvdust3r(SceneFromViewsBase):
         rgb_imgs = [to_numpy(x) for x in rgb_imgs]
         pts3d = to_numpy(pts3d)
 
+        # Put the per-view outputs back in the input order (inference used a permuted order)
+        if view_order is not None:
+            cams2world = np.stack(restore_view_order(list(cams2world), view_order))
+            msk = restore_view_order(list(msk), view_order)
+            confs = restore_view_order(confs, view_order)
+            rgb_imgs = restore_view_order(rgb_imgs, view_order)
+            pts3d = restore_view_order(list(pts3d), view_order)
+
         # Convert to geometry
         global_pc, global_mesh = convert_mv_output_to_geometry(rgb_imgs, pts3d, msk, as_pointcloud)
 
-        # Extract depth maps
+        # Extract depth maps: pts3d are in the frame of the first view, so transform them into
+        # each camera frame
         depth_predictions = []
         for i, (pts, msk_i) in enumerate(zip(pts3d, msk)):
             h_i, w_i = rgb_imgs[i].shape[:2]
-            depth = np.zeros((h_i, w_i), dtype=pts.dtype)
-            pts_reshaped = pts.reshape(h_i, w_i, 3)
-            depth[msk_i] = pts_reshaped[msk_i, 2]
-            depth_predictions.append(depth)
+            depth_predictions.append(
+                depth_from_world_points(pts.reshape(h_i, w_i, 3), cams2world[i], msk_i)
+            )
 
         # Process images
         processed_images_list = []

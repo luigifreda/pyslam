@@ -17,12 +17,12 @@
  * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "camera.h"
+#include "camera/camera.h"
 #include "frame.h"
 #include "keyframe.h"
 #include "map.h"
 #include "map_point.h"
-#include "utils/serialization_json.h"
+#include "common/serialization_json.h"
 #include "utils/test_utils.h"
 
 #include <cassert>

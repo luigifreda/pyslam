@@ -18,6 +18,7 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -27,12 +28,20 @@
 
 #include <opencv2/imgproc.hpp>
 
-#include "camera.h"
-#include "slam_direct/direct_aligner.h"
+#include "camera/camera.h"
+#include "camera/camera_models.h"
+#include "slam_direct/direct/direct_aligner.h"
+#include "slam_direct/direct/depth_filter.h"
+#include "slam_direct/direct/planar_patch.h"
+#include "slam_direct/direct/semi_direct_pose_tracker.h"
+#include "slam_direct/se3.h"
 #include "slam_direct/direct_frontend.h"
 #include "slam_direct/direct_backend.h"
-#include "utils/feature_trails.h"
-#include "slam_direct/semi_direct_tracker.h"
+#include "common/feature_trails.h"
+#include "slam_direct/features/corner_grid.h"
+#include "slam_direct/features/corner_detection.h"
+#include "slam_direct/geometry/reprojection_pose.h"
+#include "slam_direct/klt/klt_tracker.h"
 
 using namespace pyslam;
 
@@ -62,6 +71,8 @@ PinholeCamera make_camera(int width, int height, double fx, double fy, double cx
     camera.set_intrinsic_matrices();
     return camera;
 }
+
+KannalaBrandt4Camera make_fisheye(int width, int height, double fx, double fy, double cx, double cy);
 
 cv::Mat textured_image(int width, int height, double shift_x) {
     cv::Mat image(height, width, CV_8U);
@@ -132,6 +143,325 @@ void test_direct_alignment_recovers_translation() {
     require(rotation < 0.02, "direct alignment invented rotation");
 }
 
+Eigen::Matrix<double, 2, 6> pinhole_photometric_jacobian(const Camera &camera, const Vec3d &X) {
+    const double z_inv = 1.0 / X.z();
+    const double z2_inv = z_inv * z_inv;
+    const double x = X.x();
+    const double y = X.y();
+    Eigen::Matrix<double, 2, 6> J;
+    J << camera.fx * z_inv, 0.0, -camera.fx * x * z2_inv, -camera.fx * x * y * z2_inv,
+        camera.fx + camera.fx * x * x * z2_inv, -camera.fx * y * z_inv, 0.0, camera.fy * z_inv,
+        -camera.fy * y * z2_inv, -camera.fy - camera.fy * y * y * z2_inv, camera.fy * x * y * z2_inv,
+        camera.fy * x * z_inv;
+    return J;
+}
+
+void test_photometric_jacobian_matches_pinhole_and_finite_difference() {
+    PinholeCamera pinhole = make_camera(320, 240, 200.0, 210.0, 150.0, 120.0);
+    const Vec3d points[] = {Vec3d(0.2, -0.4, 3.0), Vec3d(-1.1, 0.7, 5.5), Vec3d(0.0, 0.0, 1.2)};
+    for (const Vec3d &X : points) {
+        Vec2d uv;
+        Eigen::Matrix<double, 2, 6> J;
+        require(photometric_warp_jacobian(pinhole, X, 1.0, uv, J), "pinhole warp rejected a front point");
+        require((J - pinhole_photometric_jacobian(pinhole, X)).norm() < 1e-8,
+                "photometric Jacobian does not match the pinhole closed form");
+        const auto projected = pinhole.project_point(X);
+        require((uv - projected.first).norm() < 1e-8, "pinhole warp pixel does not match project_point");
+        Vec2d uv_level;
+        Eigen::Matrix<double, 2, 6> J_level;
+        require(photometric_warp_jacobian(pinhole, X, 0.5, uv_level, J_level), "scaled warp failed");
+        require((uv_level - 0.5 * uv).norm() < 1e-8 && (J_level - 0.5 * J).norm() < 1e-8,
+                "pyramid scale did not apply to the pixel and the Jacobian");
+    }
+
+    KannalaBrandt4Camera fisheye = make_fisheye(320, 240, 180.0, 180.0, 160.0, 120.0);
+    Vec3d bearing;
+    const Vec2d pixel(220.0, 70.0);
+    require(fisheye.unproject_bearing(pixel, bearing, nullptr), "fisheye unprojection failed");
+    const Vec3d X = bearing * (2.5 / bearing.z());
+    Vec2d uv;
+    Eigen::Matrix<double, 2, 6> J;
+    require(photometric_warp_jacobian(fisheye, X, 1.0, uv, J), "fisheye warp rejected the lifted point");
+    const double eps = 1e-6;
+    for (int k = 0; k < 6; ++k) {
+        Vec6d xi = Vec6d::Zero();
+        xi[k] = eps;
+        Eigen::Isometry3d perturb = Eigen::Isometry3d::Identity();
+        left_multiply_translation_rotation(perturb, xi);
+        Vec2d uv_step;
+        Eigen::Matrix<double, 2, 6> unused;
+        require(photometric_warp_jacobian(fisheye, perturb * X, 1.0, uv_step, unused),
+                "perturbed fisheye point did not project");
+        const Vec2d numerical = (uv_step - uv) / eps;
+        require((numerical - J.col(k)).norm() < 1e-4, "fisheye photometric Jacobian failed the finite difference");
+    }
+}
+
+// Lifting a raw pixel at sensor z must reproject to that pixel, and invalid inputs are rejected.
+void test_lift_reference_point_and_warp_rejections() {
+    KannalaBrandt4Camera fisheye = make_fisheye(320, 240, 180.0, 180.0, 160.0, 120.0);
+    PinholeCamera pinhole = make_camera(320, 240, 200.0, 210.0, 150.0, 120.0);
+    const Vec2d pixels[] = {Vec2d(160.0, 120.0), Vec2d(15.0, 20.0), Vec2d(300.0, 225.0), Vec2d(220.0, 70.0)};
+    for (const Camera *camera : {static_cast<const Camera *>(&fisheye), static_cast<const Camera *>(&pinhole)}) {
+        for (const Vec2d &pixel : pixels) {
+            for (const double depth : {0.6, 2.5, 40.0}) {
+                Vec3d X;
+                require(lift_reference_point(*camera, pixel, depth, X), "lift rejected a valid pixel");
+                require(std::abs(X.z() - depth) < 1e-9, "lift did not keep camera-frame z");
+                Vec2d uv;
+                Eigen::Matrix<double, 2, 6> J;
+                require(photometric_warp_jacobian(*camera, X, 1.0, uv, J), "lifted point did not warp");
+                require((uv - pixel).norm() < 1e-6, "lifted point does not reproject to its raw pixel");
+            }
+        }
+        Vec3d X;
+        for (const double depth : {0.0, -1.0, std::numeric_limits<double>::quiet_NaN(),
+                                   std::numeric_limits<double>::infinity()}) {
+            require(!lift_reference_point(*camera, pixels[0], depth, X), "lift accepted an invalid depth");
+        }
+        Vec2d uv;
+        Eigen::Matrix<double, 2, 6> J;
+        const Vec3d front(0.1, -0.2, 2.0);
+        require(!photometric_warp_jacobian(*camera, front, 0.0, uv, J), "warp accepted a zero scale");
+        require(!photometric_warp_jacobian(*camera, front, -0.5, uv, J), "warp accepted a negative scale");
+        require(!photometric_warp_jacobian(*camera, Vec3d(0.1, 0.2, -2.0), 1.0, uv, J),
+                "warp accepted a point behind the camera");
+        require(!photometric_warp_jacobian(*camera, Vec3d(0.1, 0.2, 0.0), 1.0, uv, J),
+                "warp accepted a point on the camera plane");
+        require(!photometric_warp_jacobian(*camera, Vec3d(std::numeric_limits<double>::quiet_NaN(), 0.0, 2.0),
+                                           1.0, uv, J),
+                "warp accepted a non-finite point");
+    }
+
+    // Raw-pixel models are accepted; a distorted linear pinhole has no distortion Jacobian.
+    auto distorted = std::make_shared<PinholeCamera>(make_camera(160, 120, 100, 100, 80, 60));
+    distorted->is_distorted = true;
+    distorted->sensor_type = SensorType::RGBD;
+    bool rejected = false;
+    try { DirectSlam slam(distorted, ConfigDict()); }
+    catch (const std::invalid_argument &) { rejected = true; }
+    require(rejected, "DirectSlam accepted a distorted linear pinhole");
+}
+
+uchar sample_gray(const cv::Mat &image, double x, double y) {
+    if (x < 0.0 || y < 0.0 || x >= image.cols - 1 || y >= image.rows - 1) {
+        return 0;
+    }
+    const int x0 = static_cast<int>(std::floor(x));
+    const int y0 = static_cast<int>(std::floor(y));
+    const double xx = x - x0;
+    const double yy = y - y0;
+    const double value = (1.0 - xx) * (1.0 - yy) * image.at<uchar>(y0, x0) +
+                         xx * (1.0 - yy) * image.at<uchar>(y0, x0 + 1) +
+                         (1.0 - xx) * yy * image.at<uchar>(y0 + 1, x0) +
+                         xx * yy * image.at<uchar>(y0 + 1, x0 + 1);
+    return static_cast<uchar>(std::lround(std::max(0.0, std::min(255.0, value))));
+}
+
+// A fronto-parallel plane, inverse-warped through the fisheye model, must be recovered
+// from the raw pixels. One coarse pyramid level is included.
+void check_kannala_brandt_direct_alignment(const Eigen::Isometry3d &expected, const char *label) {
+    KannalaBrandt4Camera camera = make_fisheye(160, 120, 140.0, 140.0, 80.0, 60.0);
+    const double depth = 2.0;
+    const Eigen::Isometry3d T_ref_cur = expected.inverse();
+    const cv::Mat reference = textured_image(160, 120, 0.0);
+    cv::Mat current(120, 160, CV_8U, cv::Scalar(0));
+    for (int y = 0; y < current.rows; ++y) {
+        for (int x = 0; x < current.cols; ++x) {
+            Vec3d bearing;
+            if (!camera.unproject_bearing(Vec2d(x, y), bearing, nullptr) || !(bearing.z() > 1e-3)) {
+                continue;
+            }
+            const double denom = (T_ref_cur.linear() * bearing).z();
+            if (!(std::abs(denom) > 1e-8)) {
+                continue;
+            }
+            const double ray = (depth - T_ref_cur.translation().z()) / denom;
+            if (!(ray > 0.0)) {
+                continue;
+            }
+            const Vec3d X_ref = T_ref_cur * (ray * bearing);
+            const auto uv = camera.project_point(X_ref);
+            if (!std::isfinite(uv.first.x()) || !std::isfinite(uv.first.y())) {
+                continue;
+            }
+            current.at<uchar>(y, x) = sample_gray(reference, uv.first.x(), uv.first.y());
+        }
+    }
+
+    std::vector<Vec2d> pixels;
+    std::vector<double> depths;
+    for (int y = 28; y < 92; y += 6) {
+        for (int x = 28; x < 132; x += 6) {
+            pixels.emplace_back(x, y);
+            depths.push_back(depth);
+        }
+    }
+    DirectSlamParams params;
+    params.num_iterations = 15;
+    params.eps_convergence = 1e-4;
+    params.num_pyramid_levels = 2;
+    params.pyramid_scale = 0.5;
+    params.half_patch_size = 1;
+    const DirectAlignmentResult result = align_direct_multilayer(
+        camera, params, reference, current, pixels, depths, Eigen::Isometry3d::Identity());
+    const Eigen::Isometry3d error = result.T_cur_ref * expected.inverse();
+    if (result.inliers <= 40 || error.translation().norm() >= 0.01 ||
+        Eigen::AngleAxisd(error.linear()).angle() >= 0.004) {
+        throw std::runtime_error(std::string("fisheye direct alignment failed: ") + label);
+    }
+}
+
+void test_kannala_brandt_direct_alignment() {
+    Eigen::Isometry3d translation = Eigen::Isometry3d::Identity();
+    translation.translation() = Vec3d(0.04, -0.01, 0.0);
+    check_kannala_brandt_direct_alignment(translation, "translation");
+    // Rotation exercises the rotational Jacobian columns through the distortion model.
+    Eigen::Isometry3d rotation = translation;
+    rotation.linear() = Eigen::AngleAxisd(0.015, Vec3d(0.2, 1.0, 0.1).normalized()).toRotationMatrix();
+    check_kannala_brandt_direct_alignment(rotation, "rotation");
+}
+
+void test_grid_fast_spreads_corners() {
+    const int width = 80;
+    const int height = 60;
+    cv::Mat image(height, width, CV_8U, cv::Scalar(0));
+    for (int row = 0; row < 2; ++row) {
+        for (int col = 0; col < 2; ++col) {
+            const int x = col * 40 + 16;
+            const int y = row * 30 + 11;
+            image(cv::Rect(x, y, 8, 8)).setTo(255);
+        }
+    }
+    CornerGridRequest request;
+    request.num_features = 4;
+    request.grid_cols = 2;
+    request.grid_rows = 2;
+    request.fast_threshold = 10;
+    // Axis-aligned square corners have tied FAST scores that suppress each other.
+    request.nonmax_suppression = false;
+    request.border = 0;
+    request.refine_subpixel = false;
+    const std::vector<Vec2d> corners = detect_grid_fast(image, request);
+    std::array<int, 4> counts = {0, 0, 0, 0};
+    for (const Vec2d &corner : corners) {
+        const int bin = (corner.x() >= 40 ? 1 : 0) + (corner.y() >= 30 ? 2 : 0);
+        ++counts[bin];
+    }
+    for (int count : counts) {
+        require(count >= 1, "grid FAST left a cell without a corner");
+    }
+
+    cv::Mat allowed(image.size(), CV_8U, cv::Scalar(255));
+    allowed(cv::Rect(0, 0, 40, 30)).setTo(0);
+    request.cells = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
+    const std::vector<Vec2d> masked = detect_grid_fast(image, request, allowed);
+    for (const Vec2d &corner : masked) {
+        require(!(corner.x() < 40.0 && corner.y() < 30.0), "grid FAST kept a corner in a masked cell");
+    }
+    require(!masked.empty(), "grid FAST removed every unmasked cell");
+
+    // num_features is a hard cap, for the full grid and for an explicit cell list,
+    // and sub-pixel refinement must not move a corner into the masked region.
+    // Smoothed noise has many isolated FAST corners in every cell.
+    cv::Mat busy(120, 160, CV_8U);
+    cv::RNG rng(7);
+    rng.fill(busy, cv::RNG::UNIFORM, 0, 256);
+    cv::GaussianBlur(busy, busy, cv::Size(5, 5), 1.0);
+    CornerGridRequest capped;
+    capped.grid_cols = 5;
+    capped.grid_rows = 5;
+    capped.refine_subpixel = true;
+    capped.border = 6;
+    for (int budget : {1, 3, 7, 10, 24, 40}) {
+        capped.num_features = budget;
+        capped.cells.clear();
+        // Every cell has corners, so the budget is filled exactly, not exceeded.
+        require(int(detect_grid_fast(busy, capped).size()) == budget, "grid FAST did not return num_features");
+        capped.cells = {{0, 0}, {1, 1}, {2, 2}, {3, 3}, {4, 4}};
+        require(int(detect_grid_fast(busy, capped).size()) <= budget,
+                "grid FAST exceeded num_features for explicit cells");
+    }
+    capped.cells.clear();
+    capped.num_features = 200;
+    cv::Mat half(busy.size(), CV_8U, cv::Scalar(255));
+    half.colRange(0, 80).setTo(0);
+    const std::vector<Vec2d> refined = detect_grid_fast(busy, capped, half);
+    require(refined.size() > 20, "grid FAST found too few corners on textured input");
+    for (const Vec2d &corner : refined) {
+        const int x = int(std::lround(corner.x()));
+        const int y = int(std::lround(corner.y()));
+        require(x >= 80 && x >= capped.border && y >= capped.border && x < busy.cols - capped.border &&
+                    y < busy.rows - capped.border,
+                "refined grid FAST corner left the allowed region");
+    }
+
+    ConfigDict config;
+    config["corner_detector"] = "grid_fast";
+    config["grid_cols"] = 6;
+    config["grid_rows"] = 3;
+    config["fast_threshold"] = 12;
+    const DirectSlamParams params = DirectSlamParams::from_config(config);
+    require(params.corner_detector == CornerDetector::GridFast && params.grid_cols == 6 &&
+                params.grid_rows == 3 && params.fast_threshold == 12,
+            "grid FAST settings were not parsed");
+}
+
+// Both detectors must treat a malformed occupancy mask the same way regardless of the
+// border, and a border too large for the image is clamped for mask and corners alike.
+void test_detect_corners_mask_consistency() {
+    cv::Mat gray(120, 160, CV_8U);
+    cv::RNG rng(11);
+    rng.fill(gray, cv::RNG::UNIFORM, 0, 256);
+    cv::GaussianBlur(gray, gray, cv::Size(5, 5), 1.0);
+    const cv::Mat wrong_size(10, 10, CV_8U, cv::Scalar(0));
+    for (const CornerDetector detector : {CornerDetector::GridFast, CornerDetector::Gftt}) {
+        for (const int border : {0, 8}) {
+            DirectSlamParams params;
+            params.corner_detector = detector;
+            params.num_features = 60;
+            params.border = border;
+            const auto plain = detect_corners(gray, params, cv::Mat(), 0);
+            const auto ignored = detect_corners(gray, params, wrong_size, 0);
+            require(!plain.empty(), "detect_corners found no corners");
+            require(plain.size() == ignored.size(), "a malformed occupancy mask changed detection");
+        }
+        DirectSlamParams params;
+        params.corner_detector = detector;
+        params.num_features = 60;
+        params.border = 1000; // Clamped to min(rows, cols) / 4 = 30.
+        const auto clamped = detect_corners(gray, params, cv::Mat(), 0);
+        require(!clamped.empty(), "an oversized border removed every corner");
+        for (const Vec2d &corner : clamped) {
+            require(corner.x() >= 29.5 && corner.y() >= 29.5 && corner.x() < 130.5 && corner.y() < 90.5,
+                    "corner inside the clamped border");
+        }
+    }
+}
+
+// The landmark -> observer index used by local BA follows insertion and reset.
+void test_direct_map_observer_index() {
+    DirectMap map;
+    for (int id = 0; id < 3; ++id) {
+        DirectKeyframe keyframe;
+        keyframe.id = id;
+        for (int64_t landmark : {int64_t(5), int64_t(10 + id)}) {
+            DirectPoint obs;
+            obs.id = landmark;
+            keyframe.points.push_back(obs);
+        }
+        keyframe.points.push_back(keyframe.points.front()); // Duplicate observation.
+        map.add_keyframe(std::move(keyframe));
+    }
+    const std::vector<int> *shared = map.observers(5);
+    require(shared && *shared == std::vector<int>({0, 1, 2}), "shared landmark observers are wrong");
+    const std::vector<int> *single = map.observers(11);
+    require(single && *single == std::vector<int>({1}), "single landmark observers are wrong");
+    require(map.observers(99) == nullptr, "unknown landmark has observers");
+    map.clear();
+    require(map.observers(5) == nullptr, "clear() kept the observer index");
+}
+
 // Exercise the full corner -> LK -> reprojection path with a known metric displacement.
 void test_lk_and_geometric_pose() {
     const int width = 320;
@@ -171,7 +501,7 @@ void test_lk_and_geometric_pose() {
     std::cout << "LK tracks " << dx.size() << " median dx " << median_dx << std::endl;
     require(std::abs(median_dx - shift) < 1.5, "LK displacement is not the image shift");
 
-    const SemiDirectPoseResult pose =
+    const ReprojectionPoseResult pose =
         estimate_pose_reprojection(camera, observations, Eigen::Isometry3d::Identity(), params);
     const double expected_tx = static_cast<double>(shift) * depth / fx;
     const Vec3d translation = pose.T_cur_ref.translation();
@@ -193,7 +523,7 @@ void test_frontend_direct_on_rgbd() {
     auto camera = std::make_shared<PinholeCamera>(make_camera(width, height, fx, fx, 80.0, 60.0));
     camera->sensor_type = SensorType::RGBD;
     ConfigDict config;
-    config["mode"] = "direct";
+    config["mode"] = "hybrid";
     config["num_features"] = 150;
     config["gftt_quality"] = 0.001;
     config["gftt_min_distance"] = 6.0;
@@ -322,14 +652,28 @@ void test_rgbd_depth_units_and_invalid_samples() {
 // Cover both settings formats and fail early on unsupported sensor input.
 void test_configuration_and_missing_depth() {
     ConfigDict flat;
-    flat["DIRECT_SLAM.mode"] = "direct";
+    flat["DIRECT_SLAM.mode"] = "hybrid";
     flat["DIRECT_SLAM.num_features"] = 123;
     const auto params = DirectSlamParams::from_config(flat);
-    require(params.mode == DirectTrackingMode::Direct && params.num_features == 123,
+    require(params.mode == DirectTrackingMode::Hybrid && params.num_features == 123 &&
+                params.mode_name() == "hybrid",
             "flattened camera settings were not parsed");
+    // Deprecated mode names still load older settings files.
+    ConfigDict legacy;
+    legacy["DIRECT_SLAM.mode"] = std::string("semi_direct");
+    require(DirectSlamParams::from_config(legacy).mode == DirectTrackingMode::SemiDirect &&
+                DirectSlamParams::from_config(legacy).mode_name() == "semi_direct",
+            "semi_direct mode was not parsed");
+    legacy["DIRECT_SLAM.mode"] = std::string("semidirect");
+    require(DirectSlamParams::from_config(legacy).mode == DirectTrackingMode::SemiDirect,
+            "semidirect alias was not parsed");
+    legacy["DIRECT_SLAM.mode"] = std::string("direct");
+    require(DirectSlamParams::from_config(legacy).mode == DirectTrackingMode::Hybrid,
+            "legacy direct mode alias was rejected");
+    require(DirectSlamParams::from_config(ConfigDict()).mode_name() == "klt", "default tracking mode is not klt");
     ConfigDict nested;
     ConfigDict block;
-    block["mode"] = "direct";
+    block["mode"] = "hybrid";
     block["num_features"] = 123;
     nested["DIRECT_SLAM"] = Value(static_cast<Dict>(block));
     require(DirectSlamParams::from_config(nested).num_features == 123, "nested settings were not parsed");
@@ -448,6 +792,45 @@ void test_ba_window_and_empty_graph() {
                 "BA modified an inactive keyframe or the oldest active anchor");
 }
 
+// Landmarks remain shared with archived cameras after the active window slides.
+// Recent biased measurements must not move them without those fixed constraints.
+void test_ba_preserves_archived_observations() {
+    auto camera = make_camera(320, 240, 200, 200, 160, 120);
+    auto map = synthetic_ba_map(camera, true, false);
+    for (int j = 0; j < 60; ++j)
+        map.landmarks_mutable().at(j).position_w =
+            Vec3d((j % 10 - 5) * 0.16, (j / 10 - 3) * 0.14, 3.0 + 0.07 * (j % 7));
+    for (auto &kf : map.keyframes_mutable()) {
+        Eigen::Isometry3d pose = Eigen::Isometry3d::Identity();
+        pose.translation().x() = -0.12 * kf.id;
+        kf.pose = CameraPose(pose);
+        for (auto &obs : kf.points) {
+            const Vec3d Xc = pose * map.landmarks().at(obs.id).position_w;
+            obs.uv = camera.project_point(Xc).first;
+            if (kf.id >= 2) obs.uv.x() += 1.0;
+            obs.depth = Xc.z();
+        }
+    }
+    DirectSlamParams params;
+    params.num_active_keyframes = 2;
+    params.ba_iterations = 20;
+    const auto result = optimize_direct_map(map, camera, params);
+    require(result.applied, "boundary-observation BA did not apply");
+    double archived_squared_error = 0.0;
+    int count = 0;
+    for (int i = 0; i < 2; ++i) {
+        const auto &kf = map.keyframes()[i];
+        for (const auto &obs : kf.points) {
+            const Vec3d Xc = kf.pose.Tcw().block<3, 3>(0, 0) *
+                                map.landmarks().at(obs.id).position_w + kf.pose.tcw();
+            archived_squared_error += (camera.project_point(Xc).first - obs.uv).squaredNorm();
+            ++count;
+        }
+    }
+    require(std::sqrt(archived_squared_error / count) < 0.75,
+            "sliding-window BA ignored archived observations of shared landmarks");
+}
+
 // Reject gauges that remain free despite one fixed pose; failed solves must be transactional.
 void test_ba_rejects_unobservable_graphs() {
     auto camera = make_camera(320, 240, 200, 200, 160, 120);
@@ -522,6 +905,181 @@ void test_frontend_applies_backend_updates() {
     require(slam.map().landmarks().empty() && !slam.last_ba().applied, "reset retained backend state");
 }
 
+// A loop-closure pose update moves the referenced landmark and trajectory, and leaves other keyframes fixed.
+void test_apply_keyframe_poses() {
+    auto camera = std::make_shared<PinholeCamera>(make_camera(320, 240, 200, 200, 160, 120));
+    camera->sensor_type = SensorType::RGBD;
+    ConfigDict config;
+    config["local_ba"] = false;
+    config["max_keyframe_interval"] = 1;
+    config["num_features_needed_for_keyframe"] = 100000;
+    DirectSlam slam(camera, config);
+    cv::Mat image = checkerboard(320, 240, 16, 0);
+    cv::Mat depth(240, 320, CV_32F, cv::Scalar(4));
+    slam.track(image, cv::Mat(), depth, 0, 0.0);
+    cv::Mat shifted;
+    const cv::Mat transform = (cv::Mat_<double>(2, 3) << 1, 0, 6, 0, 1, 0);
+    cv::warpAffine(image, shifted, transform, image.size());
+    slam.track(shifted, cv::Mat(), depth, 1, 0.1);
+    require(slam.map().keyframes().size() == 2, "pose correction test did not create two keyframes");
+    require(!slam.map().landmarks().empty(), "pose correction test created no landmarks");
+
+    const auto fixed_pose = slam.map().keyframes()[1].pose.Tcw();
+    const auto fixed_trajectory = slam.map().trajectory()[1].Tcw;
+    std::vector<Eigen::Matrix4d> invalid = {Eigen::Matrix4d::Identity(), Eigen::Matrix4d::Identity()};
+    invalid[0](0, 0) = std::numeric_limits<double>::quiet_NaN();
+    bool rejected = false;
+    try {
+        slam.apply_keyframe_poses(invalid);
+    } catch (const std::invalid_argument &) {
+        rejected = true;
+    }
+    require(rejected, "a non-finite keyframe pose was accepted");
+    rejected = false;
+    try {
+        slam.apply_keyframe_poses({Eigen::Matrix4d::Identity()});
+    } catch (const std::invalid_argument &) {
+        rejected = true;
+    }
+    require(rejected, "a short pose list was accepted");
+    require((slam.map().keyframes()[1].pose.Tcw() - fixed_pose).norm() < 1e-12,
+            "a rejected pose update changed a keyframe");
+
+    int64_t moved_id = -1;
+    Vec3d moved_before = Vec3d::Zero();
+    for (const auto &observation : slam.map().keyframes()[0].points) {
+        if (observation.outlier) continue;
+        moved_id = observation.id;
+        moved_before = slam.map().landmarks().at(observation.id).position_w;
+        break;
+    }
+    require(moved_id >= 0, "the first keyframe has no inlier landmark to correct");
+    int64_t fixed_id = -1;
+    Vec3d fixed_before = Vec3d::Zero();
+    for (const auto &observation : slam.map().keyframes()[1].points) {
+        bool seen_earlier = false;
+        for (const auto &earlier : slam.map().keyframes()[0].points)
+            seen_earlier = seen_earlier || earlier.id == observation.id;
+        if (seen_earlier || observation.outlier) continue;
+        fixed_id = observation.id;
+        fixed_before = slam.map().landmarks().at(observation.id).position_w;
+        break;
+    }
+
+    const Eigen::Matrix4d old_pose = slam.map().keyframes()[0].pose.Tcw();
+    Eigen::Matrix4d moved_pose = old_pose;
+    moved_pose(0, 3) += 1.0;
+    slam.apply_keyframe_poses({moved_pose, fixed_pose});
+    Eigen::Vector4d homogeneous;
+    homogeneous << moved_before, 1.0;
+    const Vec3d expected = (moved_pose.inverse() * old_pose * homogeneous).head<3>();
+    require((slam.map().landmarks().at(moved_id).position_w - expected).norm() < 1e-8,
+            "the reference keyframe pose change did not move its landmark");
+    if (fixed_id >= 0) {
+        require((slam.map().landmarks().at(fixed_id).position_w - fixed_before).norm() < 1e-8,
+                "a landmark anchored to the fixed keyframe moved");
+    }
+    require((slam.map().keyframes()[1].pose.Tcw() - fixed_pose).norm() < 1e-12,
+            "pose correction changed the unrelated keyframe");
+    require((slam.map().keyframes()[0].pose.Tcw() - moved_pose).norm() < 1e-12,
+            "pose correction did not store the updated keyframe pose");
+    require((slam.map().trajectory()[0].Tcw - moved_pose).norm() < 1e-8,
+            "the trajectory entry referencing the moved keyframe was not corrected");
+    require((slam.map().trajectory()[1].Tcw - fixed_trajectory).norm() < 1e-8,
+            "the trajectory entry referencing the fixed keyframe moved");
+    require((slam.pose().Tcw() - slam.map().trajectory().back().Tcw).norm() < 1e-12,
+            "tracking pose was not refreshed from the corrected trajectory");
+    for (const auto &point : slam.live_points()) {
+        require((point.position_w - slam.map().landmarks().at(point.id).position_w).norm() < 1e-12,
+                "live tracking retained a stale landmark after pose correction");
+    }
+}
+
+KannalaBrandt4Camera make_fisheye(int width, int height, double fx, double fy, double cx, double cy) {
+    return KannalaBrandt4Camera(width, height, fx, fy, cx, cy, 0.15, 0.02, -0.01, 0.005);
+}
+
+// Raw Kannala-Brandt images are valid in both modes. Depth lifting must reproject to the
+// detected pixel, and off-axis points use ray length.
+void test_kannala_brandt_klt() {
+    auto camera = std::make_shared<KannalaBrandt4Camera>(make_fisheye(320, 240, 120, 120, 160, 120));
+    camera->sensor_type = SensorType::RGBD;
+    ConfigDict direct_config;
+    direct_config["mode"] = "hybrid";
+    DirectSlam direct_slam(camera, direct_config);
+    require(direct_slam.params().mode == DirectTrackingMode::Hybrid,
+            "hybrid mode rejected a Kannala-Brandt camera");
+
+    const double z = 0.45;
+    ConfigDict config;
+    config["mode"] = "klt";
+    config["local_ba"] = false;
+    config["num_features"] = 200;
+    config["num_features_tracking"] = 8;
+    config["num_features_tracking_bad"] = 3;
+    config["num_features_needed_for_keyframe"] = 10000;
+    config["corner_detector"] = "gftt";
+    config["gftt_quality"] = 0.001;
+    config["gftt_min_distance"] = 10.0;
+    config["border"] = 12;
+    DirectSlam slam(camera, config);
+    slam.track(checkerboard(320, 240, 16, 0), cv::Mat(), cv::Mat(240, 320, CV_32F, cv::Scalar(static_cast<float>(z))),
+               0, 0.0);
+    require(!slam.live_points().empty(), "Kannala-Brandt RGBD initialization found no points");
+    int wider_than_pinhole = 0;
+    for (const auto &point : slam.live_points()) {
+        const auto projected = camera->project_point(point.position_w);
+        require(std::abs(projected.second - z) < 1e-6, "lifted optical-axis depth is not the sensor z");
+        require((projected.first - point.uv).norm() < 1e-4, "lifted point does not reproject to its raw pixel");
+        require(point.position_w.norm() > 0.5, "ray-length gate kept a point closer than 0.5 m");
+        const Vec3d pinhole((point.uv.x() - camera->cx) / camera->fx * z,
+                            (point.uv.y() - camera->cy) / camera->fy * z, z);
+        if ((point.position_w - pinhole).norm() > 1e-2) {
+            ++wider_than_pinhole;
+        }
+    }
+    require(wider_than_pinhole > 0, "fisheye lift matched the pinhole back-projection");
+
+    KannalaBrandt4Camera pose_camera = make_fisheye(640, 480, 250, 250, 320, 240);
+    Eigen::Isometry3d expected = Eigen::Isometry3d::Identity();
+    expected.linear() = Eigen::AngleAxisd(0.04, Vec3d::UnitY()).toRotationMatrix();
+    expected.translation() = Vec3d(0.12, -0.02, 0.08);
+    std::vector<PoseObservation> observations;
+    int count = 0;
+    int outliers = 0;
+    for (int y = 80; y < 400; y += 28) {
+        for (int x = 80; x < 560; x += 28) {
+            const double depth = 3.0 + (count % 5);
+            Vec3d bearing;
+            const Vec2d pixel(x, y);
+            if (!pose_camera.unproject_bearing(pixel, bearing, nullptr) || !(bearing.z() > 0.2)) {
+                continue;
+            }
+            const Vec3d X = bearing * (depth / bearing.z());
+            const auto projected = pose_camera.project_point(expected * X);
+            if (!std::isfinite(projected.first.x()) || projected.first.x() < 20 || projected.first.y() < 20 ||
+                projected.first.x() >= 620 || projected.first.y() >= 460) {
+                continue;
+            }
+            Vec2d uv = projected.first;
+            if (count % 4 == 0) {
+                uv += Vec2d(40, -30);
+                ++outliers;
+            }
+            observations.push_back({X, uv});
+            ++count;
+        }
+    }
+    require(observations.size() >= 20, "fisheye pose test did not produce enough observations");
+    Eigen::Isometry3d prediction = Eigen::Isometry3d::Identity();
+    prediction.translation() = Vec3d(-0.4, 0.2, 0.3);
+    const auto result = estimate_pose_reprojection(pose_camera, observations, prediction, DirectSlamParams());
+    require((result.T_cur_ref.matrix() - expected.matrix()).norm() < 1e-2,
+            "fisheye pose did not recover from outliers and a bad prediction");
+    require(result.inliers == static_cast<int>(observations.size()) - outliers,
+            "fisheye inlier mask dropped a valid raw-pixel observation");
+}
+
 // Compare the direct overlay with the same drawing primitive used by sparse-SLAM Frame.
 void test_shared_feature_trail_style() {
     const auto camera = std::make_shared<PinholeCamera>(make_camera(320, 240, 200, 200, 160, 120));
@@ -547,22 +1105,561 @@ void test_shared_feature_trail_style() {
     }
 }
 
+float sample_test_image(const cv::Mat &img, float x, float y) {
+    x = std::clamp(x, 0.0f, static_cast<float>(img.cols - 2));
+    y = std::clamp(y, 0.0f, static_cast<float>(img.rows - 2));
+    const int x0 = static_cast<int>(x);
+    const int y0 = static_cast<int>(y);
+    const float fx = x - static_cast<float>(x0);
+    const float fy = y - static_cast<float>(y0);
+    const float i00 = static_cast<float>(img.at<uchar>(y0, x0));
+    const float i10 = static_cast<float>(img.at<uchar>(y0, x0 + 1));
+    const float i01 = static_cast<float>(img.at<uchar>(y0 + 1, x0));
+    const float i11 = static_cast<float>(img.at<uchar>(y0 + 1, x0 + 1));
+    return (1.0f - fx) * (1.0f - fy) * i00 + fx * (1.0f - fy) * i10 + (1.0f - fx) * fy * i01 + fx * fy * i11;
+}
+
+// Render the current view of a fronto-parallel plane at `depth` in the reference camera.
+cv::Mat render_plane(const Camera &camera, const cv::Mat &reference, double depth,
+                     const Eigen::Isometry3d &T_cur_ref) {
+    cv::Mat image(reference.rows, reference.cols, CV_8U, cv::Scalar(0));
+    const Eigen::Isometry3d T_ref_cur = T_cur_ref.inverse();
+    for (int y = 0; y < image.rows; ++y) {
+        for (int x = 0; x < image.cols; ++x) {
+            const Vec2d pixel(static_cast<double>(x), static_cast<double>(y));
+            Vec3d bearing = Vec3d::Zero();
+            if (!camera.unproject_bearing(pixel, bearing, nullptr) || !(bearing.z() > 1e-8)) {
+                continue;
+            }
+            const Vec3d ray = bearing / bearing.z();
+            const double denominator = (T_ref_cur.linear().row(2) * ray)(0);
+            if (std::abs(denominator) < 1e-8) {
+                continue;
+            }
+            const double z_cur = (depth - T_ref_cur.translation().z()) / denominator;
+            if (!(z_cur > 0.1)) {
+                continue;
+            }
+            const Vec2d uv = camera.project_point(T_ref_cur * (ray * z_cur)).first;
+            if (!uv.allFinite() || uv.x() < 1.0 || uv.y() < 1.0 || uv.x() >= reference.cols - 2 ||
+                uv.y() >= reference.rows - 2) {
+                continue;
+            }
+            image.at<uchar>(y, x) = static_cast<uchar>(std::lround(sample_test_image(reference, static_cast<float>(uv.x()),
+                                                                                     static_cast<float>(uv.y()))));
+        }
+    }
+    return image;
+}
+
+void test_planar_patch_pose_and_feature_shift() {
+    const int width = 160;
+    const int height = 120;
+    const double depth = 4.0;
+    PinholeCamera camera = make_camera(width, height, 120.0, 120.0, 80.0, 60.0);
+    cv::Mat reference(height, width, CV_8U);
+    cv::RNG rng(7);
+    rng.fill(reference, cv::RNG::UNIFORM, 0, 255);
+    cv::GaussianBlur(reference, reference, cv::Size(5, 5), 1.2);
+    Eigen::Isometry3d expected = Eigen::Isometry3d::Identity();
+    expected.linear() = Eigen::AngleAxisd(0.08, Vec3d::UnitY()).toRotationMatrix();
+    expected.translation() = Vec3d(0.05, -0.02, 0.0);
+    const cv::Mat current = render_plane(camera, reference, depth, expected);
+    std::vector<Vec2d> pixels;
+    std::vector<double> depths;
+    for (int y = 24; y < height - 24; y += 10) {
+        for (int x = 24; x < width - 24; x += 10) {
+            pixels.emplace_back(x, y);
+            depths.push_back(depth);
+        }
+    }
+    DirectSlamParams params;
+    params.feature_half_patch = 2;
+    params.num_iterations = 15;
+    params.num_pyramid_levels = 4;
+    params.half_patch_size = 2;
+    const PlanarPoseResult planar =
+        align_planar_patch_pose(camera, params, reference, current, pixels, depths, Eigen::Isometry3d::Identity());
+    const DirectAlignmentResult windowed =
+        align_direct_multilayer(camera, params, reference, current, pixels, depths, Eigen::Isometry3d::Identity());
+    const double planar_error = (planar.T_cur_ref.matrix() - expected.matrix()).norm();
+    const double window_error = (windowed.T_cur_ref.matrix() - expected.matrix()).norm();
+    std::cout << "planar pose error " << planar_error << " window error " << window_error << " inliers "
+              << planar.inliers << std::endl;
+    require(planar_error < 0.05, "planar patch did not recover the rotated pose");
+    require(window_error > planar_error * 2.0, "flat 2D window matched the planar patch on a rotation");
+
+    cv::Mat shifted;
+    cv::Mat affine = (cv::Mat_<double>(2, 3) << 1, 0, 1.5, 0, 1, -0.75);
+    cv::warpAffine(reference, shifted, affine, reference.size(), cv::INTER_LINEAR, cv::BORDER_REPLICATE);
+    const PatchOffsetResult offsets = align_planar_patch_offsets(
+        camera, params, reference, shifted, pixels, depths, Eigen::Isometry3d::Identity());
+    std::vector<double> du;
+    std::vector<double> dv;
+    for (size_t i = 0; i < pixels.size(); ++i) {
+        if (!offsets.status[i]) {
+            continue;
+        }
+        du.push_back(offsets.pixels_cur[i].x() - pixels[i].x());
+        dv.push_back(offsets.pixels_cur[i].y() - pixels[i].y());
+    }
+    require(du.size() > pixels.size() / 2, "feature alignment kept too few patches");
+    std::sort(du.begin(), du.end());
+    std::sort(dv.begin(), dv.end());
+    require(std::abs(du[du.size() / 2] - 1.5) < 0.35, "feature alignment missed the horizontal shift");
+    require(std::abs(dv[dv.size() / 2] + 0.75) < 0.35, "feature alignment missed the vertical shift");
+}
+
+void test_inverse_depth_filter() {
+    InverseDepthBelief near_measurement;
+    near_measurement.mu = 0.25;
+    near_measurement.sigma2 = 0.01;
+    near_measurement.a = 10.0;
+    near_measurement.b = 10.0;
+    require(fuse_inverse_depth(near_measurement, 0.26, 1e-4, 0.5, 80.0), "near inverse-depth update failed");
+    require(near_measurement.sigma2 < 0.003, "a nearby inverse-depth measurement did not shrink the variance");
+
+    InverseDepthBelief far_measurement;
+    far_measurement.mu = 0.25;
+    far_measurement.sigma2 = 0.01;
+    far_measurement.a = 10.0;
+    far_measurement.b = 10.0;
+    require(fuse_inverse_depth(far_measurement, 1.8, 0.01, 0.5, 80.0), "far inverse-depth update failed");
+    require(far_measurement.sigma2 > 0.008, "an outlier inverse-depth measurement collapsed the variance");
+
+    const int width = 160;
+    const int height = 120;
+    const double truth = 4.0;
+    PinholeCamera camera = make_camera(width, height, 140.0, 140.0, 80.0, 60.0);
+    cv::Mat reference(height, width, CV_8U);
+    cv::RNG rng(11);
+    rng.fill(reference, cv::RNG::UNIFORM, 0, 255);
+    cv::GaussianBlur(reference, reference, cv::Size(5, 5), 1.0);
+    Eigen::Isometry3d motion = Eigen::Isometry3d::Identity();
+    motion.translation() = Vec3d(0.25, 0.0, 0.0);
+    const cv::Mat current = render_plane(camera, reference, truth, motion);
+    DirectSlamParams params;
+    params.feature_half_patch = 2;
+    params.seed_min_depth = 1.0;
+    params.seed_max_depth = 20.0;
+    params.intensity_inlier_threshold = 40.0;
+    DepthSeed seed;
+    seed.pixel = Vec2d(80.0, 60.0);
+    seed.belief = make_inverse_depth_prior(params.seed_min_depth, params.seed_max_depth);
+    const InverseDepthBelief before = seed.belief;
+    EpipolarMatch missed = match_seed_on_epipolar_line(camera, params, reference, cv::Mat(height, width, CV_8U, cv::Scalar(0)),
+                                                       seed.pixel, seed.belief.mu, seed.belief.sigma2, motion);
+    missed.searched = true;
+    missed.matched = false;
+    require(observe_seed(seed, missed, params.seed_min_depth, params.seed_max_depth) == SeedObservation::Failed,
+            "a blank frame was treated as a depth match");
+    // SVO: a searched segment without a match is one outlier vote (b += 1). The depth
+    // estimate itself is untouched.
+    require(seed.failures == 1 && seed.belief.mu == before.mu && seed.belief.sigma2 == before.sigma2 &&
+                seed.belief.a == before.a && seed.belief.b == before.b + 1.0,
+            "a failed epipolar match must only add one outlier vote to the belief");
+    EpipolarMatch skipped;
+    require(observe_seed(seed, skipped, params.seed_min_depth, params.seed_max_depth) == SeedObservation::Skipped &&
+                seed.belief.b == before.b + 1.0 && seed.failures == 1,
+            "an unsearched seed was modified");
+
+    seed.failures = 0;
+    seed.belief = before;
+    const EpipolarMatch found = match_seed_on_epipolar_line(camera, params, reference, current, seed.pixel,
+                                                            seed.belief.mu, seed.belief.sigma2, motion);
+    require(found.matched, "epipolar search missed the translated plane");
+    std::cout << "epipolar depth " << found.depth << " truth " << truth << " sigma_inv "
+              << std::sqrt(found.inverse_variance) << std::endl;
+    // Subpixel refinement along the segment: well under the one-sample spacing.
+    require(std::abs(found.depth - truth) < 0.15, "epipolar search depth is far from the plane");
+    // The measurement variance is SVO's one-pixel tau, not the sample spacing.
+    const double expected_tau = depth_uncertainty_one_pixel(camera, motion, seed.pixel, found.depth,
+                                                            2.0 * std::atan(1.0 / (2.0 * camera.fx)));
+    const double expected_sigma =
+        0.5 * (1.0 / (found.depth - expected_tau) - 1.0 / (found.depth + expected_tau));
+    require(std::abs(std::sqrt(found.inverse_variance) - expected_sigma) < 1e-9 * (1.0 + expected_sigma),
+            "epipolar measurement variance is not the SVO one-pixel tau");
+    require(observe_seed(seed, found, params.seed_min_depth, params.seed_max_depth) == SeedObservation::Updated,
+            "a matched seed was not updated");
+    require(std::abs(seed.belief.mu - 1.0 / truth) < std::abs(before.mu - 1.0 / truth),
+            "the seed did not move toward the true inverse depth");
+}
+
+void test_semi_direct_stereo_and_monocular() {
+    const int width = 160;
+    const int height = 120;
+    const double fx = 100.0;
+    const double depth = 2.5;
+    const double shift = 6.0;
+    auto camera = std::make_shared<PinholeCamera>(make_camera(width, height, fx, fx, 80.0, 60.0));
+    camera->sensor_type = SensorType::RGBD;
+    ConfigDict config;
+    config["mode"] = "semi_direct";
+    config["num_features"] = 80;
+    config["num_features_tracking"] = 8;
+    config["num_features_tracking_bad"] = 3;
+    config["num_features_needed_for_keyframe"] = 10000;
+    config["local_ba"] = false;
+    config["feature_half_patch"] = 2;
+    config["num_iterations"] = 12;
+    DirectSlam slam(camera, config);
+    const cv::Mat reference = checkerboard(width, height, 12, 0);
+    const cv::Mat current = checkerboard(width, height, 12, static_cast<int>(shift));
+    cv::Mat depth_image(height, width, CV_32F, cv::Scalar(static_cast<float>(depth)));
+    slam.track(reference, cv::Mat(), depth_image, 0, 0.0);
+    slam.track(current, cv::Mat(), depth_image, 1, 1.0);
+    const double expected_tx = shift * depth / fx;
+    std::cout << "semi-direct tx " << slam.pose().tcw().x() << " expected " << expected_tx << " status "
+              << slam.status_name() << " inliers " << slam.last_inliers() << std::endl;
+    require(slam.status() == DirectTrackingStatus::Good || slam.status() == DirectTrackingStatus::Bad,
+            "semi-direct stereo tracking lost the second frame");
+    require(std::abs(slam.pose().tcw().x() - expected_tx) < 0.08, "semi-direct stereo translation is wrong");
+
+    auto mono = std::make_shared<PinholeCamera>(make_camera(width, height, 140.0, 140.0, 80.0, 60.0));
+    mono->sensor_type = SensorType::MONOCULAR;
+    bool rejected = false;
+    try {
+        ConfigDict klt;
+        klt["mode"] = "klt";
+        DirectSlam rejected_slam(mono, klt);
+        (void)rejected_slam;
+    } catch (const std::invalid_argument &) {
+        rejected = true;
+    }
+    require(rejected, "klt accepted a monocular camera");
+    rejected = false;
+    try {
+        ConfigDict hybrid;
+        hybrid["mode"] = "hybrid";
+        DirectSlam rejected_slam(mono, hybrid);
+        (void)rejected_slam;
+    } catch (const std::invalid_argument &) {
+        rejected = true;
+    }
+    require(rejected, "hybrid accepted a monocular camera");
+
+    ConfigDict mono_config;
+    mono_config["mode"] = "semi_direct";
+    mono_config["corner_detector"] = "gftt";
+    mono_config["num_features"] = 60;
+    mono_config["gftt_quality"] = 0.001;
+    mono_config["gftt_min_distance"] = 8.0;
+    mono_config["num_features_tracking"] = 6;
+    mono_config["num_features_tracking_bad"] = 5;
+    mono_config["num_features_needed_for_keyframe"] = 10000;
+    mono_config["max_keyframe_interval"] = 1000;
+    mono_config["seed_min_depth"] = 2.0;
+    mono_config["seed_max_depth"] = 8.0;
+    mono_config["seed_convergence_sigma2"] = 1e-3;
+    mono_config["feature_half_patch"] = 2;
+    mono_config["num_iterations"] = 12;
+    mono_config["local_ba"] = true;
+    DirectSlam mono_slam(mono, mono_config);
+    cv::Mat mono_ref(height, width, CV_8U);
+    cv::RNG mono_rng(19);
+    mono_rng.fill(mono_ref, cv::RNG::UNIFORM, 0, 255);
+    cv::GaussianBlur(mono_ref, mono_ref, cv::Size(5, 5), 1.2);
+    mono_slam.track(mono_ref, cv::Mat(), cv::Mat(), 0, 0.0);
+    require(mono_slam.status() == DirectTrackingStatus::Init, "monocular semi-direct left INIT on the first frame");
+    require(mono_slam.map().keyframes().size() == 1, "monocular initialization did not store the reference");
+    for (int step = 1; step <= 6 && mono_slam.status() == DirectTrackingStatus::Init; ++step) {
+        Eigen::Isometry3d motion = Eigen::Isometry3d::Identity();
+        motion.translation() = Vec3d(0.12 * step, 0.0, 0.0);
+        const cv::Mat mono_cur = render_plane(*mono, mono_ref, 4.0, motion);
+        mono_slam.track(mono_cur, cv::Mat(), cv::Mat(), step, static_cast<double>(step));
+    }
+    std::cout << "mono status " << mono_slam.status_name() << " inliers " << mono_slam.last_inliers()
+              << " ba " << mono_slam.last_ba().applied << std::endl;
+    require(mono_slam.status() == DirectTrackingStatus::Good || mono_slam.status() == DirectTrackingStatus::Bad,
+            "monocular semi-direct did not leave INIT after the depth filter");
+    require(mono_slam.last_ba().applied, "monocular local BA did not apply the inverse-depth prior");
+}
+
+// Verbatim transcription of rpg_svo DepthFilter::updateSeed (Forster et al. 2014),
+// with z_range the width of the uniform outlier density.
+void svo_reference_update(double x, double tau2, double z_range, InverseDepthBelief &seed) {
+    const double norm_scale = std::sqrt(seed.sigma2 + tau2);
+    const double pdf = std::exp(-0.5 * (x - seed.mu) * (x - seed.mu) / (norm_scale * norm_scale)) /
+                       (norm_scale * std::sqrt(2.0 * M_PI));
+    const double s2 = 1.0 / (1.0 / seed.sigma2 + 1.0 / tau2);
+    const double m = s2 * (seed.mu / seed.sigma2 + x / tau2);
+    double C1 = seed.a / (seed.a + seed.b) * pdf;
+    double C2 = seed.b / (seed.a + seed.b) * 1.0 / z_range;
+    const double normalization_constant = C1 + C2;
+    C1 /= normalization_constant;
+    C2 /= normalization_constant;
+    const double f = C1 * (seed.a + 1.0) / (seed.a + seed.b + 1.0) + C2 * seed.a / (seed.a + seed.b + 1.0);
+    const double e = C1 * (seed.a + 1.0) * (seed.a + 2.0) / ((seed.a + seed.b + 1.0) * (seed.a + seed.b + 2.0)) +
+                     C2 * seed.a * (seed.a + 1.0) / ((seed.a + seed.b + 1.0) * (seed.a + seed.b + 2.0));
+    const double mu_new = C1 * m + C2 * seed.mu;
+    seed.sigma2 = C1 * (s2 + m * m) + C2 * (seed.sigma2 + seed.mu * seed.mu) - mu_new * mu_new;
+    seed.mu = mu_new;
+    seed.a = (e - f) / (f - e / f);
+    seed.b = seed.a * (1.0 - f) / f;
+}
+
+// The fused Gaussian x Beta posterior must equal SVO's update, measurement by measurement.
+void test_depth_filter_matches_svo_update() {
+    const double near_m = 0.5;
+    const double far_m = 80.0;
+    const double z_range = 1.0 / near_m - 1.0 / far_m;
+    InverseDepthBelief ours = make_inverse_depth_prior(near_m, far_m);
+    InverseDepthBelief svo = ours;
+    require(std::abs(ours.sigma2 - z_range * z_range / 36.0) < 1e-12, "prior variance is not z_range^2 / 36");
+    // Inliers around 1/3 m^-1 with one gross outlier in the middle.
+    const std::vector<std::pair<double, double>> measurements = {
+        {0.34, 1e-3}, {0.33, 1e-3}, {1.70, 1e-3}, {0.335, 5e-4}, {0.332, 2e-4},
+        {0.334, 2e-4}, {0.333, 2e-4}, {0.331, 2e-4}, {0.335, 2e-4}, {0.333, 2e-4}};
+    for (const auto &[x, tau2] : measurements) {
+        require(fuse_inverse_depth(ours, x, tau2, near_m, far_m), "inverse-depth fusion failed");
+        svo_reference_update(x, tau2, z_range, svo);
+        require(std::abs(ours.mu - svo.mu) < 1e-9 && std::abs(ours.sigma2 - svo.sigma2) < 1e-12 &&
+                    std::abs(ours.a - svo.a) < 1e-7 && std::abs(ours.b - svo.b) < 1e-7,
+                "inverse-depth fusion diverged from the SVO update");
+    }
+    require(std::abs(ours.mu - 1.0 / 3.0) < 0.01, "fused seed did not converge to the inlier depth");
+    require(ours.sigma2 < 1e-4, "fused seed did not converge");
+
+    // SVO starts a seed at the scene depth; out-of-range scene depths are clamped.
+    require(std::abs(make_inverse_depth_prior(near_m, far_m, 4.0).mu - 0.25) < 1e-12,
+            "prior mean ignores the scene depth");
+    require(std::abs(make_inverse_depth_prior(near_m, far_m, 0.1).mu - 1.0 / near_m) < 1e-12,
+            "prior mean was not clamped to the near limit");
+    require(make_inverse_depth_prior(near_m, far_m, 4.0).sigma2 == make_inverse_depth_prior(near_m, far_m).sigma2,
+            "scene depth changed the prior variance");
+
+    // Repeated misses drive the outlier ratio up until the seed expires.
+    DepthSeed seed;
+    seed.belief = make_inverse_depth_prior(near_m, far_m);
+    EpipolarMatch miss;
+    miss.searched = true;
+    int votes = 0;
+    while (!seed_expired(seed, make_inverse_depth_prior(near_m, far_m).sigma2) && votes < 100) {
+        observe_seed(seed, miss, near_m, far_m);
+        ++votes;
+    }
+    require(votes > 0 && votes <= 20, "a seed without matches did not expire");
+}
+
+// computeTau: shifting the depth by tau moves the current projection by about one pixel.
+void test_svo_one_pixel_tau() {
+    PinholeCamera camera = make_camera(640, 480, 500.0, 500.0, 320.0, 240.0);
+    const double angle = 2.0 * std::atan(1.0 / (2.0 * camera.fx));
+    for (const Vec3d &baseline : {Vec3d(0.2, 0.0, 0.0), Vec3d(0.1, 0.05, 0.1)}) {
+        Eigen::Isometry3d T_cur_ref = Eigen::Isometry3d::Identity();
+        T_cur_ref.translation() = -baseline; // current camera center at +baseline in the reference frame
+        for (const Vec2d &pixel : {Vec2d(320.0, 240.0), Vec2d(150.0, 380.0)}) {
+            for (double depth : {1.0, 4.0, 12.0}) {
+                const double tau = depth_uncertainty_one_pixel(camera, T_cur_ref, pixel, depth, angle);
+                require(tau > 0.0, "one-pixel tau was not positive");
+                Vec3d X = Vec3d::Zero();
+                Vec3d X_plus = Vec3d::Zero();
+                require(lift_reference_point(camera, pixel, depth, X) &&
+                            lift_reference_point(camera, pixel, depth + tau, X_plus),
+                        "tau test lift failed");
+                // SVO's tau is exact in angle: the current-frame rays to z and z + tau differ
+                // by px_error_angle. In pixels this is one pixel at the principal point.
+                const Vec3d ray = (T_cur_ref * X).normalized();
+                const Vec3d ray_plus = (T_cur_ref * X_plus).normalized();
+                const double seen = std::acos(std::clamp(ray.dot(ray_plus), -1.0, 1.0));
+                require(std::abs(seen - angle) < 1e-3 * angle, "depth + tau does not subtend the pixel angle");
+                if (pixel == Vec2d(320.0, 240.0)) {
+                    const double shift = (camera.project_point(T_cur_ref * X_plus).first -
+                                          camera.project_point(T_cur_ref * X).first).norm();
+                    require(shift > 0.9 && shift < 1.1, "depth + tau did not move a central projection by one pixel");
+                }
+            }
+        }
+    }
+    Eigen::Isometry3d no_baseline = Eigen::Isometry3d::Identity();
+    require(depth_uncertainty_one_pixel(camera, no_baseline, Vec2d(320.0, 240.0), 3.0, angle) < 0.0,
+            "tau without baseline must be reported as degenerate");
+}
+
+// A seed promoted after a newer keyframe keeps uv_ref on its own (older) keyframe.
+// Tracking must sample the latest keyframe image at the landmark's projection, not at uv_ref.
+void test_semi_direct_tracks_points_from_older_keyframes() {
+    const int width = 160;
+    const int height = 120;
+    const double depth = 3.0;
+    auto camera = std::make_shared<PinholeCamera>(make_camera(width, height, 120.0, 120.0, 80.0, 60.0));
+    camera->sensor_type = SensorType::RGBD;
+    DirectSlamParams params;
+    params.mode = DirectTrackingMode::SemiDirect;
+    params.feature_half_patch = 2;
+    params.num_iterations = 12;
+    params.num_features_tracking_bad = 5;
+    cv::Mat kf0_image(height, width, CV_8U);
+    cv::RNG rng(23);
+    rng.fill(kf0_image, cv::RNG::UNIFORM, 0, 255);
+    cv::GaussianBlur(kf0_image, kf0_image, cv::Size(5, 5), 1.2);
+    // Keyframe 1 sits 0.15 m to the right (about 6 px of image motion), the current frame
+    // another 0.05 m.
+    Eigen::Isometry3d T_kf1_w = Eigen::Isometry3d::Identity();
+    T_kf1_w.translation() = Vec3d(-0.15, 0.0, 0.0);
+    Eigen::Isometry3d T_cur_w = Eigen::Isometry3d::Identity();
+    T_cur_w.translation() = Vec3d(-0.20, 0.0, 0.0);
+    const cv::Mat kf1_image = render_plane(*camera, kf0_image, depth, T_kf1_w);
+    const cv::Mat cur_image = render_plane(*camera, kf0_image, depth, T_cur_w);
+
+    DirectMap map;
+    DirectKeyframe kf0;
+    kf0.id = 0;
+    kf0.img_id = 0;
+    kf0.pose = CameraPose(Eigen::Isometry3d::Identity());
+    kf0.gray = kf0_image.clone();
+    map.add_keyframe(kf0);
+    DirectKeyframe kf1;
+    kf1.id = 1;
+    kf1.img_id = 5;
+    kf1.pose = CameraPose(T_kf1_w);
+    kf1.gray = kf1_image.clone();
+    map.add_keyframe(kf1);
+
+    std::vector<LivePoint> points;
+    for (int y = 24; y < height - 24; y += 12) {
+        for (int x = 30; x < width - 30; x += 12) {
+            LivePoint point;
+            point.id = static_cast<int64_t>(points.size());
+            point.uv_ref = Vec2d(x, y); // measured on keyframe 0
+            point.reference_keyframe = 0;
+            Vec3d X = Vec3d::Zero();
+            require(lift_reference_point(*camera, point.uv_ref, depth, X), "lift failed");
+            point.position_w = X;
+            point.uv = camera->project_point(T_kf1_w * X).first;
+            points.push_back(point);
+        }
+    }
+    SemiDirectPoseTracker tracker(camera, params);
+    const cv::Mat empty;
+    const TrackingFrame frame{cur_image, empty, empty, 6};
+    const TrackingInput input{frame, kf1_image, points, map, T_kf1_w, T_kf1_w};
+    const TrackingResult result = tracker.track(input);
+    require(result.accepted, "semi-direct rejected landmarks anchored on an older keyframe");
+    int accurate = 0;
+    for (size_t i = 0; i < points.size(); ++i) {
+        if (!result.tracked_ok[i]) continue;
+        const Vec2d truth = camera->project_point(T_cur_w * points[i].position_w).first;
+        if ((result.tracked_uv[i] - truth).norm() < 0.5) ++accurate;
+    }
+    std::cout << "older-keyframe points tracked accurately " << accurate << "/" << points.size()
+              << " tx " << result.T_cur_w.translation().x() << std::endl;
+    require(accurate > static_cast<int>(points.size()) * 3 / 5, "older-keyframe points were tracked off target");
+    require((result.T_cur_w.translation() - T_cur_w.translation()).norm() < 0.01,
+            "pose from older-keyframe points is wrong");
+}
+
+// Monocular bootstrap: a few early promotions must not replace the seeds as pose support,
+// and bootstrap ends once enough landmarks were promoted over several frames.
+void test_semi_direct_bootstrap_with_gradual_promotion() {
+    const int width = 160;
+    const int height = 120;
+    auto camera = std::make_shared<PinholeCamera>(make_camera(width, height, 140.0, 140.0, 80.0, 60.0));
+    camera->sensor_type = SensorType::MONOCULAR;
+    DirectSlamParams params;
+    params.mode = DirectTrackingMode::SemiDirect;
+    params.corner_detector = CornerDetector::Gftt;
+    params.num_features = 60;
+    params.gftt_quality = 0.001;
+    params.gftt_min_distance = 8.0;
+    params.num_features_tracking_bad = 5;
+    params.seed_min_depth = 2.0;
+    params.seed_max_depth = 8.0;
+    params.feature_half_patch = 2;
+    params.num_iterations = 12;
+    cv::Mat reference(height, width, CV_8U);
+    cv::RNG rng(19);
+    rng.fill(reference, cv::RNG::UNIFORM, 0, 255);
+    cv::GaussianBlur(reference, reference, cv::Size(5, 5), 1.2);
+
+    DirectMap map;
+    DirectKeyframe kf0;
+    kf0.id = 0;
+    kf0.pose = CameraPose(Eigen::Isometry3d::Identity());
+    kf0.gray = reference.clone();
+    map.add_keyframe(kf0);
+    std::vector<LivePoint> live;
+    int64_t next_id = 0;
+    TrackerMapState state{map, live, next_id};
+    SemiDirectPoseTracker tracker(camera, params);
+    const cv::Mat empty;
+    const TrackingFrame first{reference, empty, empty, 0};
+    require(tracker.start_monocular(first, 0, state) > params.num_features_tracking_bad,
+            "monocular start found too few seeds");
+    require(tracker.in_bootstrap(), "monocular start did not enter bootstrap");
+
+    // Two landmarks were promoted early: fewer than the six a pose needs on their own.
+    for (int i = 0; i < 2; ++i) {
+        LivePoint point;
+        point.id = next_id++;
+        point.uv_ref = Vec2d(40.0 + 60.0 * i, 60.0);
+        point.reference_keyframe = 0;
+        require(lift_reference_point(*camera, point.uv_ref, 5.0, point.position_w), "lift failed");
+        point.uv = point.uv_ref;
+        live.push_back(point);
+    }
+    Eigen::Isometry3d motion = Eigen::Isometry3d::Identity();
+    motion.translation() = Vec3d(0.02, 0.0, 0.0);
+    const cv::Mat current = render_plane(*camera, reference, 5.0, motion);
+    const TrackingFrame frame{current, empty, empty, 1};
+    const Eigen::Isometry3d identity = Eigen::Isometry3d::Identity();
+    const TrackingResult result = tracker.track(TrackingInput{frame, reference, live, map, identity, identity});
+    require(result.accepted, "bootstrap tracking dropped the seeds after an early promotion");
+    require(result.inliers > static_cast<int>(live.size()), "seeds did not support the bootstrap pose");
+
+    // Promotions accumulate: once enough landmarks exist, bootstrap ends even if this frame
+    // promoted none.
+    while (static_cast<int>(live.size()) <= params.num_features_tracking_bad) {
+        LivePoint point = live.back();
+        point.id = next_id++;
+        live.push_back(point);
+    }
+    const AcceptOutcome outcome = tracker.after_accept(frame, result.T_cur_w, state);
+    require(outcome.bootstrap_finished && outcome.force_keyframe && !tracker.in_bootstrap(),
+            "bootstrap did not end after cumulative promotions");
+}
+
 } // namespace
 
-int main() {
+int main(int argc, char **argv) {
     try {
+        if (argc > 1 && std::string(argv[1]) == "--grid-only") {
+            test_grid_fast_spreads_corners();
+            std::cout << "grid FAST tests passed" << std::endl;
+            return 0;
+        }
         test_local_bundle_adjustment();
         test_ba_window_and_empty_graph();
+        test_ba_preserves_archived_observations();
         test_ba_rejects_unobservable_graphs();
         test_frontend_applies_backend_updates();
+        test_apply_keyframe_poses();
+        test_direct_map_observer_index();
+        if (argc > 1 && std::string(argv[1]) == "--backend-only") {
+            std::cout << "direct backend tests passed" << std::endl;
+            return 0;
+        }
         test_shared_feature_trail_style();
         test_rgbd_depth_units_and_invalid_samples();
         test_configuration_and_missing_depth();
         test_pose_with_outliers_and_bad_prediction();
+        test_kannala_brandt_klt();
         test_stereo_frontend_loss_and_reset();
         test_direct_alignment_recovers_translation();
+        test_photometric_jacobian_matches_pinhole_and_finite_difference();
+        test_lift_reference_point_and_warp_rejections();
+        test_kannala_brandt_direct_alignment();
+        test_grid_fast_spreads_corners();
+        test_detect_corners_mask_consistency();
         test_lk_and_geometric_pose();
         test_frontend_direct_on_rgbd();
+        test_planar_patch_pose_and_feature_shift();
+        test_inverse_depth_filter();
+        test_depth_filter_matches_svo_update();
+        test_svo_one_pixel_tau();
+        test_semi_direct_tracks_points_from_older_keyframes();
+        test_semi_direct_bootstrap_with_gradual_promotion();
+        test_semi_direct_stereo_and_monocular();
     } catch (const std::exception &error) {
         std::cerr << "test_direct_slam failed: " << error.what() << std::endl;
         return 1;

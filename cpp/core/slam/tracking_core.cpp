@@ -9,11 +9,11 @@
 #include "config_parameters.h"
 #include "frame.h"
 #include "map_point.h"
-#include "smart_pointers.h"
+#include "common/smart_pointers.h"
 #include "utils/cv_ops.h"
 #include "utils/geom_2views.h"
 #include "utils/image_processing.h"
-#include "utils/messages.h"
+#include "common/messages.h"
 
 // Add this helper function in tracking_core.cpp (or as an inline function in a header)
 namespace {

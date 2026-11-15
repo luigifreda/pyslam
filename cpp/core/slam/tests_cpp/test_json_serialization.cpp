@@ -24,7 +24,7 @@
 #include <vector>
 
 // Include project header (path is from this file under repo root)
-#include "utils/serialization_json.h"
+#include "common/serialization_json.h"
 
 using pyslam::cv_depth_to_numpy_dtype;
 using pyslam::cv_mat_to_json;

@@ -19,13 +19,17 @@
 
 #pragma once
 
-#include "camera.h"
+#include "camera/camera.h"
 #include "slam_direct/direct_map.h"
 #include "slam_direct/direct_backend.h"
 #include "slam_direct/direct_params.h"
-#include "smart_pointers.h"
+#include "slam_direct/geometry/monocular_initializer.h"
+#include "slam_direct/live_point.h"
+#include "slam_direct/pose_tracker.h"
+#include "common/smart_pointers.h"
 
 #include <opencv2/core.hpp>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -34,16 +38,10 @@ namespace pyslam {
 
 enum class DirectTrackingStatus { Init = 0, Good = 1, Bad = 2, Lost = 3 };
 
-// A point carried from the last accepted image (which may precede tracking failures). position_w is in the world frame.
-struct LivePoint {
-    int64_t id = -1;
-    Vec2d uv = Vec2d::Zero();
-    Vec3d position_w = Vec3d::Zero();
-    std::vector<cv::Point> trail; // Newest first, capped at 64 accepted observations.
-    int observations = 0;
-};
-
-// Owns the frontend and synchronous local BA; track() consumes one stereo/RGBD input frame.
+// Owns the frontend and synchronous local BA; track() consumes one input frame.
+// The mode-specific pose estimation lives in a PoseTracker (see pose_tracker.h);
+// DirectSlam keeps what all modes share: initialization from sensor depth, the
+// accept/reject decision, live points, keyframes and local BA.
 class DirectSlam {
   public:
     DirectSlam(CameraPtr camera, const ConfigDict &config);
@@ -54,6 +52,9 @@ class DirectSlam {
     void reset();
     // A manual solve is allowed even when automatic local_ba is disabled.
     DirectBAResult bundle_adjustment();
+    // Replace archived keyframe poses and carry landmarks and the trajectory with them.
+    // One finite Tcw is required per archived keyframe, in insertion order.
+    void apply_keyframe_poses(const std::vector<Eigen::Matrix4d> &Tcw);
     const DirectBAResult &last_ba() const { return last_ba_; }
     cv::Mat draw_feature_trails(const cv::Mat &image, bool with_level_radius = false,
                                 int trail_max_length = 16) const;
@@ -71,16 +72,25 @@ class DirectSlam {
                                          const cv::Mat &depth) const;
     void initialize(const cv::Mat &gray, const cv::Mat &gray_right, const cv::Mat &depth, int img_id,
                     double timestamp);
+    // Two keyframes (reference at the identity, current frame) from an accepted two-view geometry.
+    void initialize_monocular_map(const cv::Mat &gray, int img_id, double timestamp,
+                                  const MonocularInitResult &init);
     void record_keyframe(const cv::Mat &gray, const cv::Mat &gray_right, const cv::Mat &depth,
                          int img_id, double timestamp, const Eigen::Isometry3d &Tcw);
     void set_status_from_inliers(int inliers);
+    // Copy the corrected trajectory, motion seed and live landmarks back to the tracker.
+    void refresh_tracking_state_from_map();
     std::vector<LivePoint> points_from_camera(const std::vector<DirectPoint> &points,
                                               const Eigen::Isometry3d &Tcw);
     void supplement_live_points(const cv::Mat &gray, const cv::Mat &gray_right, const cv::Mat &depth,
                                 const Eigen::Isometry3d &Tcw, int img_id, double timestamp);
+    void note_tracking_failure(int inliers);
+    TrackerMapState map_state() { return TrackerMapState{map_, live_points_, next_point_id_}; }
 
     CameraPtr camera_;
     DirectSlamParams params_;
+    std::unique_ptr<PoseTracker> tracker_; // klt, hybrid or semi_direct pose estimation.
+    std::unique_ptr<MonocularInitializer> mono_init_; // Monocular input only.
     DirectMap map_;
     DirectTrackingStatus status_ = DirectTrackingStatus::Init;
     CameraPose current_pose_; // Accepted world-to-camera transform Tcw.

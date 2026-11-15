@@ -28,7 +28,7 @@
 #include "feature_shared_resources.h"
 #include "semantic_fusion_methods.h"
 #include "semantic_mapping_shared_resources.h"
-#include "utils/messages.h"
+#include "common/messages.h"
 
 #include "config_parameters.h"
 

@@ -19,9 +19,9 @@
 
 #pragma once
 
-#include "eigen_aliases.h"
+#include "common/eigen_aliases.h"
 #include "semantic_types.h"
-#include "utils/descriptor_helpers.h"
+#include "common/descriptor_helpers.h"
 #include <opencv2/opencv.hpp>
 
 #include <vector>

@@ -1,6 +1,6 @@
 <p align="center"><img src="./images/pyslam-logo.png" height="160"></p>
 
-# pySLAM v2.11.0
+# pySLAM v2.12.0
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -13,6 +13,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as *DeepLabv3*, *Segformer*, *CLIP*, *DETIC*, *EOV-SEG*, *ODISE*, *RFDETR*, *YOLO*, etc.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
 - A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between _high-performance/speed_ and _high-flexibility_ modes. The Python and C++ implementations are interoperable: maps saved by one can be loaded by the other. Further details [here](cpp/core/slam/README.md).
+- A C++ **[direct and semi-direct SLAM](docs/direct_slam.md)** pipeline (`main_direct_slam.py`) with three tracking modes: *KLT* tracks, *hybrid* sparse photometric alignment, and an *SVO*-style **semi-direct** mode with a Bayesian inverse-depth filter. It supports **stereo** and **RGBD** input, plus **monocular** in semi-direct mode, with local bundle adjustment and, for stereo and RGBD, the same loop closing as the sparse pipeline. Further details [here](docs/direct_slam.md).
 - A modular pipeline for **feed-forward inference of 3D scenes from multiple images**. Supports models like *DUSt3R*, *Mast3r*, *MV-DUSt3R*, *VGGT*, *Robust VGGT*, *DepthFromAnythingV3*, and *Fast3R*. Further details [here](pyslam/scene_from_views/README.md).
 - Built-in support for over **[10 dataset types](#datasets)**.
   
@@ -52,7 +53,7 @@ See the demo **video** for release v2.10.0
 
 <!-- TOC -->
 
-- [pySLAM v2.11.0](#pyslam-v2110)
+- [pySLAM v2.12.0](#pyslam-v2120)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
@@ -140,10 +141,12 @@ See the demo **video** for release v2.10.0
 ```bash
 ├── cpp
 │   ├── modules          # utility extensions: hamming, glutils, solvers, volumetric, camera_models, ...
-│   ├── casters          # shared OpenCV pybind11 type casters
+│   ├── casters          # shared pybind11 type casters (OpenCV, nlohmann json, Dict/List)
 │   ├── core
+│   │   ├── camera       # C++ camera models, projection math, rig geometry, camera g2o/gtsam edges
+│   │   ├── common       # shared C++ headers (Eigen aliases, smart pointers, serialization, drawing)
 │   │   ├── slam         # sparse-SLAM C++ core, exposed as the cpp_core module
-│   │   ├── slam_direct  # direct/semi-direct frontend and local BA, also in cpp_core
+│   │   ├── slam_direct  # direct SLAM frontend (klt/hybrid/semi_direct) and local BA, also in cpp_core
 │   │   └── semantics    # semantic-mapping sources compiled into cpp_core
 │   └── lib              # built Python extension modules
 ├── data                 # Sample input/output data
@@ -174,7 +177,7 @@ See the demo **video** for release v2.10.0
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing, dense mapping and depth inference in order to estimate the camera trajectory and build both a sparse and dense map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline.
 
-* `main_direct_slam.py` runs the C++ direct/semi-direct frontend with GFTT/LK tracking, optional sparse photometric alignment, and local bundle adjustment of shared landmarks and keyframe poses. It requires stereo or RGBD input with an undistorted pinhole left camera and reuses the standard 3D viewer and tracked-feature drawing. It does not include loop closure or dense/semantic mapping. See the [direct and semi-direct SLAM guide](./docs/direct_slam.md) for modes, parameters, architecture diagrams, and trajectory export.
+* `main_direct_slam.py` runs the C++ direct-SLAM frontend (`klt` or `hybrid` tracking) with grid FAST or GFTT corners, pyramidal Lucas-Kanade tracking, optional sparse photometric alignment, and local bundle adjustment of shared landmarks and keyframe poses. It requires stereo or RGBD input and accepts an undistorted pinhole or a raw-pixel camera, including native TUM-VI. Images are not undistorted. It reuses the standard 3D viewer and tracked-feature drawing. When `Parameters.kUseLoopClosing` is enabled, it also runs the standard `LoopClosing` thread on separately extracted descriptor keyframes and writes the corrected poses back into the direct map; `--no-loop-closing` skips that thread. Dense and semantic mapping are not included. See the [direct-SLAM guide](./docs/direct_slam.md) for modes, parameters, architecture diagrams, and trajectory export.
 
 * `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features. 
 
@@ -342,7 +345,7 @@ Similarly, you can test the **full SLAM** by running `main_slam.py`:
 
 This will process the same default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by clicking on one of the open windows and pressing the key 'Q' or closing the 3D Pangolin GUI. 
 
-For **direct or semi-direct SLAM**, select a stereo or RGBD dataset and matching undistorted pinhole camera settings in `config.yaml`, build `cpp_core` with `./build_cpp_core.sh`, then run:
+For **direct SLAM**, select a stereo or RGBD dataset and matching camera settings in `config.yaml`, build `cpp_core` with `./build_cpp_core.sh`, then run. All three modes run on an undistorted pinhole or a raw-pixel model such as native TUM-VI:
 
 ```bash
 python main_direct_slam.py -c config.yaml
@@ -350,7 +353,7 @@ python main_direct_slam.py -c config.yaml
 python main_direct_slam.py -c config.yaml --headless --max-frames 100
 ```
 
-`DIRECT_SLAM.mode` selects `semi_direct` or `direct`; `--mode` overrides it for a run. Local BA is enabled by default and `--no-local-ba` disables automatic solves. Details and configuration comments are in the [direct-SLAM guide](./docs/direct_slam.md) and [C++ component README](./cpp/core/slam_direct/README.md).
+`DIRECT_SLAM.mode` selects `klt` (Lucas-Kanade tracks + reprojection-error pose), `hybrid` (`klt` plus sparse photometric refinement and fallback), or `semi_direct` (planar-patch alignment, per-feature alignment, and inverse-depth seeds estimated with the SVO depth filter). `--mode` overrides it for a run. `direct` remains an alias of `hybrid`. "Direct" in the pipeline name means that tracking correspondences come from intensity-based alignment rather than descriptors; the `klt` pose itself is geometric, and `semi_direct` is the SVO-style mode (see the [guide](./docs/direct_slam.md#direct-slam-klt-hybrid-and-semi-direct-tracking)). `klt` and `hybrid` need stereo or RGBD. Monocular input is accepted only for `semi_direct`, and that case skips loop closing. Local BA is enabled by default and `--no-local-ba` disables automatic solves. Loop closing otherwise follows `Parameters.kUseLoopClosing` (enabled by default) and `--no-loop-closing` skips it. Details and configuration comments are in the [direct-SLAM guide](./docs/direct_slam.md) and [C++ component README](./cpp/core/slam_direct/README.md).
 
 --- 
 
@@ -649,7 +652,7 @@ While this may be self-evident, it is important to keep in mind that when `USE_C
 - The Python implementation of the sparse SLAM core is effectively bypassed, and any modifications to it will have no effect at runtime.
 - All functional changes to the sparse SLAM C++ codebase must be rebuilt using `./build_cpp_core.sh` (as explained above) in order to take effect.
 
-See [here](./cpp/core/slam/README.md) for further details.
+The camera classes (`cpp/core/camera`) and the headers shared by the C++ components (`cpp/core/common`) live outside `cpp/core/slam` and are compiled into the same `cpp_core` module. See [here](./cpp/core/slam/README.md) for further details, and the [camera](./cpp/core/camera/README.md) and [common](./cpp/core/common/README.md) READMEs for those folders.
 
 ---
 
@@ -1272,7 +1275,7 @@ Many improvements and additional features are currently under development:
 - [x] GTSAM integration [WIP]
 - [ ] IMU integration
 - [ ] LIDAR integration
-- [ ] Integration of direct methods in the tracker
+- [x] Integration of direct methods in the tracker
 - [x] XSt3r-based methods integration [WIP]
 - [x] Evaluation scripts 
 - [x] Additional camera models and native/rectified TUM-VI stereo (see [camera models](./cpp/modules/camera_models/README.md) and [TUM-VI](./docs/tum-vi.md))

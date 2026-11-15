@@ -33,8 +33,8 @@
 #include <gtsam/inference/Symbol.h>
 #include <gtsam_factors/weighted_projection_factors.h>
 
-#include "camera_factors_gtsam.h"
-#include "camera_models.h"
+#include "camera/camera_factors_gtsam.h"
+#include "camera/camera_models.h"
 
 using namespace pyslam;
 

@@ -19,24 +19,44 @@
 
 #pragma once
 
-#include "dictionary.h"
+#include "common/dictionary.h"
 
 #include <string>
 
 namespace pyslam {
 
-enum class DirectTrackingMode { SemiDirect = 0, Direct = 1 };
+// Klt: pyramidal LK tracks + reprojection-error pose (geometric, descriptor-free).
+// Hybrid: Klt, then sparse photometric refinement and photometric fallback.
+// SemiDirect: planar-patch photometric pose, per-feature alignment, then reprojection.
+enum class DirectTrackingMode { Klt = 0, Hybrid = 1, SemiDirect = 2 };
+
+// gftt: one global Shi-Tomasi extraction. grid_fast: FAST in a regular cell grid.
+enum class CornerDetector { Gftt = 0, GridFast = 1 };
 
 // Parameters for both frontends. A ConfigDict may be the DIRECT_SLAM block
 // itself, or a camera settings dict that contains that block.
 struct DirectSlamParams {
-    // Tracking strategy (both modes use measured stereo/RGBD depth).
-    // Tracking mode: semi_direct uses LK + geometry; direct adds photometric refinement/fallback.
-    DirectTrackingMode mode = DirectTrackingMode::SemiDirect;
+    // Tracking mode: klt uses LK + geometry; hybrid adds photometric refinement/fallback.
+    // semi_direct aligns fronto-parallel patches, then refines each feature and runs the depth filter.
+    // klt and hybrid require stereo or RGBD. semi_direct also accepts a monocular camera.
+    DirectTrackingMode mode = DirectTrackingMode::Klt;
 
-    // Corner detection and live-track replenishment.
-    // Maximum GFTT corners per detection; also the target live-track count when replenishing.
+    // Shared: corner detection and live-track replenishment (features/).
+    // gftt or grid_fast. grid_fast spreads FAST corners across a cell grid.
+    CornerDetector corner_detector = CornerDetector::GridFast;
+    // Maximum corners per detection; also the target live-track count when replenishing.
     int num_features = 200;
+    // Grid FAST cell count. Reduced, keeping this aspect ratio, when it exceeds num_features.
+    int grid_cols = 5;
+    int grid_rows = 5;
+    // FAST intensity difference. Lower values accept weaker corners.
+    int fast_threshold = 10;
+    // Keep only FAST corners stronger than their radius-3 neighbors.
+    bool fast_nonmax_suppression = true;
+    // Refine grid FAST corners with cornerSubPix. Ignored by GFTT, which is already subpixel.
+    bool corner_subpix = true;
+    // Odd subpixel window side length, in pixels. The point must sit at least half a window inside the image.
+    int subpixel_window = 5;
     // Minimum corner response relative to the strongest corner (0 < value <= 1).
     double gftt_quality = 0.01;
     // Minimum distance between detected corners, in full-resolution pixels.
@@ -46,13 +66,13 @@ struct DirectSlamParams {
     // Image-border exclusion margin for detection and LK validity, in pixels.
     int border = 20;
 
-    // Pyramidal Lucas-Kanade, shared by temporal and stereo matching.
+    // Indirect: pyramidal Lucas-Kanade (klt/). Temporal tracking in klt/hybrid, stereo matching in every mode.
     // LK search-window side length, in pixels at each pyramid level (left/right and temporal).
     int lk_patch_size = 11;
     // Highest zero-based LK pyramid level; 3 means levels 0 through 3.
     int lk_max_level = 3;
 
-    // Sparse photometric alignment, used by direct mode.
+    // Direct: sparse photometric alignment (direct/direct_aligner), used by hybrid mode.
     // Photometric patch half-width; 1 samples a 3x3 patch at each pyramid level.
     int half_patch_size = 1;
     // Maximum photometric Gauss-Newton iterations per pyramid level.
@@ -65,6 +85,23 @@ struct DirectSlamParams {
     double pyramid_scale = 0.5;
     // Gray-level threshold: per-sample Huber cutoff and per-patch mean absolute inlier error.
     double intensity_inlier_threshold = 25.0;
+
+    // Direct: fronto-parallel patches and inverse-depth seeds (direct/), used by semi_direct.
+    // Half-width of the planar patch. 2 samples a 5x5 patch. hybrid keeps half_patch_size.
+    int feature_half_patch = 2;
+    // Inverse-depth prior and epipolar search range, in meters. Monocular scale follows this range.
+    double seed_min_depth = 0.5;
+    double seed_max_depth = 80.0;
+    // Promote a seed when its inverse-depth variance drops below this.
+    // The default is about a one-pixel depth interval at a few meters for a typical focal length.
+    double seed_convergence_sigma2 = 1e-4;
+    // Cap on immature seeds, and on epipolar searches per accepted frame.
+    int max_seeds = 400;
+    int max_seed_updates = 100;
+    // Monocular two-view initialization: median corner displacement (px) from the reference
+    // frame before the essential matrix is tried. The map scale puts the median scene depth at
+    // sqrt(seed_min_depth * seed_max_depth).
+    double init_min_disparity = 20.0;
 
     // Tracking status and keyframe insertion.
     // TRACKING_GOOD requires strictly more geometric/accepted inliers than this count.

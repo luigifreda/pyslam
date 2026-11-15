@@ -19,7 +19,7 @@
 #pragma once
 
 #include "map.h"
-#include "smart_pointers.h"
+#include "common/smart_pointers.h"
 #include <set>
 #include <atomic>
 #include <vector>

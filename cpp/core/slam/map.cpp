@@ -19,7 +19,7 @@
 
 #include "map.h"
 #include "semantic_mapping_shared_resources.h"
-#include "utils/messages.h"
+#include "common/messages.h"
 
 #include <algorithm>
 #include <cmath>

@@ -25,8 +25,8 @@
 #include <nlohmann/json.hpp>
 #include <opencv2/core.hpp>
 
-#include "camera.h"
-#include "dictionary.h"
+#include "camera/camera.h"
+#include "common/dictionary.h"
 #include "frame.h"
 #include "keyframe.h"
 #include "map_point.h"

@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "camera.h"
+#include "camera/camera.h"
 #include "slam_direct/direct_map.h"
 #include "slam_direct/direct_params.h"
 
@@ -36,8 +36,9 @@ struct DirectBAResult {
     double final_cost = 0.0; // Same objective, including edges excluded during refinement.
 };
 
-// Bounded, synchronous local BA. Like vslam, jointly optimize poses and shared
-// landmarks from left/right observations. Fix the oldest window pose for gauge.
+// Bounded active-pose window, synchronous local BA. Jointly optimize poses and
+// shared landmarks, including fixed archived observers of the active landmarks.
+// Fix the oldest window pose for gauge.
 DirectBAResult optimize_direct_map(DirectMap &map, const Camera &camera,
                                    const DirectSlamParams &params);
 

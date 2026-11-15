@@ -19,8 +19,8 @@
 
 
 #include "slam_direct/direct_backend.h"
-#include "camera_model_math.h"
-#include "owned_g2o_optimizer.h"
+#include "camera/camera_model_math.h"
+#include "common/owned_g2o_optimizer.h"
 
 #include <g2o/core/base_binary_edge.h>
 #include <g2o/core/block_solver.h>
@@ -101,6 +101,34 @@ class DepthEdge : public g2o::BaseBinaryEdge<1, double, PointVertex, PoseVertex>
     bool write(std::ostream &) const override { return false; }
 };
 
+// Inverse depth in a chosen camera. This is the monocular scale anchor.
+class InverseDepthPriorEdge : public g2o::BaseBinaryEdge<1, double, PointVertex, PoseVertex> {
+  public:
+    void computeError() override {
+        const auto *point = static_cast<const PointVertex *>(_vertices[0]);
+        const auto *pose = static_cast<const PoseVertex *>(_vertices[1]);
+        const double z = pose->estimate().map(point->estimate()).z();
+        _error[0] = z > 1e-6 ? 1.0 / z - _measurement : 1e4;
+    }
+    void linearizeOplus() override {
+        const auto *point = static_cast<const PointVertex *>(_vertices[0]);
+        const auto *pose = static_cast<const PoseVertex *>(_vertices[1]);
+        const Vec3d X = pose->estimate().map(point->estimate());
+        if (!(X.z() > 1e-6)) {
+            _jacobianOplusXi.setZero();
+            _jacobianOplusXj.setZero();
+            return;
+        }
+        Eigen::Matrix<double, 3, 6> chain;
+        camera_model::g2o_left_se3_jacobian(X, chain);
+        const double scale = -1.0 / (X.z() * X.z());
+        _jacobianOplusXi = scale * pose->estimate().rotation().toRotationMatrix().row(2);
+        _jacobianOplusXj = scale * chain.row(2);
+    }
+    bool read(std::istream &) override { return false; }
+    bool write(std::ostream &) const override { return false; }
+};
+
 struct ObservationEdge {
     g2o::OptimizableGraph::Edge *edge;
     DirectPoint *observation;
@@ -110,6 +138,9 @@ struct ObservationEdge {
     double threshold;
     int kind; // 0: left, 1: right, 2: depth
     bool inlier() const {
+        if (kind == 3) {
+            return true; // Keep the scale anchor in the refinement.
+        }
         const Vec3d X = extrinsic * pose->estimate().map(point->estimate());
         return X.allFinite() && X.z() > 1e-6 && std::isfinite(edge->chi2()) && edge->chi2() <= threshold;
     }
@@ -156,6 +187,15 @@ DirectBAResult optimize_direct_map(DirectMap &map, const Camera &camera,
     }
     for (size_t i = begin; i < keyframes.size(); ++i)
         if (shared_counts[keyframes[i].id] < 6) return result;
+    if (camera.sensor_type == SensorType::MONOCULAR) {
+        for (const auto &[id, landmark] : landmarks) {
+            if (!landmark.bad && landmark.has_inverse_prior && landmark.inverse_depth_sigma2 > 0.0 &&
+                counts.count(id) != 0) {
+                metric_constraint = true;
+                break;
+            }
+        }
+    }
     if (!metric_constraint) return result;
     for (int pass = 0; pass < result.keyframes; ++pass) {
         for (const auto &[id, observers] : views) {
@@ -186,6 +226,34 @@ DirectBAResult optimize_direct_map(DirectMap &map, const Camera &camera,
         points[id] = vertex;
     }
     result.landmarks = int(points.size());
+    // A window landmark is still observed by archived keyframes. Keep those
+    // cameras fixed and include their measurements, otherwise each window can
+    // pull shared world points away from the older map that the viewer retains.
+    // Find them through the landmark -> observers index, so the cost scales with
+    // the window landmarks rather than with the whole archived map.
+    std::set<size_t> anchors;
+    for (const auto &[id, vertex] : points) {
+        const std::vector<int> *observers = map.observers(id);
+        if (!observers) continue;
+        for (int frame : *observers) {
+            // Keyframe IDs are insertion indices (see DirectMap).
+            if (frame >= 0 && size_t(frame) < begin) anchors.insert(size_t(frame));
+        }
+    }
+    for (const size_t i : anchors) {
+        const auto &keyframe = keyframes[i];
+        const bool observes_active_point = std::any_of(
+            keyframe.points.begin(), keyframe.points.end(), [&](const DirectPoint &obs) {
+                return !obs.outlier && points.count(obs.id) != 0;
+            });
+        if (!observes_active_point) continue;
+        auto *vertex = optimizer.make<PoseVertex>();
+        vertex->setId(vertex_id++);
+        vertex->setEstimate(g2o::SE3Quat(keyframe.pose.Rcw(), keyframe.pose.tcw()));
+        vertex->setFixed(true);
+        optimizer.addVertex(vertex);
+        poses[keyframe.id] = vertex;
+    }
     std::vector<ObservationEdge> edges;
     const Eigen::Isometry3d identity = Eigen::Isometry3d::Identity();
     // Rectified rigs derive their right-camera translation from bf = fx * baseline.
@@ -203,8 +271,10 @@ DirectBAResult optimize_direct_map(DirectMap &map, const Camera &camera,
         optimizer.addEdge(edge);
         edges.push_back({edge, &obs, point, pose, extrinsic, threshold, kind});
     };
-    for (size_t i = begin; i < keyframes.size(); ++i) {
-        auto *pose = poses.at(keyframes[i].id);
+    for (size_t i = 0; i < keyframes.size(); ++i) {
+        const auto pose_it = poses.find(keyframes[i].id);
+        if (pose_it == poses.end()) continue;
+        auto *pose = pose_it->second;
         for (auto &obs : keyframes[i].points) {
             const auto it = points.find(obs.id);
             if (obs.outlier || it == points.end()) continue;
@@ -225,6 +295,16 @@ DirectBAResult optimize_direct_map(DirectMap &map, const Camera &camera,
                 const double sigma = params.ba_depth_sigma * std::max(1.0, obs.depth * obs.depth);
                 depth->setInformation(Eigen::Matrix<double, 1, 1>::Constant(1.0 / (sigma * sigma)));
                 add_edge(depth, obs, point, pose, identity, 3.841, 2);
+            }
+            const auto landmark = landmarks.find(obs.id);
+            if (camera.sensor_type == SensorType::MONOCULAR && landmark != landmarks.end() &&
+                landmark->second.has_inverse_prior && landmark->second.prior_keyframe == keyframes[i].id &&
+                landmark->second.inverse_depth_sigma2 > 0.0) {
+                auto *prior = optimizer.make<InverseDepthPriorEdge>();
+                prior->setMeasurement(landmark->second.inverse_depth_mu);
+                prior->setInformation(Eigen::Matrix<double, 1, 1>::Constant(
+                    1.0 / landmark->second.inverse_depth_sigma2));
+                add_edge(prior, obs, point, pose, identity, 1e9, 3);
             }
         }
     }
@@ -272,7 +352,7 @@ DirectBAResult optimize_direct_map(DirectMap &map, const Camera &camera,
             record.observation->outlier = bad;
             good_left[record.observation->id] += !bad;
         } else if (record.kind == 1) record.observation->right_outlier = bad;
-        else record.observation->depth_outlier = bad;
+        else if (record.kind == 2) record.observation->depth_outlier = bad;
         result.outliers += bad;
     }
     for (const auto &[id, count] : good_left)

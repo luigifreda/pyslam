@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "eigen_aliases.h"
+#include "common/eigen_aliases.h"
 
 #include <any>
 #include <cstdint>

@@ -1,7 +1,7 @@
 #include "geom_2views.h"
-#include "camera.h"
+#include "camera/camera.h"
 #include "frame.h"
-#include "smart_pointers.h"
+#include "common/smart_pointers.h"
 
 namespace pyslam {
 

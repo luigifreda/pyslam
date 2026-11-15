@@ -32,8 +32,8 @@
 #include "casters/dictionary_casters.h" // for Dict, List
 #include "casters/opencv_type_casters.h"
 
-#include "dictionary.h"
-#include "py_module/camera_module.h"
+#include "common/dictionary.h"
+#include "camera/py_module/camera_module.h"
 #include "py_module/ckdtree_module.h"
 #include "py_module/config_parameters_module.h"
 #include "py_module/eigen_module.h"

@@ -484,7 +484,13 @@ class SceneFromViewsVggtRobust(SceneFromViewsBase):
             depth_map, predictions["extrinsic"], predictions["intrinsic"]
         )
 
-        predictions_numpy = {key: self._to_numpy_cpu(value) for key, value in predictions.items()}
+        # These entries already had their batch dimension removed above: squeezing them again
+        # would drop the view dimension when there is a single view (S=1).
+        already_unbatched = {"extrinsic", "intrinsic", "depth", "cams2world"}
+        predictions_numpy = {
+            key: self._to_numpy_cpu(value, squeeze_batch=key not in already_unbatched)
+            for key, value in predictions.items()
+        }
 
         return {
             "predictions": predictions_numpy,
@@ -609,8 +615,14 @@ class SceneFromViewsVggtRobust(SceneFromViewsBase):
         depth_predictions = []
         depth_maps = predictions.get("depth", None)
         if depth_maps is not None:
-            if depth_maps.ndim == 4 and depth_maps.shape[1] == 1:
-                depth_maps = depth_maps[:, 0]
+            if depth_maps.ndim == 2:
+                depth_maps = depth_maps[None]  # single view (H, W)
+            if depth_maps.ndim == 4 and depth_maps.shape[-1] == 1:
+                depth_maps = depth_maps[..., 0]  # (S, H, W, 1) -> (S, H, W)
+            elif depth_maps.ndim == 4 and depth_maps.shape[1] == 1:
+                depth_maps = depth_maps[:, 0]  # (S, 1, H, W) -> (S, H, W)
+            elif depth_maps.ndim == 3 and depth_maps.shape[-1] == 1 and S == 1:
+                depth_maps = depth_maps[None, ..., 0]  # single view (H, W, 1)
             for i in range(S):
                 depth_predictions.append(depth_maps[i])
         else:
@@ -674,19 +686,19 @@ class SceneFromViewsVggtRobust(SceneFromViewsBase):
         result.survivor_indices = list(survivor_indices)
         return result
 
-    def _to_numpy_cpu(self, data):
+    def _to_numpy_cpu(self, data, squeeze_batch=True):
         """Recursively move torch tensors to CPU and convert to numpy."""
         if isinstance(data, torch.Tensor):
             tensor = data.detach().cpu()
             if tensor.dtype == torch.bfloat16:
                 tensor = tensor.to(torch.float32)
-            if tensor.ndim > 0 and tensor.shape[0] == 1:
+            if squeeze_batch and tensor.ndim > 0 and tensor.shape[0] == 1:
                 tensor = tensor.squeeze(0)
             return tensor.numpy()
         if isinstance(data, dict):
-            return {key: self._to_numpy_cpu(value) for key, value in data.items()}
+            return {key: self._to_numpy_cpu(value, squeeze_batch) for key, value in data.items()}
         if isinstance(data, list):
-            return [self._to_numpy_cpu(item) for item in data]
+            return [self._to_numpy_cpu(item, squeeze_batch) for item in data]
         if isinstance(data, tuple):
-            return tuple(self._to_numpy_cpu(item) for item in data)
+            return tuple(self._to_numpy_cpu(item, squeeze_batch) for item in data)
         return data

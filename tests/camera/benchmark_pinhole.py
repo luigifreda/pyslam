@@ -226,12 +226,13 @@ def run(args):
         "baseline_commit": commit,
         "candidate_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "candidate_worktree_diff_stat": subprocess.check_output(
-            ["git", "diff", "--stat", "--", "pyslam/slam", "cpp/core/slam"], cwd=ROOT, text=True),
+            ["git", "diff", "--stat", "--", "pyslam/slam", "cpp/core/slam", "cpp/core/camera"], cwd=ROOT, text=True),
         "candidate_source_sha256": {
             str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
             for root, patterns in (
                 (ROOT / "pyslam/slam", ("camera*.py", "optimizer*.py")),
-                (ROOT / "cpp/core/slam", ("camera*.cpp", "camera*.h", "optimizer*.cpp")),
+                (ROOT / "cpp/core/camera", ("camera*.cpp", "camera*.h")),
+                (ROOT / "cpp/core/slam", ("optimizer*.cpp",)),
             )
             for pattern in patterns
             for path in sorted(root.glob(pattern))

@@ -66,10 +66,14 @@ def scene_from_views_factory(
                 "pyslam.scene_from_views.scene_from_views_mast3r",
                 "SceneFromViewsMast3r",
             )
+        # Allow callers to override the optimizer config via kwargs
+        optimizer_config = kwargs.pop("optimizer_config", None)
+        if optimizer_config is None:
+            optimizer_config = DEFAULT_SPARSE_OPTIMIZER_CONFIG.copy()
+            # optimizer_config = DEFAULT_DENSE_OPTIMIZER_CONFIG.copy()
         return SceneFromViewsMast3r(
             device=device,
-            optimizer_config=DEFAULT_SPARSE_OPTIMIZER_CONFIG.copy(),
-            # optimizer_config=DEFAULT_DENSE_OPTIMIZER_CONFIG.copy(),
+            optimizer_config=optimizer_config,
             **kwargs,
         )
 
@@ -111,10 +115,14 @@ def scene_from_views_factory(
                 "pyslam.scene_from_views.scene_from_views_dust3r",
                 "SceneFromViewsDust3r",
             )
+        # Allow callers to override the optimizer config via kwargs
+        optimizer_config = kwargs.pop("optimizer_config", None)
+        if optimizer_config is None:
+            # optimizer_config = DEFAULT_SPARSE_OPTIMIZER_CONFIG.copy()
+            optimizer_config = DEFAULT_DENSE_OPTIMIZER_CONFIG.copy()
         return SceneFromViewsDust3r(
             device=device,
-            # optimizer_config=DEFAULT_SPARSE_OPTIMIZER_CONFIG.copy(),
-            optimizer_config=DEFAULT_DENSE_OPTIMIZER_CONFIG.copy(),
+            optimizer_config=optimizer_config,
             **kwargs,
         )
 

@@ -18,104 +18,39 @@
  */
 
 #include "slam_direct/direct_frontend.h"
-#include "utils/feature_trails.h"
+#include "common/feature_trails.h"
 
-#include "slam_direct/direct_aligner.h"
-#include "slam_direct/semi_direct_tracker.h"
+#include "slam_direct/depth_measurement.h"
+#include "slam_direct/features/corner_detection.h"
 
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
+#include <map>
 #include <set>
 #include <stdexcept>
 
 namespace pyslam {
 namespace {
 
-constexpr double kMinDepth = 1e-2;
-
-cv::Mat as_gray8(const cv::Mat &img) {
-    if (img.empty()) {
-        return cv::Mat();
+// Keep measured pixels as camera-frame points for points_from_camera.
+std::vector<DirectPoint> measured_points(const std::vector<Vec2d> &pixels,
+                                         const std::vector<PixelMeasurement> &measured) {
+    std::vector<DirectPoint> points;
+    points.reserve(pixels.size());
+    for (size_t i = 0; i < pixels.size(); ++i) {
+        if (!measured[i].ok) {
+            continue;
+        }
+        DirectPoint point;
+        point.uv = pixels[i];
+        point.depth = measured[i].X.z();
+        point.position_c = measured[i].X;
+        point.has_depth = true;
+        points.push_back(point);
     }
-    cv::Mat gray;
-    if (img.channels() == 1) {
-        gray = img;
-    } else if (img.channels() == 3) {
-        cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
-    } else if (img.channels() == 4) {
-        cv::cvtColor(img, gray, cv::COLOR_BGRA2GRAY);
-    } else {
-        throw std::invalid_argument("DirectSlam: unsupported image channel count");
-    }
-    if (gray.type() != CV_8UC1) {
-        cv::Mat eight;
-        gray.convertTo(eight, CV_8U);
-        return eight;
-    }
-    return gray;
-}
-
-// Convert the configured sensor units to meters; zero denotes an unusable depth sample.
-double sample_depth(const cv::Mat &depth, const Vec2d &uv, double depth_factor) {
-    if (depth.empty()) {
-        return 0.0;
-    }
-    const int u = static_cast<int>(std::lround(uv.x()));
-    const int v = static_cast<int>(std::lround(uv.y()));
-    if (u < 0 || v < 0 || u >= depth.cols || v >= depth.rows) {
-        return 0.0;
-    }
-    double raw = 0.0;
-    switch (depth.type()) {
-    case CV_16UC1:
-        raw = static_cast<double>(depth.at<uint16_t>(v, u));
-        break;
-    case CV_32FC1:
-        raw = static_cast<double>(depth.at<float>(v, u));
-        break;
-    case CV_64FC1:
-        raw = static_cast<double>(depth.at<double>(v, u));
-        break;
-    default:
-        return 0.0;
-    }
-    if (!(raw > 0.0) || !std::isfinite(raw)) {
-        return 0.0;
-    }
-    const double factor = depth_factor > 0.0 ? depth_factor : 1.0;
-    return raw * factor;
-}
-
-bool depth_is_usable(const Camera &camera, double depth) {
-    (void)camera;
-    // depth_threshold marks "close" points in the feature SLAM. Far points are still valid
-    // here as long as the stereo/RGBD depth is finite and inside a metric range.
-    return depth > 0.5 && depth < 80.0 && std::isfinite(depth);
-}
-
-// Rectified KITTI-style cameras store the baseline in Camera::bf and have no
-// right camera. A calibrated rig uses Camera::triangulate_stereo_point.
-bool triangulate_match(const Camera &camera, const Vec2d &left, const Vec2d &right, double max_error,
-                       Vec3d &X) {
-    if (camera.right_camera) {
-        return camera.triangulate_stereo_point(left, right, max_error, X) && depth_is_usable(camera, X.z());
-    }
-    if (!(camera.bf > 0.0) || std::abs(left.y() - right.y()) > 2.0) {
-        return false;
-    }
-    const double disparity = left.x() - right.x();
-    if (!(disparity > 0.1)) {
-        return false;
-    }
-    const double depth = camera.bf / disparity;
-    if (!(depth > kMinDepth)) {
-        return false;
-    }
-    X = camera.unproject_point_3d(left.x(), left.y(), depth);
-    return depth_is_usable(camera, X.z());
+    return points;
 }
 
 } // namespace
@@ -125,12 +60,19 @@ DirectSlam::DirectSlam(CameraPtr camera, const ConfigDict &config)
     if (!camera_) {
         throw std::invalid_argument("DirectSlam: camera is null");
     }
-    if (camera_->type != CameraType::PINHOLE || camera_->is_distorted) {
+    tracker_ = make_pose_tracker(params_.mode, camera_, params_);
+    // Raw-pixel models project with their distortion Jacobian. A distorted linear
+    // pinhole does not, so it is still rejected.
+    if (!camera_->projects_raw_keypoints() &&
+        (camera_->type != CameraType::PINHOLE || camera_->is_distorted)) {
         throw std::invalid_argument(
-            "DirectSlam: this slice requires an undistorted pinhole camera");
+            "DirectSlam: distorted images require a raw-pixel camera model");
+    }
+    if (camera_->sensor_type == SensorType::MONOCULAR && !tracker_->supports_monocular()) {
+        throw std::invalid_argument("DirectSlam: monocular input requires semi_direct mode");
     }
     if (camera_->sensor_type == SensorType::MONOCULAR) {
-        throw std::invalid_argument("DirectSlam: monocular is not supported; use stereo or RGBD");
+        mono_init_ = std::make_unique<MonocularInitializer>(camera_, params_);
     }
     if (!(camera_->fx > 0.0) || !(camera_->fy > 0.0)) {
         throw std::invalid_argument("DirectSlam: camera intrinsics are not set");
@@ -156,7 +98,9 @@ cv::Mat DirectSlam::draw_feature_trails(const cv::Mat &image, bool with_level_ra
                                        int trail_max_length) const {
     cv::Mat shown = image.clone();
     if (status_ == DirectTrackingStatus::Lost) return shown;
-    for (const auto &point : live_points_) {
+    // Before the monocular map exists, show the initializer's reference tracks.
+    const bool initializing = mono_init_ && map_.keyframes().empty();
+    for (const auto &point : initializing ? mono_init_->tracks() : live_points_) {
         const size_t length = std::min(point.trail.size(), size_t(std::max(0, trail_max_length)));
         std::vector<cv::Point> trail(point.trail.begin(), point.trail.begin() + length);
         const cv::Point uv(std::floor(point.uv.x()), std::floor(point.uv.y()));
@@ -177,6 +121,8 @@ void DirectSlam::reset() {
     previous_pose_ = Eigen::Isometry3d::Identity();
     last_gray_.release();
     live_points_.clear();
+    tracker_->reset();
+    if (mono_init_) mono_init_->reset();
     consecutive_failures_ = 0;
     last_inliers_ = 0;
     next_point_id_ = 0;
@@ -186,45 +132,11 @@ void DirectSlam::reset() {
 
 std::vector<DirectPoint> DirectSlam::make_points(const cv::Mat &gray, const cv::Mat &gray_right,
                                                  const cv::Mat &depth) const {
-    const std::vector<Vec2d> pixels = detect_gftt(gray, params_);
-    std::vector<DirectPoint> points;
-    points.reserve(pixels.size());
-    if (camera_->sensor_type == SensorType::RGBD) {
-        for (const Vec2d &uv : pixels) {
-            const double z = sample_depth(depth, uv, camera_->depth_factor);
-            if (!depth_is_usable(*camera_, z)) {
-                continue;
-            }
-            DirectPoint point;
-            point.uv = uv;
-            point.depth = z;
-            point.position_c = camera_->unproject_point_3d(uv.x(), uv.y(), z);
-            point.has_depth = true;
-            points.push_back(point);
-        }
-        return points;
-    }
-
-    if (gray_right.empty()) {
+    const std::vector<Vec2d> pixels = detect_corners(gray, params_);
+    if (camera_->sensor_type != SensorType::RGBD && gray_right.empty()) {
         throw std::invalid_argument("DirectSlam: stereo tracking requires the right image");
     }
-    const LkTrack tracked = track_pyramidal_lk(gray, gray_right, pixels, pixels, params_);
-    for (size_t i = 0; i < pixels.size(); ++i) {
-        if (!tracked.status[i]) {
-            continue;
-        }
-        Vec3d X = Vec3d::Zero();
-        if (!triangulate_match(*camera_, pixels[i], tracked.points_cur[i], params_.stereo_max_error, X)) {
-            continue;
-        }
-        DirectPoint point;
-        point.uv = pixels[i];
-        point.depth = X.z();
-        point.position_c = X;
-        point.has_depth = true;
-        points.push_back(point);
-    }
-    return points;
+    return measured_points(pixels, measure_pixels(*camera_, params_, gray, gray_right, depth, pixels));
 }
 
 void DirectSlam::record_keyframe(const cv::Mat &gray, const cv::Mat &gray_right, const cv::Mat &depth,
@@ -237,18 +149,11 @@ void DirectSlam::record_keyframe(const cv::Mat &gray, const cv::Mat &gray_right,
     std::vector<Vec2d> left, right_init;
     for (const auto &point : live_points_) {
         left.push_back(point.uv);
-        const Vec3d Xc = Tcw * point.position_w;
-        if (camera_->right_camera) {
-            const Vec3d Xr = camera_->T_right_left.block<3, 3>(0, 0) * Xc +
-                             camera_->T_right_left.block<3, 1>(0, 3);
-            right_init.push_back(camera_->right_camera->project_point(Xr).first);
-        } else {
-            right_init.emplace_back(point.uv.x() - camera_->bf / Xc.z(), point.uv.y());
-        }
+        right_init.push_back(predict_right_pixel(*camera_, Tcw * point.position_w, point.uv));
     }
-    LkTrack stereo;
-    if (camera_->sensor_type == SensorType::STEREO)
-        stereo = track_pyramidal_lk(gray, gray_right, left, right_init, params_);
+    const bool stereo = camera_->sensor_type == SensorType::STEREO;
+    const std::vector<PixelMeasurement> measured =
+        measure_pixels(*camera_, params_, gray, stereo ? gray_right : cv::Mat(), depth, left, right_init);
     for (size_t i = 0; i < live_points_.size(); ++i) {
         const auto &point = live_points_[i];
         DirectPoint observation;
@@ -256,30 +161,40 @@ void DirectSlam::record_keyframe(const cv::Mat &gray, const cv::Mat &gray_right,
         observation.uv = point.uv;
         observation.position_c = Tcw * point.position_w;
         if (camera_->sensor_type == SensorType::RGBD) {
-            observation.depth = sample_depth(depth, point.uv, camera_->depth_factor);
-            observation.has_depth = depth_is_usable(*camera_, observation.depth);
-        } else if (stereo.status[i]) {
-            Vec3d measured;
-            if (triangulate_match(*camera_, point.uv, stereo.points_cur[i], params_.stereo_max_error, measured)) {
-                // Store the sensor measurement, never a depth derived from the pose
-                // being optimized. Otherwise BA would constrain the estimate to itself.
-                observation.uv_right = stereo.points_cur[i];
-                observation.has_right = true;
-                observation.depth = measured.z();
-                observation.has_depth = true;
-            }
+            observation.depth = measured[i].sensor_depth;
+            observation.has_depth = measured[i].ok;
+        } else if (measured[i].has_right) {
+            // Store the sensor measurement, never a depth derived from the pose
+            // being optimized. Otherwise BA would constrain the estimate to itself.
+            observation.uv_right = measured[i].uv_right;
+            observation.has_right = true;
+            observation.depth = measured[i].X.z();
+            observation.has_depth = true;
         }
         keyframe.points.push_back(observation);
     }
-    // Only the last accepted image is needed by the photometric frontend.
-    // Keyframes retain observations, not full-resolution image copies.
+    if (tracker_->uses_keyframe_images()) {
+        // The reference image is needed while this keyframe owns the tracking patches or immature seeds.
+        keyframe.gray = gray.clone();
+    }
+    const int keyframe_id = keyframe.id;
     map_.add_keyframe(std::move(keyframe));
+    if (tracker_->uses_keyframe_images()) {
+        for (LivePoint &point : live_points_) {
+            point.uv_ref = point.uv;
+            point.reference_keyframe = keyframe_id;
+        }
+    }
 }
 
 // Apply one coherent map correction to trajectory, motion prediction and live landmarks.
 DirectBAResult DirectSlam::bundle_adjustment() {
     last_ba_ = optimize_direct_map(map_, *camera_, params_);
-    if (!last_ba_.applied) return last_ba_;
+    if (last_ba_.applied) refresh_tracking_state_from_map();
+    return last_ba_;
+}
+
+void DirectSlam::refresh_tracking_state_from_map() {
     const auto &trajectory = map_.trajectory();
     if (!trajectory.empty()) {
         previous_pose_.matrix() = trajectory.back().Tcw;
@@ -301,7 +216,53 @@ DirectBAResult DirectSlam::bundle_adjustment() {
         corrected.push_back(std::move(point));
     }
     live_points_ = std::move(corrected);
-    return last_ba_;
+}
+
+void DirectSlam::apply_keyframe_poses(const std::vector<Eigen::Matrix4d> &poses) {
+    auto &keyframes = map_.keyframes_mutable();
+    if (poses.size() != keyframes.size()) {
+        throw std::invalid_argument("DirectSlam::apply_keyframe_poses: one pose is required per keyframe");
+    }
+    for (const Eigen::Matrix4d &pose : poses) {
+        if (!pose.allFinite() || !pose.inverse().allFinite()) {
+            throw std::invalid_argument("DirectSlam::apply_keyframe_poses: pose is not finite");
+        }
+    }
+
+    std::vector<Eigen::Matrix4d> previous;
+    previous.reserve(keyframes.size());
+    for (const DirectKeyframe &keyframe : keyframes) previous.push_back(keyframe.pose.Tcw());
+
+    // The earliest inlier observation anchors the landmark. A later keyframe pose
+    // change must not drag a point that was created on an earlier, fixed keyframe.
+    std::map<int64_t, size_t> reference;
+    for (size_t i = 0; i < keyframes.size(); ++i) {
+        for (const DirectPoint &observation : keyframes[i].points) {
+            if (!observation.outlier) reference.emplace(observation.id, i);
+        }
+    }
+    for (size_t i = 0; i < keyframes.size(); ++i) {
+        for (const DirectPoint &observation : keyframes[i].points) {
+            reference.emplace(observation.id, i);
+        }
+    }
+
+    for (size_t i = 0; i < keyframes.size(); ++i) keyframes[i].pose = CameraPose(poses[i]);
+    for (auto &[id, landmark] : map_.landmarks_mutable()) {
+        const auto found = reference.find(id);
+        if (found == reference.end()) continue;
+        const Eigen::Matrix4d delta = poses[found->second].inverse() * previous[found->second];
+        if ((delta - Eigen::Matrix4d::Identity()).norm() < 1e-9) continue;
+        Eigen::Vector4d homogeneous;
+        homogeneous << landmark.position_w, 1.0;
+        const Eigen::Vector3d moved = (delta * homogeneous).head<3>();
+        if (!moved.allFinite()) {
+            throw std::invalid_argument("DirectSlam::apply_keyframe_poses: landmark correction is not finite");
+        }
+        landmark.position_w = moved;
+    }
+    map_.update_trajectory();
+    refresh_tracking_state_from_map();
 }
 
 void DirectSlam::set_status_from_inliers(int inliers) {
@@ -321,13 +282,14 @@ std::vector<LivePoint> DirectSlam::points_from_camera(const std::vector<DirectPo
     live.reserve(points.size());
     const Eigen::Isometry3d Twc = Tcw.inverse();
     for (const DirectPoint &point : points) {
-        if (!point.has_depth || !depth_is_usable(*camera_, point.depth)) {
+        if (!point.has_depth || !metric_point_ok(*camera_, point.position_c)) {
             continue;
         }
         LivePoint live_point;
         // IDs survive temporal tracking and connect later keyframe observations in BA.
         live_point.id = next_point_id_++;
         live_point.uv = point.uv;
+        live_point.uv_ref = point.uv;
         live_point.position_w = Twc * point.position_c;
         live_point.trail.emplace_back(std::floor(point.uv.x()), std::floor(point.uv.y()));
         live_point.observations = 1;
@@ -350,50 +312,17 @@ void DirectSlam::supplement_live_points(const cv::Mat &gray, const cv::Mat &gray
                                        static_cast<int>(std::lround(point.uv.y()))),
                    radius, cv::Scalar(0), cv::FILLED);
     }
-    const std::vector<Vec2d> pixels = detect_gftt(gray, params_, occupied, room);
+    const std::vector<Vec2d> pixels = detect_corners(gray, params_, occupied, room);
     if (pixels.empty()) {
         return;
     }
-
-    std::vector<DirectPoint> fresh;
-    if (camera_->sensor_type == SensorType::RGBD) {
-        for (const Vec2d &uv : pixels) {
-            const double z = sample_depth(depth, uv, camera_->depth_factor);
-            if (!depth_is_usable(*camera_, z)) {
-                continue;
-            }
-            DirectPoint point;
-            point.uv = uv;
-            point.depth = z;
-            point.position_c = camera_->unproject_point_3d(uv.x(), uv.y(), z);
-            point.has_depth = true;
-            fresh.push_back(point);
-        }
-    } else if (!gray_right.empty()) {
-        const LkTrack tracked = track_pyramidal_lk(gray, gray_right, pixels, pixels, params_);
-        for (size_t i = 0; i < pixels.size(); ++i) {
-            if (!tracked.status[i]) {
-                continue;
-            }
-            Vec3d X = Vec3d::Zero();
-            if (!triangulate_match(*camera_, pixels[i], tracked.points_cur[i], params_.stereo_max_error, X)) {
-                continue;
-            }
-            DirectPoint point;
-            point.uv = pixels[i];
-            point.depth = X.z();
-            point.position_c = X;
-            point.has_depth = true;
-            fresh.push_back(point);
-        }
-    }
+    const std::vector<DirectPoint> fresh =
+        measured_points(pixels, measure_pixels(*camera_, params_, gray, gray_right, depth, pixels));
     if (fresh.empty()) {
         return;
     }
     const std::vector<LivePoint> extra = points_from_camera(fresh, Tcw);
     live_points_.insert(live_points_.end(), extra.begin(), extra.end());
-
-
 }
 
 void DirectSlam::initialize(const cv::Mat &gray, const cv::Mat &gray_right, const cv::Mat &depth,
@@ -404,8 +333,21 @@ void DirectSlam::initialize(const cv::Mat &gray, const cv::Mat &gray_right, cons
     if (camera_->sensor_type == SensorType::RGBD && depth.empty()) {
         throw std::invalid_argument("DirectSlam: RGBD tracking requires a depth image");
     }
-    // The first depth-backed frame defines the world origin; recovery never re-enters here.
+    if (camera_->sensor_type == SensorType::MONOCULAR) {
+        // No sensor depth: wait for a two-view geometry with enough parallax.
+        status_ = DirectTrackingStatus::Init;
+        if (mono_init_->add_frame(gray, img_id, timestamp)) {
+            initialize_monocular_map(gray, img_id, timestamp, mono_init_->result());
+            mono_init_->reset();
+        } else {
+            last_inliers_ = mono_init_->num_tracks();
+        }
+        return;
+    }
     const Eigen::Isometry3d identity = Eigen::Isometry3d::Identity();
+    const TrackingFrame frame{gray, gray_right, depth, img_id};
+    TrackerMapState state = map_state();
+    // The first depth-backed frame defines the world origin; recovery never re-enters here.
     const auto points = make_points(gray, gray_right, depth);
     last_inliers_ = static_cast<int>(points.size());
     if (last_inliers_ <= params_.num_features_tracking_bad) {
@@ -414,6 +356,7 @@ void DirectSlam::initialize(const cv::Mat &gray, const cv::Mat &gray_right, cons
     }
     live_points_ = points_from_camera(points, identity);
     record_keyframe(gray, gray_right, depth, img_id, timestamp, identity);
+    tracker_->on_keyframe(frame, map_.latest_keyframe()->id, state);
     set_status_from_inliers(last_inliers_);
     last_img_id_ = img_id;
     last_gray_ = gray.clone();
@@ -422,6 +365,58 @@ void DirectSlam::initialize(const cv::Mat &gray, const cv::Mat &gray_right, cons
     has_velocity_ = false;
     consecutive_failures_ = 0;
     map_.add_pose(img_id, timestamp, identity);
+}
+
+void DirectSlam::initialize_monocular_map(const cv::Mat &gray, int img_id, double timestamp,
+                                          const MonocularInitResult &init) {
+    const cv::Mat empty;
+    const Eigen::Isometry3d identity = Eigen::Isometry3d::Identity();
+    const Eigen::Isometry3d &T_cur_w = init.T_cur_ref; // The reference camera is the world frame.
+    live_points_.clear();
+    live_points_.reserve(init.X_ref.size());
+    for (size_t i = 0; i < init.X_ref.size(); ++i) {
+        LivePoint point;
+        point.id = next_point_id_++;
+        point.uv = init.uv_ref[i];
+        point.position_w = init.X_ref[i];
+        point.trail = init.trails[i];
+        point.observations = static_cast<int>(point.trail.size());
+        DirectLandmark landmark;
+        landmark.position_w = point.position_w;
+        // Same monocular scale anchor as a promoted seed, on the reference keyframe.
+        if (init.inverse_depth_sigma2[i] > 0.0) {
+            landmark.has_inverse_prior = true;
+            landmark.inverse_depth_mu = 1.0 / init.X_ref[i].z();
+            landmark.inverse_depth_sigma2 = init.inverse_depth_sigma2[i];
+            landmark.prior_keyframe = static_cast<int>(map_.keyframes().size());
+        }
+        map_.landmarks_mutable()[point.id] = landmark;
+        live_points_.push_back(std::move(point));
+    }
+    // Reference keyframe at the identity, then the current frame.
+    record_keyframe(init.ref_gray, empty, empty, init.ref_img_id, init.ref_timestamp, identity);
+    map_.add_pose(init.ref_img_id, init.ref_timestamp, identity);
+    for (size_t i = 0; i < live_points_.size(); ++i) live_points_[i].uv = init.uv_cur[i];
+    record_keyframe(gray, empty, empty, img_id, timestamp, T_cur_w);
+    map_.add_pose(img_id, timestamp, T_cur_w);
+    TrackerMapState state = map_state();
+    const TrackingFrame frame{gray, empty, empty, img_id};
+    tracker_->on_keyframe(frame, map_.latest_keyframe()->id, state);
+
+    // Constant-velocity seed: the average per-frame motion since the reference.
+    const int frames = std::max(1, img_id - init.ref_img_id);
+    const Eigen::AngleAxisd rotation(T_cur_w.linear());
+    velocity_ = Eigen::Isometry3d::Identity();
+    velocity_.linear() = Eigen::AngleAxisd(rotation.angle() / frames, rotation.axis()).toRotationMatrix();
+    velocity_.translation() = T_cur_w.translation() / static_cast<double>(frames);
+    has_velocity_ = true;
+    previous_pose_ = T_cur_w;
+    current_pose_ = CameraPose(T_cur_w);
+    last_gray_ = gray.clone();
+    last_img_id_ = img_id;
+    consecutive_failures_ = 0;
+    set_status_from_inliers(static_cast<int>(live_points_.size()));
+    if (params_.local_ba) bundle_adjustment();
 }
 
 void DirectSlam::track(const cv::Mat &img, const cv::Mat &img_right, const cv::Mat &depth, int img_id,
@@ -446,143 +441,26 @@ void DirectSlam::track(const cv::Mat &img, const cv::Mat &img_right, const cv::M
         return;
     }
 
+    const TrackingFrame frame{gray, gray_right, depth, img_id};
     const Eigen::Isometry3d T_pred_w = has_velocity_ ? velocity_ * previous_pose_ : previous_pose_;
-    std::vector<char> tracked_ok(live_points_.size(), 0);
-    std::vector<Vec2d> tracked_uv(live_points_.size(), Vec2d::Zero());
-    int inliers = 0;
-    Eigen::Isometry3d T_cur_w = T_pred_w;
-
-    std::vector<Vec2d> pixels_last;
-    std::vector<Vec2d> pixels_init;
-    pixels_last.reserve(live_points_.size());
-    pixels_init.reserve(live_points_.size());
-    for (const LivePoint &point : live_points_) {
-        const Vec3d Xc = T_pred_w * point.position_w;
-        Vec2d predicted = point.uv;
-        if (Xc.z() > kMinDepth) {
-            const auto projection = camera_->project_point(Xc);
-            if (std::isfinite(projection.first.x()) && std::isfinite(projection.first.y())) {
-                predicted = projection.first;
-            }
-        }
-        pixels_last.push_back(point.uv);
-        pixels_init.push_back(predicted);
-    }
-    const LkTrack tracked = track_pyramidal_lk(last_gray_, gray, pixels_last, pixels_init, params_);
-    std::vector<PoseObservation> observations;
-    observations.reserve(live_points_.size());
-    // Geometric observations omit failed LK tracks; retain a map back to the live-point indices.
-    std::vector<size_t> observation_indices;
-    for (size_t i = 0; i < live_points_.size(); ++i) {
-        tracked_ok[i] = tracked.status[i];
-        tracked_uv[i] = tracked.points_cur[i];
-        if (!tracked.status[i]) {
-            continue;
-        }
-        PoseObservation observation;
-        observation.point_ref = live_points_[i].position_w;
-        observation.pixel_cur = tracked.points_cur[i];
-        observations.push_back(observation);
-        observation_indices.push_back(i);
-    }
-    const SemiDirectPoseResult pose =
-        estimate_pose_reprojection(*camera_, observations, T_pred_w, params_);
-    T_cur_w = pose.T_cur_ref;
-    inliers = pose.inliers;
-    // Only geometric inliers may carry a landmark into the next image.
-    for (size_t j = 0; j < observation_indices.size(); ++j) {
-        tracked_ok[observation_indices[j]] = pose.inlier_mask[j];
-    }
-    if (params_.mode == DirectTrackingMode::Direct && inliers <= params_.num_features_tracking_bad) {
-        // Photometric tracking can still resolve motion when corner flow fails
-        // (for example at a repetitive pattern's half-period displacement).
-        std::vector<Vec2d> pixels;
-        std::vector<double> depths;
-        for (const auto &point : live_points_) {
-            pixels.push_back(point.uv);
-            depths.push_back((previous_pose_ * point.position_w).z());
-        }
-        const auto aligned = align_direct_multilayer(*camera_, params_, last_gray_, gray, pixels,
-                                                     depths, T_pred_w * previous_pose_.inverse());
-        if (aligned.inliers > params_.num_features_tracking_bad &&
-            aligned.inliers >= 0.6 * live_points_.size()) {
-            T_cur_w = aligned.T_cur_ref * previous_pose_;
-            inliers = 0;
-            for (size_t i = 0; i < live_points_.size(); ++i) {
-                const Vec3d X = T_cur_w * live_points_[i].position_w;
-                tracked_uv[i] = camera_->project_point(X).first;
-                tracked_ok[i] = aligned.inlier_mask[i] && X.z() > kMinDepth &&
-                                tracked_uv[i].x() >= params_.border && tracked_uv[i].y() >= params_.border &&
-                                tracked_uv[i].x() < gray.cols - params_.border &&
-                                tracked_uv[i].y() < gray.rows - params_.border;
-                inliers += tracked_ok[i];
-            }
-        }
-    } else if (params_.mode == DirectTrackingMode::Direct && inliers > params_.num_features_tracking_bad) {
-        // Use geometric tracks to seed and validate photometric refinement. Outdoor
-        // brightness changes and moving objects can produce a low photometric cost
-        // at the wrong pose, so retain the geometric solution if refinement disagrees.
-        std::vector<Vec2d> pixels;
-        std::vector<double> depths;
-        for (size_t i = 0; i < live_points_.size(); ++i) {
-            if (!tracked_ok[i]) continue;
-            pixels.push_back(live_points_[i].uv);
-            depths.push_back((previous_pose_ * live_points_[i].position_w).z());
-        }
-        const auto aligned = align_direct_multilayer(*camera_, params_, last_gray_, gray, pixels,
-                                                     depths, T_cur_w * previous_pose_.inverse());
-        const Eigen::Isometry3d candidate = aligned.T_cur_ref * previous_pose_;
-        double geometric_cost = 0.0, candidate_cost = 0.0;
-        int candidate_inliers = 0;
-        for (size_t i = 0; i < live_points_.size(); ++i) {
-            if (!tracked_ok[i]) continue;
-            const Vec3d X = candidate * live_points_[i].position_w;
-            const Vec2d uv = camera_->project_point(X).first;
-            const double error = (uv - tracked_uv[i]).squaredNorm();
-            if (X.z() > 0.0 && std::isfinite(error)) {
-                candidate_cost += error;
-                if (error <= params_.chi2_threshold) ++candidate_inliers;
-            } else {
-                candidate_cost = std::numeric_limits<double>::infinity();
-            }
-            geometric_cost += (camera_->project_point(T_cur_w * live_points_[i].position_w).first -
-                               tracked_uv[i]).squaredNorm();
-        }
-        if (aligned.inliers > params_.num_features_tracking_bad &&
-            candidate_inliers >= 0.9 * inliers && candidate_cost <= geometric_cost + 0.25 * inliers) {
-            T_cur_w = candidate;
-            inliers = 0;
-            for (size_t i = 0; i < live_points_.size(); ++i) {
-                if (!tracked_ok[i]) continue;
-                const Vec3d X = T_cur_w * live_points_[i].position_w;
-                tracked_ok[i] = (camera_->project_point(X).first - tracked_uv[i]).squaredNorm() <=
-                                params_.chi2_threshold;
-                inliers += tracked_ok[i];
-            }
-        }
-    }
-
-    // A prediction is only an optimizer seed. Never integrate unmeasured motion
-    // or triangulate landmarks at a predicted pose after tracking has failed.
-    const bool accepted = inliers > params_.num_features_tracking_bad && T_cur_w.matrix().allFinite();
-    if (!accepted) {
-        ++consecutive_failures_;
-        has_velocity_ = false;
-        last_inliers_ = inliers;
-        status_ = DirectTrackingStatus::Lost;
+    const TrackingResult result =
+        tracker_->track(TrackingInput{frame, last_gray_, live_points_, map_, previous_pose_, T_pred_w});
+    if (!result.accepted) {
+        note_tracking_failure(result.inliers);
         return; // Keep the last accepted image and landmarks for a possible recovery.
     }
+    const Eigen::Isometry3d &T_cur_w = result.T_cur_w;
     consecutive_failures_ = 0;
-    set_status_from_inliers(inliers);
+    set_status_from_inliers(result.inliers);
     velocity_ = T_cur_w * previous_pose_.inverse();
     has_velocity_ = true;
 
     std::vector<LivePoint> kept;
     kept.reserve(live_points_.size());
     for (size_t i = 0; i < live_points_.size(); ++i) {
-        if (!tracked_ok[i]) continue;
+        if (!result.tracked_ok[i]) continue;
         LivePoint point = live_points_[i];
-        point.uv = tracked_uv[i];
+        point.uv = result.tracked_uv[i];
         // Do not draw a continuous trail across an input-frame gap or a tracking failure.
         if (img_id != last_img_id_ + 1) point.trail.clear();
         point.trail.insert(point.trail.begin(), cv::Point(std::floor(point.uv.x()), std::floor(point.uv.y())));
@@ -591,48 +469,21 @@ void DirectSlam::track(const cv::Mat &img, const cv::Mat &img_right, const cv::M
         kept.push_back(std::move(point));
     }
     live_points_ = std::move(kept);
-    if (params_.mode == DirectTrackingMode::Direct && !params_.local_ba) {
-        // Photometric warps need depth at the current reference pixel. Refresh it
-        // from the current sensor measurement instead of carrying stereo errors forever.
-        const Eigen::Isometry3d Twc = T_cur_w.inverse();
-        std::vector<Vec2d> left, right_init;
-        for (const auto &point : live_points_) {
-            left.push_back(point.uv);
-            const Vec3d Xc = T_cur_w * point.position_w;
-            if (camera_->right_camera) {
-                right_init.push_back(camera_->right_camera->project_point((camera_->T_right_left.block<3, 3>(0, 0) * Xc + camera_->T_right_left.block<3, 1>(0, 3)).eval()).first);
-            } else {
-                right_init.emplace_back(point.uv.x() - camera_->bf / Xc.z(), point.uv.y());
-            }
-        }
-        LkTrack stereo;
-        if (camera_->sensor_type == SensorType::STEREO)
-            stereo = track_pyramidal_lk(gray, gray_right, left, right_init, params_);
-        std::vector<LivePoint> measured;
-        for (size_t i = 0; i < live_points_.size(); ++i) {
-            Vec3d X;
-            if (camera_->sensor_type == SensorType::RGBD) {
-                const double z = sample_depth(depth, left[i], camera_->depth_factor);
-                if (!depth_is_usable(*camera_, z)) continue;
-                X = camera_->unproject_point_3d(left[i].x(), left[i].y(), z);
-            } else if (!stereo.status[i] || !triangulate_match(*camera_, left[i], stereo.points_cur[i],
-                                                             params_.stereo_max_error, X)) {
-                continue;
-            }
-            LivePoint updated = live_points_[i];
-            updated.position_w = Twc * X;
-            measured.push_back(updated);
-        }
-        live_points_ = std::move(measured);
-    }
+
+    TrackerMapState state = map_state();
+    const AcceptOutcome outcome = tracker_->after_accept(frame, T_cur_w, state);
+
     // Low track support triggers replenishment; automatic BA also forces periodic keyframes.
     const bool needs_features = static_cast<int>(live_points_.size()) < params_.num_features_needed_for_keyframe;
     if (needs_features)
         supplement_live_points(gray, gray_right, depth, T_cur_w, img_id, stamp);
-    const bool new_keyframe = needs_features ||
+    const bool new_keyframe =
+        outcome.force_keyframe || needs_features ||
         (params_.local_ba && img_id - map_.latest_keyframe()->img_id >= params_.max_keyframe_interval);
-    if (new_keyframe)
+    if (new_keyframe) {
         record_keyframe(gray, gray_right, depth, img_id, stamp, T_cur_w);
+        tracker_->on_keyframe(frame, map_.latest_keyframe()->id, state);
+    }
 
     previous_pose_ = T_cur_w;
     current_pose_ = CameraPose(T_cur_w);
@@ -641,6 +492,13 @@ void DirectSlam::track(const cv::Mat &img, const cv::Mat &img_right, const cv::M
     // Register the accepted frame before BA so its reference-relative pose is corrected too.
     map_.add_pose(img_id, stamp, T_cur_w);
     if (new_keyframe && params_.local_ba) bundle_adjustment();
+}
+
+void DirectSlam::note_tracking_failure(int inliers) {
+    ++consecutive_failures_;
+    has_velocity_ = false;
+    last_inliers_ = inliers;
+    status_ = DirectTrackingStatus::Lost;
 }
 
 } // namespace pyslam

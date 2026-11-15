@@ -30,8 +30,8 @@
 
 #include <g2o/core/jacobian_workspace.h>
 
-#include "camera_edges_g2o.h"
-#include "camera_models.h"
+#include "camera/camera_edges_g2o.h"
+#include "camera/camera_models.h"
 
 using namespace pyslam;
 

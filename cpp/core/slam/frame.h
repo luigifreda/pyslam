@@ -19,12 +19,12 @@
 
 #pragma once
 
-#include "camera.h"
-#include "camera_pose.h"
+#include "camera/camera.h"
+#include "camera/camera_pose.h"
 #include "feature_shared_resources.h"
 
 #include "ckdtree_eigen.h"
-#include "smart_pointers.h"
+#include "common/smart_pointers.h"
 #include "utils/inheritable_shared_from_this.h"
 
 #include <Eigen/Dense>

@@ -17,7 +17,7 @@
  * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "camera.h"
+#include "camera/camera.h"
 #include "config_parameters.h"
 #include "frame.h"
 #include "keyframe.h"

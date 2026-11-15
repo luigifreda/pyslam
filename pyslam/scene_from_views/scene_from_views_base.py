@@ -22,6 +22,36 @@ from typing import List, Optional, Tuple
 import trimesh
 
 
+def depth_from_world_points(
+    pts3d_world: np.ndarray, cam2world: np.ndarray, mask: Optional[np.ndarray] = None
+) -> np.ndarray:
+    """
+    Compute a camera-frame depth map from a world-frame pointmap.
+
+    Args:
+        pts3d_world: [H, W, 3] (or [H*W, 3]) points in world coordinates
+        cam2world: [4, 4] camera-to-world pose of the view
+        mask: Optional [H, W] boolean mask; depth is 0 outside the mask
+
+    Returns:
+        [H, W] depth map (z-coordinate of the points in the camera frame)
+    """
+    pts3d_world = np.asarray(pts3d_world)
+    cam2world = np.asarray(cam2world, dtype=np.float64)
+    if mask is not None:
+        h, w = np.asarray(mask).shape[:2]
+    else:
+        h, w = pts3d_world.shape[:2]
+    pts = pts3d_world.reshape(-1, 3).astype(np.float64)
+    R = cam2world[:3, :3]
+    t = cam2world[:3, 3]
+    # z_cam = (R^T (p - t))_z = R[:, 2] . (p - t)
+    depth = ((pts - t) @ R[:, 2]).reshape(h, w).astype(pts3d_world.dtype)
+    if mask is not None:
+        depth = np.where(np.asarray(mask).reshape(h, w), depth, 0).astype(pts3d_world.dtype)
+    return depth
+
+
 class SceneFromViewsResult:
     """
     Result structure for scene reconstruction from multiple views.
@@ -76,6 +106,25 @@ class SceneFromViewsBase:
         """
         self.device = device
         self.model = None
+        self._temp_dirs = []  # temporary dirs created during a reconstruct() call
+
+    def _make_temp_dir(self, suffix: str = "") -> str:
+        """Create a temporary directory that is removed at the end of reconstruct()."""
+        import tempfile
+
+        if not hasattr(self, "_temp_dirs"):
+            self._temp_dirs = []
+        temp_dir = tempfile.mkdtemp(suffix=suffix)
+        self._temp_dirs.append(temp_dir)
+        return temp_dir
+
+    def _cleanup_temp_dirs(self):
+        """Remove temporary directories created with _make_temp_dir()."""
+        import shutil
+
+        for temp_dir in getattr(self, "_temp_dirs", []):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        self._temp_dirs = []
 
     def reconstruct(
         self, images: List[np.ndarray], as_pointcloud: bool = True, **kwargs
@@ -99,6 +148,14 @@ class SceneFromViewsBase:
         Returns:
             SceneFromViewsResult: Result containing point cloud/mesh, poses, images, etc.
         """
+        try:
+            return self._reconstruct(images, as_pointcloud=as_pointcloud, **kwargs)
+        finally:
+            self._cleanup_temp_dirs()
+
+    def _reconstruct(
+        self, images: List[np.ndarray], as_pointcloud: bool = True, **kwargs
+    ) -> SceneFromViewsResult:
         # Step 1: Preprocess images
         processed_images = self.preprocess_images(images, **kwargs)
 
@@ -199,7 +256,9 @@ class SceneFromViewsBase:
                 for i in range(len(extracted["focals"]))
             ]
             result.depth_predictions = [
-                self._extract_depth_from_pts3d(extracted["pts3d"][i], extracted["confs"][i])
+                self._extract_depth_from_pts3d(
+                    extracted["pts3d"][i], extracted["confs"][i], extracted["cams2world"][i]
+                )
                 for i in range(len(extracted["pts3d"]))
             ]
             result.confidences = extracted["confs"]
@@ -242,14 +301,12 @@ class SceneFromViewsBase:
         K[1, 2] = image_shape[0] / 2
         return K
 
-    def _extract_depth_from_pts3d(self, pts3d: np.ndarray, conf: np.ndarray) -> np.ndarray:
-        """Extract depth map from 3D points (z-component)."""
+    def _extract_depth_from_pts3d(
+        self, pts3d: np.ndarray, conf: np.ndarray, cam2world: np.ndarray
+    ) -> np.ndarray:
+        """Extract a camera-frame depth map from world-frame 3D points."""
         h, w = conf.shape
-        depth = np.zeros((h, w), dtype=pts3d.dtype)
-        pts_reshaped = pts3d.reshape(h, w, 3)
-        mask = conf > 0
-        depth[mask] = pts_reshaped[mask, 2]  # z-component
-        return depth
+        return depth_from_world_points(pts3d.reshape(h, w, 3), cam2world, conf > 0)
 
     def preprocess_images(self, images: List[np.ndarray], **kwargs) -> List:
         """

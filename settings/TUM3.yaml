@@ -56,13 +56,25 @@ DepthMapFactor: 5000.0
 FeatureTrackerConfig.nFeatures: 1000
 
 #--------------------------------------------------------------------------------------------
-# Direct / semi-direct frontend. Undistorted pinhole only.
-# mode: semi_direct (GFTT + pyramidal LK) or direct (photometric alignment)
+# Direct SLAM frontend (main_direct_slam.py). Undistorted pinhole only.
+# mode: klt (LK + reprojection), hybrid (klt + photometric refinement), or semi_direct (planar patches and inverse-depth seeds). direct aliases hybrid.
 #--------------------------------------------------------------------------------------------
-# Tracking mode: semi_direct uses LK + geometry; direct adds photometric refinement/fallback.
-DIRECT_SLAM.mode: direct
-# Maximum GFTT corners per detection; also the target live-track count when replenishing.
+# Tracking mode: klt uses LK + geometry; hybrid adds photometric refinement; semi_direct is the only monocular mode.
+DIRECT_SLAM.mode: semi_direct
+# gftt: one global Shi-Tomasi pass. grid_fast: strongest FAST corners in each cell.
+DIRECT_SLAM.corner_detector: grid_fast
+# Maximum corners per detection; also the target live-track count when replenishing.
 DIRECT_SLAM.num_features: 200
+# Grid FAST cell count. The grid is reduced, keeping this aspect ratio, when it exceeds num_features.
+DIRECT_SLAM.grid_cols: 5
+DIRECT_SLAM.grid_rows: 5
+# FAST intensity difference. Lower values accept weaker corners.
+DIRECT_SLAM.fast_threshold: 10
+# Keep only FAST corners stronger than their radius-3 neighbors.
+DIRECT_SLAM.fast_nonmax_suppression: true
+# Refine grid FAST corners to subpixel. Odd window side length, in pixels.
+DIRECT_SLAM.corner_subpix: true
+DIRECT_SLAM.subpixel_window: 5
 # LK search-window side length, in pixels at each pyramid level (left/right and temporal).
 DIRECT_SLAM.lk_patch_size: 11
 # Highest zero-based LK pyramid level; 3 means levels 0 through 3.

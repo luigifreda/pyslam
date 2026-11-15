@@ -27,7 +27,7 @@ While this may be self-evident, it is important to keep in mind that when `USE_C
 - The Python implementation of the sparse SLAM core is effectively bypassed, and any modifications to it will have no effect at runtime.
 - All functional changes to the sparse SLAM C++ codebase must be rebuilt using `./build_cpp_core.sh` (as explained above) in order to take effect.
 
-The adjacent [`slam_direct`](../slam_direct/README.md) sources provide a separate direct/semi-direct frontend and local BA backend through the same `cpp_core` module. Its entry point, `main_direct_slam.py`, requires the C++ core and has no Python-core fallback. See the [direct-SLAM guide](../../../docs/direct_slam.md) for its architecture and usage.
+The adjacent [`slam_direct`](../slam_direct/README.md) sources provide a separate direct-SLAM frontend (KLT/hybrid tracking) and local BA backend through the same `cpp_core` module. Its entry point, `main_direct_slam.py`, requires the C++ core and has no Python-core fallback. See the [direct-SLAM guide](../../../docs/direct_slam.md) for its architecture and usage.
 
 ### macOS, conda Python, and local OpenCV
 
@@ -46,18 +46,21 @@ The adjacent [`slam_direct`](../slam_direct/README.md) sources provide a separat
 ├── cpp
 │   ├── modules     # utility pybind11 extensions (solvers, volumetric, camera_models, ...)
 │   │   └── tests   # smoke tests for those extensions
-│   ├── casters     # shared OpenCV pybind11 type casters
+│   ├── casters     # shared pybind11 type casters (OpenCV, nlohmann json, Dict/List)
 │   └── core
+│       ├── camera          # camera models, projection math, rig geometry, camera g2o/gtsam edges
+│       │   └── py_module   # camera bindings compiled into cpp_core
+│       ├── common          # shared headers (Eigen aliases, smart pointers, dictionary, serialization, drawing)
 │       ├── semantics
 │       │   └── py_module   # pybind11 bindings compiled into cpp_core
-│       ├── slam_direct     # direct/semi-direct frontend and local BA
+│       ├── slam_direct     # direct-SLAM frontend (klt/hybrid/semi_direct) and local BA
 │       │   ├── py_module   # DirectSlam bindings in cpp_core
 │       │   ├── tests_cpp   # synthetic C++ regression tests
 │       │   └── tests_python # binding and snapshot checks
 │       └── slam            # sparse-SLAM C++ core
 │           ├── py_module   # pybind11 module definitions for sparse slam
-│           ├── casters     # pybind11 type casters for Eigen, JSON, dictionaries
-│           ├── utils       # helpers for geometry, features, descriptors, etc.
+│           ├── casters     # SLAM-only pybind11 opaque container types
+│           ├── utils       # SLAM helpers for geometry, features, image processing, etc.
 │           ├── tests_cpp   # C++ unit tests
 │           └── tests_py    # pybind11 integration tests
 ├── pyslam/slam/cpp/__init__.py   # Python facade that imports cpp_core
@@ -65,15 +68,19 @@ The adjacent [`slam_direct`](../slam_direct/README.md) sources provide a separat
 
 The codebase is organized into the following categories:
 
-- **Core SLAM Classes** — Main C++ implementations (`frame.cpp/h`, `keyframe.cpp/h`, `map_point.cpp/h`, `map.cpp/h`, `camera.cpp/h`, `camera_pose.cpp/h`, `optimizer_g2o.cpp/h`, `slam.cpp/h`, `tracking.cpp/h`, `tracking_core.cpp/h`, `local_mapping.cpp/h`, `local_mapping_core.cpp/h`).
+- **Core SLAM Classes** — Main C++ implementations (`frame.cpp/h`, `keyframe.cpp/h`, `map_point.cpp/h`, `map.cpp/h`, `optimizer_g2o.cpp/h`, `slam.cpp/h`, `tracking.cpp/h`, `tracking_core.cpp/h`, `local_mapping.cpp/h`, `local_mapping_core.cpp/h`).
 
 - **Serialization** — JSON and NumPy serialization modules (`*_serialization_json.cpp`, `*_serialization_py.cpp`) for data persistence and Python interop.
 
 - **Python Bindings** — `py_module/` contains pybind11 module definitions (`cpp_core_module.cpp`, `*_module.h`) that expose C++ classes to Python.
 
-- **Type Casters** — `casters/` provides pybind11 type casters for Eigen, JSON, and dictionary types. The OpenCV caster is the shared header in `cpp/casters`.
+- **Cameras** — `cpp/core/camera/` holds `camera.cpp/h`, `camera_models.cpp/h`, `camera_model_math.h`, `camera_pose.cpp/h`, rig geometry, the camera g2o/gtsam edges and their bindings (`camera/py_module/`). It depends only on `cpp/core/common`.
 
-- **Utilities** — `utils/` houses helper functions for geometry, features, descriptors, image processing, NumPy/Eigen operations, and serialization.
+- **Type Casters** — `casters/` keeps the SLAM-only opaque container types. The OpenCV, JSON and dictionary casters are shared headers in `cpp/casters`.
+
+- **Shared headers** — `cpp/core/common/` holds what `camera`, `slam`, `slam_direct` and `semantics` share: Eigen aliases and helpers, smart pointers, `Dict`, messages, JSON/NumPy serialization, descriptor distances, an owned g2o optimizer, and the feature-trail drawing.
+
+- **Utilities** — `utils/` houses SLAM helper functions for geometry, features, image processing and map access.
 
 - **Tests** — `tests_cpp/` and `tests_py/` contain C++ unit tests and Python integration tests respectively. See [tests/README.md](../../../tests/README.md) for how to run them.
 
@@ -88,8 +95,8 @@ The codebase is organized into the following categories:
 | `keyframe.cpp/h` | `pyslam/slam/keyframe.py` | Keyframe class for storing keyframes in the map |
 | `map_point.cpp/h` | `pyslam/slam/map_point.py` | MapPoint class for 3D points in the map |
 | `map.cpp/h` | `pyslam/slam/map.py` | Map class managing keyframes and map points |
-| `camera.cpp/h`, `camera_models.cpp/h`, `camera_model_math.h` | `pyslam/slam/camera.py` | Pinhole, Kannala–Brandt4, rational pinhole, and double-sphere cameras |
-| `camera_pose.cpp/h` | `pyslam/slam/camera_pose.py` | Camera pose representation |
+| `../camera/camera.cpp/h`, `camera_models.cpp/h`, `camera_model_math.h` | `pyslam/slam/camera.py` | Pinhole, Kannala–Brandt4, rational pinhole, and double-sphere cameras |
+| `../camera/camera_pose.cpp/h` | `pyslam/slam/camera_pose.py` | Camera pose representation |
 | `slam.cpp/h` | `pyslam/slam/slam.py` | SLAM system; unported collaborators (feature tracker, loop closing, ...) stay Python objects |
 | `slam_dynamic_config.cpp/h` | `pyslam/slam/slam_dynamic_config.py` | Running statistics that adapt the descriptor-distance and reprojection-error thresholds |
 | `tracking.cpp/h` | `pyslam/slam/tracking.py` | Tracking control flow |

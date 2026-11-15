@@ -23,7 +23,7 @@
 // The edges are the shared templates in cpp/core/slam/camera_projection_edges_g2o.h.
 
 #include "camera_model.h"
-#include "camera_projection_edges_g2o.h"
+#include "camera/camera_projection_edges_g2o.h"
 
 namespace camera_models {
 

@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "camera_pose.h"
+#include "camera/camera_pose.h"
 #include "frame.h"
 #include "utils/inheritable_shared_from_this.h"
 

@@ -27,8 +27,8 @@
 #include <pybind11/stl.h>
 
 #include "feature_shared_resources.h"
-#include "utils/descriptor_helpers.h"
-#include "utils/messages.h"
+#include "common/descriptor_helpers.h"
+#include "common/messages.h"
 #include "utils/pybinding_helpers.h"
 
 namespace py = pybind11;

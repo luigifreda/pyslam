@@ -19,7 +19,7 @@
 
 #include "map.h"
 
-#include "utils/serialization_numpy.h"
+#include "common/serialization_numpy.h"
 
 #include <cstdint>
 #include <limits>

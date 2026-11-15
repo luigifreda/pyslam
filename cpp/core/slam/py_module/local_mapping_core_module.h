@@ -23,7 +23,7 @@
 #include <pybind11/stl.h>
 
 #include "local_mapping_core.h"
-#include "utils/messages.h"
+#include "common/messages.h"
 
 namespace py = pybind11;
 

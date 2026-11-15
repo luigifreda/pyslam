@@ -66,6 +66,9 @@ endif()
 
 set(PYSLAM_ROOT ${PROJECT_SOURCE_DIR}/../../..)
 set(PYSLAM_SLAM_SRC ${PROJECT_SOURCE_DIR})
+# Camera models and shared utilities, included as "camera/..." and "common/...".
+set(PYSLAM_CAMERA_SRC ${PYSLAM_ROOT}/cpp/core/camera)
+set(PYSLAM_COMMON_SRC ${PYSLAM_ROOT}/cpp/core/common)
 set(PYSLAM_SEMANTICS_SRC ${PYSLAM_ROOT}/cpp/core/semantics)
 
 
@@ -244,7 +247,8 @@ find_package(Boost REQUIRED COMPONENTS thread filesystem)
 include_directories(${PYSLAM_SLAM_SRC})
 include_directories(${PYSLAM_ROOT}/cpp/core)
 include_directories(${PYSLAM_SEMANTICS_SRC})
-# OpenCV casters live once, in cpp/casters. Slam-local casters are searched first.
+# Shared pybind casters (OpenCV, nlohmann json, Dict/List) live in cpp/casters.
+# Slam-only casters (core/slam/casters) are searched first.
 include_directories(${PYSLAM_ROOT}/cpp)
 
 
@@ -391,10 +395,10 @@ set(SLAM_CPP_CORE_SOURCES
     ${PYSLAM_SLAM_SRC}/map.cpp
     ${PYSLAM_SLAM_SRC}/map_serialization_json.cpp
     ${PYSLAM_SLAM_SRC}/map_points.cpp
-    ${PYSLAM_SLAM_SRC}/camera_pose.cpp
-    ${PYSLAM_SLAM_SRC}/camera.cpp
-    ${PYSLAM_SLAM_SRC}/camera_models.cpp
-    ${PYSLAM_SLAM_SRC}/camera_serialization_json.cpp
+    ${PYSLAM_CAMERA_SRC}/camera_pose.cpp
+    ${PYSLAM_CAMERA_SRC}/camera.cpp
+    ${PYSLAM_CAMERA_SRC}/camera_models.cpp
+    ${PYSLAM_CAMERA_SRC}/camera_serialization_json.cpp
     ${PYSLAM_SLAM_SRC}/feature_shared_resources.cpp
     ${PYSLAM_SLAM_SRC}/utils/features.cpp    
     ${PYSLAM_SLAM_SRC}/utils/geom_2views.cpp
@@ -411,8 +415,19 @@ set(SLAM_CPP_CORE_SOURCES
     ${PYSLAM_SLAM_SRC}/local_mapping.cpp
     ${PYSLAM_SLAM_SRC}/slam.cpp
     ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_params.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_aligner.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/semi_direct_tracker.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/direct_aligner.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/planar_patch.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/depth_filter.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/semi_direct_pose_tracker.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/features/corner_detection.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/features/corner_grid.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/geometry/reprojection_pose.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/geometry/monocular_initializer.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/klt/klt_tracker.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/klt/klt_pose_tracker.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/depth_measurement.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/pose_tracker.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/hybrid_pose_tracker.cpp
     ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_backend.cpp
     ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_frontend.cpp
 )
@@ -420,7 +435,7 @@ set(SLAM_CPP_CORE_SOURCES
 if (USE_PYTHON)
     set(SLAM_CPP_CORE_SOURCES
         ${SLAM_CPP_CORE_SOURCES}
-        ${PYSLAM_SLAM_SRC}/camera_serialization_py.cpp
+        ${PYSLAM_CAMERA_SRC}/camera_serialization_py.cpp
         ${PYSLAM_SLAM_SRC}/map_point_serialization_py.cpp
         ${PYSLAM_SLAM_SRC}/frame_serialization_py.cpp
         ${PYSLAM_SLAM_SRC}/keyframe_serialization_py.cpp
@@ -434,33 +449,33 @@ set(SLAM_CPP_CORE_HEADERS
     ${PYSLAM_SLAM_SRC}/frame.h
     ${PYSLAM_SLAM_SRC}/keyframe.h
     ${PYSLAM_SLAM_SRC}/map.h
-    ${PYSLAM_SLAM_SRC}/camera_pose.h
-    ${PYSLAM_SLAM_SRC}/camera.h
-    ${PYSLAM_SLAM_SRC}/camera_model_math.h
-    ${PYSLAM_SLAM_SRC}/camera_models.h
-    ${PYSLAM_SLAM_SRC}/camera_edges_g2o.h
-    ${PYSLAM_SLAM_SRC}/camera_factors_gtsam.h
-    ${PYSLAM_SLAM_SRC}/camera_handle.h
-    ${PYSLAM_SLAM_SRC}/camera_rig_geometry.h
-    ${PYSLAM_SLAM_SRC}/camera_projection_edges_g2o.h
-    ${PYSLAM_SLAM_SRC}/camera_projection_factors_gtsam.h
+    ${PYSLAM_CAMERA_SRC}/camera_pose.h
+    ${PYSLAM_CAMERA_SRC}/camera.h
+    ${PYSLAM_CAMERA_SRC}/camera_model_math.h
+    ${PYSLAM_CAMERA_SRC}/camera_models.h
+    ${PYSLAM_CAMERA_SRC}/camera_edges_g2o.h
+    ${PYSLAM_CAMERA_SRC}/camera_factors_gtsam.h
+    ${PYSLAM_CAMERA_SRC}/camera_handle.h
+    ${PYSLAM_CAMERA_SRC}/camera_rig_geometry.h
+    ${PYSLAM_CAMERA_SRC}/camera_projection_edges_g2o.h
+    ${PYSLAM_CAMERA_SRC}/camera_projection_factors_gtsam.h
     ${PYSLAM_SLAM_SRC}/feature_shared_resources.h
-    ${PYSLAM_SLAM_SRC}/dictionary.h
+    ${PYSLAM_COMMON_SRC}/dictionary.h
     ${PYSLAM_SLAM_SRC}/optimizer_g2o.h
-    ${PYSLAM_SLAM_SRC}/owned_g2o_optimizer.h
+    ${PYSLAM_COMMON_SRC}/owned_g2o_optimizer.h
     ${PYSLAM_SLAM_SRC}/optimizer_gtsam.h
     ${PYSLAM_SLAM_SRC}/optimizer_common.h
-    ${PYSLAM_SLAM_SRC}/utils/descriptor_helpers.h
-    ${PYSLAM_SLAM_SRC}/utils/eigen_helpers.h
-    ${PYSLAM_SLAM_SRC}/utils/feature_trails.h
+    ${PYSLAM_COMMON_SRC}/descriptor_helpers.h
+    ${PYSLAM_COMMON_SRC}/eigen_helpers.h
+    ${PYSLAM_COMMON_SRC}/feature_trails.h
     ${PYSLAM_SLAM_SRC}/utils/features.h
-    ${PYSLAM_SLAM_SRC}/utils/messages.h    
+    ${PYSLAM_COMMON_SRC}/messages.h    
     ${PYSLAM_SLAM_SRC}/utils/image_processing.h
-    ${PYSLAM_SLAM_SRC}/utils/serialization_json.h    
+    ${PYSLAM_COMMON_SRC}/serialization_json.h    
     ${PYSLAM_SLAM_SRC}/utils/cv_ops.h
     ${PYSLAM_SLAM_SRC}/utils/accessors.h
     ${PYSLAM_SLAM_SRC}/utils/geom_2views.h
-    ${PYSLAM_SLAM_SRC}/eigen_aliases.h
+    ${PYSLAM_COMMON_SRC}/eigen_aliases.h
     ${PYSLAM_SLAM_SRC}/tracking_core.h
     ${PYSLAM_SLAM_SRC}/rotation_histogram.h
     ${PYSLAM_SLAM_SRC}/config_parameters.h
@@ -475,9 +490,21 @@ set(SLAM_CPP_CORE_HEADERS
     ${PYSLAM_SLAM_SRC}/slam.h
     ${PYSLAM_ROOT}/cpp/core/slam_direct/se3.h
     ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_params.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_aligner.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/semi_direct_tracker.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/direct_aligner.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/planar_patch.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/depth_filter.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/semi_direct_pose_tracker.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/features/corner_detection.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/features/corner_grid.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/geometry/reprojection_pose.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/geometry/monocular_initializer.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/klt/klt_tracker.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/klt/klt_pose_tracker.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/depth_measurement.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/pose_tracker.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/hybrid_pose_tracker.h
     ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_map.h
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/live_point.h
     ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_backend.h
     ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_frontend.h
 )
@@ -485,8 +512,8 @@ set(SLAM_CPP_CORE_HEADERS
 if (USE_PYTHON)
     set(SLAM_CPP_CORE_HEADERS
         ${SLAM_CPP_CORE_HEADERS}
-        ${PYSLAM_SLAM_SRC}/utils/serialization_numpy.h        
-        ${PYSLAM_SLAM_SRC}/utils/numpy_helpers.h  # for serialization    
+        ${PYSLAM_COMMON_SRC}/serialization_numpy.h        
+        ${PYSLAM_COMMON_SRC}/numpy_helpers.h  # for serialization    
     )
 endif()
 
@@ -518,17 +545,17 @@ set(SEMANTICS_CPP_CORE_HEADERS
 
 set(SLAM_CPP_PYBIND_MODULE_SOURCES
     ${PYSLAM_SLAM_SRC}/py_module/cpp_core_module.cpp
-    ${PYSLAM_SLAM_SRC}/py_module/camera_g2o_module.cpp
-    ${PYSLAM_SLAM_SRC}/py_module/camera_gtsam_module.cpp
+    ${PYSLAM_CAMERA_SRC}/py_module/camera_g2o_module.cpp
+    ${PYSLAM_CAMERA_SRC}/py_module/camera_gtsam_module.cpp
 )
 
 set(SLAM_CPP_PYBIND_MODULE_HEADERS
-    ${PYSLAM_SLAM_SRC}/casters/dictionary_casters.h
+    ${PYSLAM_ROOT}/cpp/casters/dictionary_casters.h
     ${PYSLAM_ROOT}/cpp/casters/opencv_type_casters.h
     ${PYSLAM_SLAM_SRC}/py_module/map_module.h
     ${PYSLAM_SLAM_SRC}/py_module/ckdtree_module.h
-    ${PYSLAM_SLAM_SRC}/py_module/camera_module.h
-    ${PYSLAM_SLAM_SRC}/py_module/camera_optimizer_bindings.h
+    ${PYSLAM_CAMERA_SRC}/py_module/camera_module.h
+    ${PYSLAM_CAMERA_SRC}/py_module/camera_optimizer_bindings.h
     ${PYSLAM_SLAM_SRC}/py_module/map_point_module.h
     ${PYSLAM_SLAM_SRC}/py_module/feature_shared_resources_module.h
     ${PYSLAM_SLAM_SRC}/py_module/frame_module.h

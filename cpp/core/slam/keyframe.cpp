@@ -18,12 +18,12 @@
  */
 
 #include "keyframe.h"
-#include "camera_pose.h"
+#include "camera/camera_pose.h"
 #include "config_parameters.h"
 #include "frame.h"
 #include "map.h"
 #include "map_point.h"
-#include "utils/messages.h"
+#include "common/messages.h"
 
 #include <nlohmann/json.hpp>
 

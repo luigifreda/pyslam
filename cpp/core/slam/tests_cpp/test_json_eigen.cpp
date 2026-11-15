@@ -21,7 +21,7 @@
 
 #include <Eigen/Dense>
 
-#include "utils/serialization_json.h"
+#include "common/serialization_json.h"
 #include "utils/test_utils.h"
 
 using pyslam::eigen_matrix_to_json_array;

@@ -26,7 +26,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "camera.h"
+#include "camera/camera.h"
 #include "geometry_matchers.h"
 
 namespace py = pybind11;

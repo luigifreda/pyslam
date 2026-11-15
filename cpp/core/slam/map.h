@@ -36,7 +36,7 @@
 #include <vector>
 
 #include "config_parameters.h"
-#include "smart_pointers.h"
+#include "common/smart_pointers.h"
 
 #ifdef USE_PYTHON
 #include <pybind11/eigen.h>

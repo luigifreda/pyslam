@@ -28,7 +28,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "utils/messages.h"
+#include "common/messages.h"
 
 namespace py = pybind11;
 // Wrapper functions to match Python signatures

@@ -110,7 +110,10 @@ class SceneOptimizerBase(ABC):
         Returns:
             True if this optimizer can process the result, False otherwise
         """
-        # Default implementation: check if result has required attributes
+        # Post-processing is only possible if the subclass implements optimize_from_result()
+        if type(self).optimize_from_result is SceneOptimizerBase.optimize_from_result:
+            return False
+        # Check if result has required attributes
         required_attrs = ["camera_poses", "depth_predictions", "intrinsics"]
         return all(hasattr(result, attr) for attr in required_attrs)
 

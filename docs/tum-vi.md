@@ -42,11 +42,13 @@ Like PLVS2's TUM-VI example, images are loaded as 8-bit grayscale and CLAHE with
 
 `stereo_mode: rectified` uses `cv2.fisheye.stereoRectify`, following PLVS2's pre-rectification option. It inverts `Stereo.T_c1_c2` to obtain the left-to-right transform expected by OpenCV. `Camera.fovScale: 0.7` and a default rectification balance of `1.0` match PLVS2; `Camera.rectifyBalance` can override the latter.
 
-The loader derives the pinhole intrinsics and `bf` from the rectified projection matrices. Distortion is zero in this tracking camera. Fixed-point remap tables are computed once, and each frame uses `cv2.remap`; rectification is not recomputed during playback. This mode uses the established pinhole stereo matcher and factors and is the mode to use with stereo depth estimators and dense reconstruction.
+The loader derives the pinhole intrinsics and `bf` from the rectified projection matrices. Distortion is zero in this tracking camera. Fixed-point remap tables are computed once, and each frame uses `cv2.remap`; rectification is not recomputed during playback. This mode uses the established pinhole stereo matcher and factors and is the mode to use with stereo depth estimators and dense reconstruction. `settings/TUM_VI.yaml` selects `DIRECT_SLAM.mode: hybrid` for the rectified pinhole.
 
 ## Native mode
 
 `stereo_mode: native` keeps the original fisheye images. It constructs two KB4 cameras with their individual intrinsics and distortion, plus the calibrated `T_right_left` transform. KB4 is the four-distortion-coefficient model called `KannalaBrandt8` by PLVS2/ORB-SLAM3; the other four parameters are the intrinsics.
+
+`main_direct_slam.py` tracks these raw images in `klt` and `hybrid` mode. Lucas–Kanade supplies the right-image pixel. The photometric warp uses the KB4 projection Jacobian and does not remap the frames. `settings/TUM_VI.yaml` selects `mode: hybrid`.
 
 Stereo matching does not assume rectified rows. For each left keypoint, `search_stereo_rig` unprojects the left ray and keeps right keypoints whose ray lies on its epipolar plane, between the image of the point at infinity and the right camera center (positive depth on both rays). The band is the 1-DoF chi-squared bound of the right keypoint's octave, measured in pixels with the right camera's projection Jacobian. Candidates must be at most one octave apart, the best descriptor must pass a strict ratio test, and matches are one-to-one. Each accepted pair is triangulated from both rays and must reproject within the 2-DoF chi-squared bound in both images; its forward depth feeds the existing stereo initialization and backprojection paths. See [Epipolar geometry on raw pixels](../cpp/modules/camera_models/README.md#epipolar-geometry-on-raw-pixels).
 

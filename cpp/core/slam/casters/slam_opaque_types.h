@@ -27,7 +27,7 @@
 
 // Include smart_pointers.h to get the actual KeyFramePtr, MapPointPtr, FramePtr typedefs
 // This is safe because these are just typedefs, not full class definitions
-#include "smart_pointers.h"
+#include "common/smart_pointers.h"
 
 namespace py = pybind11;
 

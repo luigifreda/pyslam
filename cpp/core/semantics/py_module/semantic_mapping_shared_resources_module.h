@@ -28,8 +28,8 @@
 
 #include "semantic_colormap.h"
 #include "semantic_mapping_shared_resources.h"
-#include "utils/descriptor_helpers.h"
-#include "utils/messages.h"
+#include "common/descriptor_helpers.h"
+#include "common/messages.h"
 #include "utils/pybinding_helpers.h"
 
 namespace py = pybind11;

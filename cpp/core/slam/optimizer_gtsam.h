@@ -21,7 +21,7 @@
 
 #include "optimizer_common.h"
 #include "sim3_pose.h"
-#include "smart_pointers.h"
+#include "common/smart_pointers.h"
 
 #include <Eigen/Dense>
 #include <atomic>

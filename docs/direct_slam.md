@@ -1,8 +1,8 @@
-# Direct and Semi-Direct SLAM
+# Direct SLAM (KLT, Hybrid, and Semi-Direct Tracking)
 
 <!-- TOC -->
 
-- [Direct and Semi-Direct SLAM](#direct-and-semi-direct-slam)
+- [Direct SLAM (KLT, Hybrid, and Semi-Direct Tracking)](#direct-slam-klt-hybrid-and-semi-direct-tracking)
   - [Quick Start](#quick-start)
   - [Architecture](#architecture)
   - [Tracking and Recovery](#tracking-and-recovery)
@@ -15,14 +15,19 @@
 
 <!-- /TOC -->
 
-[`main_direct_slam.py`](../main_direct_slam.py) runs the C++ direct/semi-direct frontend and its local bundle-adjustment (BA) backend. It shares pySLAM's configuration, datasets, camera factory and viewers with `main_slam.py`. Its frontend was inspired by `slamplay/full_slam/vslam` and `slamplay/frontend/opticflow_direct_method`; its backend follows vslam's joint pose/landmark optimization.
+[`main_direct_slam.py`](../main_direct_slam.py) runs the C++ direct-SLAM frontend and its local bundle-adjustment (BA) backend. It shares pySLAM's configuration, datasets, camera factory and viewers with `main_slam.py`. Its frontend was inspired by `slamplay/full_slam/vslam` and `slamplay/frontend/opticflow_direct_method`; its backend follows vslam's joint pose/landmark optimization.
 
-The two tracking modes are:
+The tracking modes are:
 
-- **`semi_direct`**: GFTT corners, pyramidal Lucas-Kanade (LK), PnP RANSAC and robust reprojection-pose refinement.
-- **`direct`**: the same geometric seed, followed by sparse photometric refinement when it agrees with the geometric tracks. If the geometric seed fails, photometric-only tracking can recover with sufficient reference-landmark support.
+- **`klt`**: grid FAST (the default) or GFTT corners, pyramidal Lucas-Kanade (LK) on the raw image, PnP RANSAC and robust reprojection-pose refinement. Kannala–Brandt, rational pinhole, and double-sphere cameras are tracked in the distorted pixels. The pose seed lifts each pixel once and runs one OpenCV RANSAC on the normalized bearings.
+- **`hybrid`**: the same geometric seed, followed by sparse photometric refinement when it agrees with the geometric tracks. If the geometric seed fails, photometric-only tracking can recover with sufficient reference-landmark support. The warp projects the feature center once and slides a 2D window. It uses the camera model, so a raw-pixel camera is aligned in the distorted image.
+- **`semi_direct`**: photometric alignment of a fronto-parallel patch against the reference keyframe, then an independent 2D alignment of each projected patch, then the same reprojection pose. Immature corners are inverse-depth seeds. This is the only mode that accepts a monocular camera.
 
-Both modes require **stereo or RGBD input and an undistorted pinhole left camera**. They estimate metric motion from sensor depth, without using ground truth for scale. They do not provide loop closure, place recognition, global BA or dense/semantic mapping.
+`direct` is still accepted as a deprecated alias of `hybrid`. `semidirect` is accepted as `semi_direct`.
+
+**Why "direct".** The subsystem name (`main_direct_slam.py`, `slam_direct/`, `DirectSlam`, `DIRECT_SLAM.*`) refers to how image data is used: tracking and local-mapping correspondences come from intensity on raw pixels, never from descriptor matching. Only the optional loop-closing thread extracts descriptors, on separate keyframes. Under the usual taxonomy, which looks at the error that pose and structure are optimized on, the three modes are different. `klt` is indirect: Lucas–Kanade supplies 2D tracks and the pose minimizes reprojection error, as in KLT-based front ends such as VINS-Mono. `hybrid` runs that geometric solve first and then refines it photometrically. `semi_direct` is the SVO-style mode: it minimizes intensity on a planar 3D patch before the reprojection solve, and it estimates unknown depth with a Bayesian inverse-depth filter. Local bundle adjustment stays geometric. There is no photometric bundle adjustment.
+
+`klt` and `hybrid` require **stereo or RGBD input** and estimate metric motion from sensor depth. `semi_direct` uses the same measured landmarks when a depth or a right image is available, and it creates seeds for corners that have no measurement. A monocular `semi_direct` map takes its scale from the inverse-depth prior (`seed_min_depth`, `seed_max_depth`), not from a metric sensor. The runner skips loop closing for monocular input: the loop closer would optimize a Sim(3) correction, while the direct map moves each landmark by the SE3 delta of its anchor keyframe. Stereo and RGBD loop closing is unchanged. `--no-loop-closing` disables it in every case. The runner does not provide dense or semantic mapping. Monocular ground truth is Sim(3)-aligned in the viewer.
 
 ---
 
@@ -35,14 +40,14 @@ Activate the pySLAM environment and build the C++ core from the repository root:
 python main_direct_slam.py -c config.yaml
 ```
 
-In `config.yaml`, select a stereo or RGBD dataset and the corresponding camera settings. The intrinsics, image dimensions, stereo baseline or RGBD depth factor must match the actual images. The settings files [`KITTI00-02.yaml`](../settings/KITTI00-02.yaml) and [`TUM3.yaml`](../settings/TUM3.yaml) contain commented `DIRECT_SLAM.*` examples. The runner requires `Parameters.USE_CPP_CORE` to be enabled; the selected camera calibration must satisfy the frontend's undistorted-pinhole restriction.
+In `config.yaml`, select a stereo or RGBD dataset and the corresponding camera settings. A monocular dataset is accepted only when the mode is `semi_direct`. The intrinsics, image dimensions, stereo baseline or RGBD depth factor must match the actual images. The settings files [`KITTI00-02.yaml`](../settings/KITTI00-02.yaml), [`TUM3.yaml`](../settings/TUM3.yaml), and [`TUM_VI.yaml`](../settings/TUM_VI.yaml) contain `DIRECT_SLAM.*` examples. The runner requires `Parameters.USE_CPP_CORE` to be enabled. All three modes accept an undistorted pinhole or a raw-pixel camera. Native TUM-VI uses `sensor_type: stereo` and `stereo_mode: native`; the images are not remapped. Rectified TUM-VI remains an undistorted pinhole.
 
 ```bash
 # Fast headless smoke test using the mode in the camera settings.
 python main_direct_slam.py -c config.yaml --headless --max-frames 100
 
 # Override the mode without editing the YAML file.
-python main_direct_slam.py -c config.yaml --headless --mode direct --max-frames 1000
+python main_direct_slam.py -c config.yaml --headless --mode klt --max-frames 1000
 
 # Compare with automatic local BA disabled.
 python main_direct_slam.py -c config.yaml --headless --no-local-ba --max-frames 1000
@@ -56,21 +61,23 @@ python main_direct_slam.py -c config.yaml --headless --trajectory-file /tmp/dire
 | `-c`, `--config_path`                   | Main configuration file; omitted means the normal default configuration.                                      |
 | `--headless`                            | Disable both viewers and dataset-rate playback sleeps.                                                        |
 | `--max-frames N`                        | Stop after N input frames; 0 means all frames.                                                                |
-| `--mode semi_direct` or `--mode direct` | Override `DIRECT_SLAM.mode`, including when settings use a nested block.                                      |
+| `--mode klt`, `hybrid`, or `semi_direct` | Override `DIRECT_SLAM.mode`, including when settings use a nested block. `direct` still selects `hybrid`.     |
 | `--no-local-ba`                         | Disable automatic BA and periodic BA-driven keyframes; manual local BA remains available in interactive mode. |
-| `--trajectory-file PATH`                | Export accepted poses after all local corrections, in KITTI format.                                           |
+| `--no-loop-closing`                     | Do not start the loop-closing thread. `FeatureTrackerConfig` and `LoopDetectionConfig` otherwise select its local and global features, as in `main_slam.py`. A Lucas-Kanade tracker is rejected because loop detection needs descriptors. |
+| `--trajectory-file PATH`                | Export accepted poses after all local and loop corrections, in KITTI format.                                  |
 
 ---
 
 ## Architecture
 
-The diagrams use the tracking, local-mapping, map and component colors from the existing [SLAM workflow diagrams](./images/slam_workflow.md).
+The diagrams use the tracking, local-mapping, loop-closing, map and component colors from the existing [SLAM workflow diagrams](./images/slam_workflow.md).
 
 ```mermaid
 graph LR
     linkStyle default stroke:#021526,stroke-width:2px,font-size:12px;
     classDef moduleTracking fill:#FFD6D6,stroke:#D7263D,stroke-width:2px,font-weight:bold,font-size:24px;
     classDef moduleLocalMapping fill:#D6FFD6,stroke:#218380,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef moduleLoopClosing fill:#D6E4FF,stroke:#00509D,stroke-width:2px,font-weight:bold,font-size:24px;
     classDef moduleMap fill:#ECECEC,stroke:#333333,stroke-width:2px,font-weight:bold,font-size:24px;
     classDef component fill:none,stroke:#6EACDA,stroke-width:1px,font-size:24px;
 
@@ -78,13 +85,15 @@ graph LR
     Dataset["Dataset<br>Stereo or RGBD"] --> Runner
     Runner --> Binding["pybind11<br>DirectSlam.track"]
     subgraph Native["C++ CORE"]
-        Binding --> Tracking["Direct / semi-direct<br>Tracking"]
+        Binding --> Tracking["KLT / hybrid /<br>semi-direct Tracking"]
         Tracking --> Map["DirectMap<br>Landmarks, keyframes, trajectory"]
         Tracking -->|"New keyframe + automatic BA"| BA["Local Bundle<br>Adjustment"]
         Map -->|"Window observations"| BA
         BA -->|"Validated corrections"| Map
         Map -->|"Corrected live points and poses"| Tracking
     end
+    Runner -->|"New keyframe images, if enabled"| Loop["LoopClosing thread<br>descriptor keyframes"]
+    Loop -->|"Corrected Tcw while tracking is idle"| Map
     Runner -->|"After track returns"| Snapshot["Copied map / pose snapshots<br>Shared feature-trail renderer"]
     Map -.-> Snapshot
     Snapshot --> Viewers["Viewer3D<br>CvImageViewer"]
@@ -92,19 +101,20 @@ graph LR
 
     class Tracking moduleTracking;
     class BA moduleLocalMapping;
+    class Loop moduleLoopClosing;
     class Map moduleMap;
     class Config,Dataset,Runner,Binding,Snapshot,Viewers,Export component;
 ```
 
-Tracking and local BA run **synchronously on the caller's thread**. The Python binding releases the GIL during native tracking/BA after copying the input arrays. Viewer processes consume copied snapshots after the call returns. There is no background mapping worker mutating `DirectMap` concurrently.
+Tracking and local BA run **synchronously on the caller's thread**. The Python binding releases the GIL during native tracking/BA after copying the input arrays. Viewer processes consume copied snapshots after the call returns. Loop closing runs on its own thread, but it writes corrected keyframe poses back into `DirectMap` only while tracking is idle.
 
-The map keeps an archive of persistent landmark IDs, keyframes and accepted frame poses. Only the optimization graph is bounded by the local window; the archive itself is not limited to seven keyframes.
+The map keeps an archive of persistent landmark IDs, keyframes and accepted frame poses. The active pose window is bounded; older cameras observing active landmarks also contribute fixed measurement constraints. The archive itself is not limited to seven keyframes.
 
 ---
 
 ## Tracking and Recovery
 
-The first frame with enough valid depth-backed corners establishes the world origin and the first keyframe. Until initialization succeeds, a later input frame can retry initialization. After that, the following flow uses the **last accepted image**, which can be older than the immediately preceding input frame:
+The first stereo or RGBD frame with enough valid depth-backed corners establishes the world origin and the first keyframe. Until initialization succeeds, a later input frame can retry initialization. After that, `klt` and `hybrid` use the **last accepted image**, which can be older than the immediately preceding input frame:
 
 ```mermaid
 %%{init: {"flowchart": {"nodeSpacing": 20, "rankSpacing": 12, "padding": 6}}}%%
@@ -117,7 +127,7 @@ graph TD
 
     Input["Next stereo / RGBD input"] --> Predict["Predict from last accepted pose<br>and available motion increment"]
     Predict --> Geometry["LK tracks + forward/backward check<br>PnP RANSAC + pose refinement"]
-    Geometry --> Mode{"Direct mode?"}
+    Geometry --> Mode{"Hybrid mode?"}
     Mode -->|"Yes"| Photo["Validate photometric refinement<br>or try photometric-only recovery"]
     Mode -->|"No"| Accept{"Finite pose and<br>inliers above tracking_bad?"}
     Photo --> Accept
@@ -144,12 +154,26 @@ Tracking status uses **strict** inlier thresholds:
 
 | Status          | Meaning                                                                                                    |
 | --------------- | ---------------------------------------------------------------------------------------------------------- |
-| `INIT`          | Fresh or reset system, before a track attempt initializes it.                                              |
+| `INIT`          | Fresh or reset system, before initialization. Monocular `semi_direct` stays here until seeds converge.    |
 | `TRACKING_GOOD` | Accepted pose with inliers strictly greater than `num_features_tracking`.                                  |
 | `TRACKING_BAD`  | Accepted pose with inliers above `num_features_tracking_bad`, up to and including `num_features_tracking`. |
 | `LOST`          | Initialization or tracking did not obtain sufficient support.                                              |
 
-A failed tracking frame does not integrate the predicted motion, create keyframes, or add a trajectory row. Recovery retries against the retained reference and does not change the world origin. This is local tracking recovery, not place-recognition relocalization. Persistent loss needs an explicit reset. Feature trails break across failed or skipped input frames.
+`semi_direct` does not use that Lucas–Kanade path. After the first keyframe, each frame is aligned to the reference keyframe:
+
+1. A constant-velocity pose seeds a photometric solve. Every pixel of a square around the keyframe observation is unprojected at that feature's keyframe depth, so the patch is a fronto-parallel set of 3D points. The relative pose projects those points into the current image. `hybrid` keeps its 2D window and is not changed.
+2. Each visible patch is then aligned on its own. The pose stays fixed and the solver estimates a 2D translation of the same projected patch, coarse to fine. A feature with a large intensity residual or a large displacement is rejected.
+3. The aligned pixels go to the existing reprojection pose. If the sparse pose has too little support, feature alignment still runs from the motion prior. If that also fails, the frame is `LOST` and the reference is kept. Tracking does not fall through into `klt`.
+
+On an accepted pose the depth filter runs on the tracking thread, with at most `max_seed_updates` searches. It is the SVO depth filter (Forster et al., ICRA 2014, §IV-B), which uses the parametric model of Vogiatzis and Hernández (2011). The fusion step matches `rpg_svo`'s `DepthFilter::updateSeed`, and a C++ test checks it against a line-by-line transcription. A seed stores the reference keyframe, pixel, inverse-depth mean and variance, and Beta counts `a`, `b` that start at 10. The inverse depth is a Gaussian inlier hypothesis mixed with a uniform outlier hypothesis on `[1/seed_max_depth, 1/seed_min_depth]`. The prior variance is set so that ±3σ covers that interval (SVO's `z_range²/36`). As in SVO, the mean starts at the keyframe's median scene depth, taken from its live landmarks. A monocular start has no landmarks yet, so its seeds start at the middle of the interval.
+
+The search follows the ±3σ segment, clipped to the prior, and skips a segment shorter than about one pixel. At each one-pixel sample the same planar patch is projected and scored with zero-mean SSD. A parabola through the best score and its two neighbors refines the match to subpixel along the segment. One unique score under the intensity gate becomes an inverse-depth measurement. Its variance τ² is SVO's `computeTau`: the depth change that a one-pixel angular error on the current ray, `2·atan(1/(2·fx))`, causes, by the law of sines, converted to inverse depth. A degenerate triangulation is skipped. The Gaussian-plus-uniform update then changes the mean, variance and Beta counts together. As in SVO, a searched segment without a match counts as outlier evidence: `b` grows by one and the mean and variance stay unchanged. A seed is promoted when its variance drops below `seed_convergence_sigma2` and the match has at least two pixels of parallax; the default `1e-4` equals SVO's `σ < z_range / 200` for the default `seed_min_depth`. It is dropped after 20 failed searches, an expected inlier ratio `a/(a+b)` below 0.2 once there are more than 20 votes, or a variance that grows past four times the prior.
+
+A seed that converges after a newer keyframe was created keeps its pixel on its own keyframe. That pixel is stored as the keyframe observation, and tracking reads the landmark at its projection into the latest keyframe image.
+
+Stereo and RGBD still create a landmark immediately from a successful measurement. A corner with no valid depth becomes a seed. A monocular keyframe creates only seeds. The first monocular frame is a keyframe at the identity, and the status stays `INIT` until enough seeds converge with a few pixels of parallax. During that bootstrap the pose uses the reference keyframe's remaining seeds, at their current mean depth, together with the seeds already promoted. Seeds converge at different frames, so bootstrap ends once more than `num_features_tracking_bad` landmarks have been promoted in total. A keyframe is then forced and local BA runs. Until then a failure keeps the same reference.
+
+A failed tracking frame does not integrate the predicted motion, create keyframes, or add a trajectory row. Recovery retries against the retained reference and does not change the world origin. This is local tracking recovery, not place-recognition relocalization. Persistent loss needs an explicit reset. Feature trails break across failed or skipped input frames. During monocular initialization a failure stays `INIT` instead of `LOST`.
 
 Some validation limits are currently fixed in the implementation: LK forward/backward error is at most **1.5 px**, rectified stereo vertical mismatch is at most **2 px**, and usable sensor depth is in **(0.5, 80) m**. The configured `stereo_max_error` applies to calibrated native-rig triangulation.
 
@@ -163,7 +187,8 @@ The backend follows vslam's joint pose/landmark formulation, with these implemen
 
 - The active set is the latest `num_active_keyframes` keyframes, in chronological order. vslam removes keyframes by distance instead.
 - The oldest active pose is fixed. Metric observations of shared landmarks constrain scale; disconnected, insufficiently shared or scale-unconstrained windows are skipped.
-- Residuals are left-camera reprojection, right-camera reprojection for stereo, and measured z depth for RGBD. Native rigs use the calibrated right-camera projection and full left-to-right transform.
+- Older cameras that observe active landmarks remain fixed and contribute their measurements. This keeps a sliding window from moving shared points without accounting for their archived observations.
+- Residuals are left-camera reprojection, right-camera reprojection for stereo, and measured z depth for RGBD. Native rigs use the calibrated right-camera projection and full left-to-right transform. Monocular `semi_direct` landmarks promoted from a seed add a unary inverse-depth prior at that seed's mean and variance. The prior is the scale gauge. Stereo and RGBD graphs are unchanged, and a seed that has not been promoted does not unlock a window.
 - Initial robust Levenberg-Marquardt runs up to `ba_iterations` iterations. Outlier edges are excluded before a second refinement of up to `max(1, ba_iterations / 2)` iterations.
 - The final full robust objective is checked, including excluded edges. Non-finite or rejected solutions leave map estimates and observation flags unchanged.
 
@@ -217,7 +242,8 @@ A larger `ba_depth_sigma` gives depth residuals less weight. The same configured
 | Photometric SE3 update                    | Left increment with `[tx, ty, tz, wx, wy, wz]`.                                                   |
 | Reprojection/BA SE3 update                | Left increment with `[wx, wy, wz, tx, ty, tz]`, matching g2o.                                     |
 | RGBD depth                                | Raw sample multiplied by `Camera.depth_factor` (normally the reciprocal of `DepthMapFactor`).     |
-| Rectified stereo depth                    | `z = Camera.bf / (u_left - u_right)`, for positive disparity and valid epipolar/depth checks.     |
+| Rectified stereo depth                    | `z = Camera.bf / (u_left - u_right)`, for positive disparity and valid epipolar/depth checks. Lucas–Kanade supplies the right pixel. |
+| Native stereo depth                       | Lucas–Kanade matches the left corner in the raw right image. `triangulate_stereo_point` intersects the two camera rays. |
 
 Depth remains metric when photometric image coordinates and intrinsics are scaled through the pyramid. Pose corrections do not change the observed image pixels stored in keyframes or feature trails.
 
@@ -231,15 +257,23 @@ All defaults below come from `DirectSlamParams`; they are not a replacement for 
 
 | Parameter (`DIRECT_SLAM.` prefix)  | Default       | Meaning                                                                                          |
 | ---------------------------------- | ------------- | ------------------------------------------------------------------------------------------------ |
-| `mode`                             | `semi_direct` | Tracking mode: semi_direct uses LK + geometry; direct adds photometric refinement/fallback.      |
-| `num_features`                     | `200`         | Maximum GFTT corners per detection; also the target live-track count when replenishing.          |
-| `gftt_quality`                     | `0.01`        | Minimum corner response relative to the strongest corner (0 < value <= 1).                       |
+| `mode`                             | `klt`         | `klt` uses LK + geometry. `hybrid` adds photometric refinement. `semi_direct` uses planar patches and seeds. The checked-in camera settings use `hybrid`, except `TUM3.yaml` (`semi_direct`). `direct` selects `hybrid`. |
+| `corner_detector`                  | `grid_fast`   | `gftt` is one global Shi-Tomasi pass. `grid_fast` keeps the strongest FAST corners in each cell. |
+| `num_features`                     | `200`         | Maximum corners per detection; also the target live-track count when replenishing.               |
+| `grid_cols`                        | `5`           | Grid FAST columns. Reduced, keeping the aspect ratio, when the cell count exceeds `num_features`. `settings/KITTI00-02.yaml` uses 10. |
+| `grid_rows`                        | `5`           | Grid FAST rows. The same reduction applies.                                                       |
+| `fast_threshold`                   | `10`          | FAST intensity difference. Lower values accept weaker corners.                                    |
+| `fast_nonmax_suppression`          | `true`        | Keep only FAST corners stronger than their radius-3 neighbors.                                    |
+| `corner_subpix`                    | `true`        | Refine grid FAST corners with cornerSubPix. GFTT is already subpixel and ignores this.           |
+| `subpixel_window`                  | `5`           | Odd subpixel window side length, in pixels.                                                       |
+| `gftt_quality`                     | `0.01`        | Minimum GFTT response relative to the strongest corner (0 < value <= 1). Used only by `gftt`.    |
 | `gftt_min_distance`                | `5.0`         | Minimum distance between detected corners, in full-resolution pixels.                            |
 | `gftt_block_size`                  | `5`           | GFTT corner-response neighborhood side length, in pixels.                                        |
 | `border`                           | `20`          | Image-border exclusion margin for detection and LK validity, in pixels.                          |
 | `lk_patch_size`                    | `11`          | LK search-window side length, in pixels at each pyramid level (left/right and temporal).         |
 | `lk_max_level`                     | `3`           | Highest zero-based LK pyramid level; 3 means levels 0 through 3.                                 |
-| `half_patch_size`                  | `1`           | Photometric patch half-width; 1 samples a 3x3 patch at each pyramid level.                       |
+| `half_patch_size`                  | `1`           | `hybrid` photometric patch half-width; 1 samples a 3x3 window at each pyramid level.             |
+| `feature_half_patch`               | `2`           | `semi_direct` planar-patch half-width for pose, feature alignment, and epipolar search. 2 is 5×5. |
 | `num_iterations`                   | `10`          | Maximum photometric Gauss-Newton iterations per pyramid level.                                   |
 | `eps_convergence`                  | `1e-3`        | Pose/photometric Gauss-Newton stop threshold for the SE3 update norm (mixed m/rad).              |
 | `num_pyramid_levels`               | `4`           | Number of photometric pyramid levels, including the full-resolution image.                       |
@@ -257,8 +291,13 @@ All defaults below come from `DirectSlamParams`; they are not a replacement for 
 | `ba_iterations`                    | `10`          | Initial robust LM iteration cap; refinement uses max(1, ba_iterations / 2) iterations.           |
 | `max_keyframe_interval`            | `10`          | Force a keyframe after this input-frame ID gap when automatic BA is enabled.                     |
 | `ba_depth_sigma`                   | `0.02`        | RGBD depth sigma (m) = value * max(1, z*z); larger values weaken depth constraints.              |
+| `seed_min_depth`                   | `0.5`         | Near end of the inverse-depth prior and epipolar search, in meters. Monocular scale follows the prior. |
+| `seed_max_depth`                   | `80`          | Far end of that prior, in meters.                                                                 |
+| `seed_convergence_sigma2`          | `1e-4`        | Promote a seed when its inverse-depth variance falls below this. `1e-4` equals SVO's `σ < z_range/200` at `seed_min_depth: 0.5`. |
+| `max_seeds`                        | `400`         | Cap on immature seeds.                                                                            |
+| `max_seed_updates`                 | `100`         | Epipolar searches per accepted frame. The filter runs on the tracking thread.                    |
 
-Start with `semi_direct` and the existing dataset settings. Raise `num_features` or lower the GFTT quality threshold if initialization has too few corners; this increases detection/tracking work. Larger LK windows and more LK levels can help larger image motion, at additional cost. Larger BA windows increase optimizer cost and retain more inter-keyframe constraints. Raising `chi2_threshold` or `intensity_inlier_threshold` admits more residual error, so inspect the resulting tracking and map rather than tuning only for a higher inlier count.
+Start with `klt` and the existing dataset settings. Raise `num_features`, lower `fast_threshold`, or lower the GFTT quality threshold if initialization has too few corners; this increases detection/tracking work. Larger LK windows and more LK levels can help larger image motion, at additional cost. Larger BA windows increase optimizer cost and retain more inter-keyframe constraints. Raising `chi2_threshold` or `intensity_inlier_threshold` admits more residual error, so inspect the resulting tracking and map rather than tuning only for a higher inlier count.
 
 ---
 
@@ -266,7 +305,9 @@ Start with `semi_direct` and the existing dataset settings. Raise `num_features`
 
 Without `--headless`, the runner uses the same `Viewer3D` and `CvImageViewer` as `main_slam.py`. It shows keyframes, the current camera, the full valid landmark archive as **black points**, the estimated trajectory as a **blue line**, and ground truth when configured. The line uses all accepted camera centers, including non-keyframes, and is rebuilt from corrected poses after local BA; reset clears the old path. Snapshot downsampling limits the displayed point count without pruning the map. Interactive playback is paced at the dataset frame rate.
 
-Tracked features use the shared [`feature_trails.h`](../cpp/core/slam/utils/feature_trails.h) helper also called by sparse-SLAM `Frame`: stable ID colors, filled 4-pixel markers, antialiased trails, and the optional radius/track-age palette. GFTT corners have octave 0. Lost frames do not draw stale reference pixels on the failed input image.
+With loop closing enabled, the viewer also receives the standard covisibility, spanning-tree and loop-edge layers. Their topology comes from the descriptor keyframes, but every endpoint uses the corresponding direct keyframe's camera center. The initial descriptor connections are temporal links, rather than measured direct-landmark covisibility. Descriptor points are not displayed. The runner captures camera poses, landmarks, trajectory and graph before releasing the tracking gate, so a loop correction cannot split a snapshot across map revisions. Rendering and queue publication follow after releasing the gate. Snapshot preparation still runs on the tracking thread; the standard runner's background map drawer cannot safely read the native direct map concurrently without further synchronization.
+
+Tracked features use the shared [`feature_trails.h`](../cpp/core/common/feature_trails.h) helper also called by sparse-SLAM `Frame`: stable ID colors, filled 4-pixel markers, antialiased trails, and the optional radius/track-age palette. Detected corners are drawn at octave 0. Lost frames do not draw stale reference pixels on the failed input image.
 
 Pause, step, reset, local BA and quit are supported. The shared viewer's save control is not wired to this frontend. The native APIs return owned snapshots for Python consumers:
 
@@ -286,15 +327,17 @@ Pause, step, reset, local BA and quit are supported. The shared viewer's save co
 
 | Capability                         | `main_direct_slam.py`                             | `main_slam.py`                                                       |
 | ---------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------- |
-| Frontend                           | GFTT/LK and optional sparse photometric alignment | Configurable feature tracking/matching and local-map tracking        |
-| Input supported by this runner     | Stereo or RGBD, undistorted pinhole left camera   | Broader sensor and camera support; see [camera models](./cameras.md) |
-| Mapping                            | Persistent landmarks and synchronous local BA     | Full local mapper with additional triangulation, fusion and culling  |
-| Loop closure / global optimization | Not provided                                      | Available in the full pipeline                                       |
+| Frontend                           | `klt`, `hybrid`, or SVO-style `semi_direct` planar patches and seeds | Configurable feature tracking/matching and local-map tracking        |
+| Input supported by this runner     | Stereo or RGBD for every mode. Monocular only for `semi_direct`. Images are not undistorted. | Broader sensor and camera support; see [camera models](./cameras.md) |
+| Mapping                            | Persistent landmarks, inverse-depth seeds, and synchronous local BA | Full local mapper with additional triangulation, fusion and culling  |
+| Loop closure / global optimization | Same `LoopClosing` thread on descriptor keyframes. Skipped for monocular `semi_direct`. | Available in the full pipeline                                       |
 | Dense / semantic mapping           | Not provided                                      | Optional modules                                                     |
 | Recovery after tracking loss       | Retry the last accepted reference                 | Full-pipeline tracking/relocalization mechanisms                     |
 | Visualization                      | Shared viewers and feature drawing                | Shared viewers and feature drawing                                   |
 
-Local BA improves local consistency but does not remove accumulated global drift. The current backend uses a chronological window and a synchronous call rather than reproducing vslam's worker-thread scheduling and distance-based keyframe eviction.
+Local BA improves local consistency. Loop closing, when enabled, detects loops with the configured local and global features and applies the pose-graph and optional global BA corrections to the direct trajectory. The local backend uses a chronological window and a synchronous call rather than reproducing vslam's worker-thread scheduling and distance-based keyframe eviction.
+
+The tracking thread registers an empty descriptor keyframe and queues its images, calibration and feature configuration. `LoopDetectingProcess` runs the configured detector and descriptor (ORB2 by default), plus the standard stereo/RGBD depth preparation. Its output carries owned feature arrays back to the `LoopClosing` thread, which creates descriptor-map points using the keyframe's latest pose before geometric verification. Retrieval-specific descriptor recomputation remains separate from the geometry descriptors. Standard `main_slam.py` tasks continue to reuse their frontend features. This removes loop-feature extraction and descriptor-point creation from the direct tracking thread; pose synchronization and viewer snapshot preparation still run there, and a slow loop detector can accumulate queued keyframes.
 
 ---
 
@@ -302,11 +345,15 @@ Local BA improves local consistency but does not remove accumulated global drift
 
 See the [C++ direct-SLAM README](../cpp/core/slam_direct/README.md) for the source layout, regression-test commands and recorded KITTI results. The main implementation entry points are:
 
-- [`direct_frontend.h/.cpp`](../cpp/core/slam_direct/direct_frontend.cpp): initialization, tracking, keyframe recording, failure/recovery and correction propagation.
-- [`direct_aligner.h/.cpp`](../cpp/core/slam_direct/direct_aligner.cpp): sparse photometric normal equations and coarse-to-fine alignment.
-- [`semi_direct_tracker.h/.cpp`](../cpp/core/slam_direct/semi_direct_tracker.cpp): GFTT, LK consistency and geometric pose estimation.
+- [`direct_loop_closing.py`](../pyslam/slam/direct_loop_closing.py): descriptor keyframes, the loop-closing thread, and publication of corrected poses while tracking is idle.
+- [`direct_frontend.h/.cpp`](../cpp/core/slam_direct/direct_frontend.cpp): mode-independent orchestration: initialization, the accept/reject decision, keyframe recording, failure/recovery, local-BA updates and loop-closure pose application.
+- [`pose_tracker.h/.cpp`](../cpp/core/slam_direct/pose_tracker.cpp): the `PoseTracker` interface. Each mode is one implementation: [`klt/klt_pose_tracker`](../cpp/core/slam_direct/klt/klt_pose_tracker.cpp) (`klt`), [`hybrid_pose_tracker`](../cpp/core/slam_direct/hybrid_pose_tracker.cpp) (`hybrid`), and [`direct/semi_direct_pose_tracker`](../cpp/core/slam_direct/direct/semi_direct_pose_tracker.cpp) (`semi_direct`). Indirect (LK) code is under `klt/` and photometric code under `direct/`. All modes share [`geometry/reprojection_pose`](../cpp/core/slam_direct/geometry/reprojection_pose.cpp), [`features/`](../cpp/core/slam_direct/features/corner_detection.cpp) corner detection, and [`depth_measurement`](../cpp/core/slam_direct/depth_measurement.cpp), where stereo depth uses LK in every mode.
+- [`direct/direct_aligner.h/.cpp`](../cpp/core/slam_direct/direct/direct_aligner.cpp): sparse photometric normal equations and coarse-to-fine alignment used by `hybrid`.
+- [`direct/planar_patch.h/.cpp`](../cpp/core/slam_direct/direct/planar_patch.cpp): fronto-parallel patch pose and per-feature alignment used by `semi_direct`.
+- [`direct/depth_filter.h/.cpp`](../cpp/core/slam_direct/direct/depth_filter.cpp): the SVO depth filter (Gaussian × Beta inverse-depth seeds, one-pixel τ), subpixel epipolar search, and expiry.
+- [`klt/klt_tracker.h/.cpp`](../cpp/core/slam_direct/klt/klt_tracker.cpp): pyramidal LK with a forward-backward consistency check.
 - [`direct_backend.h/.cpp`](../cpp/core/slam_direct/direct_backend.cpp): bounded joint BA, gauge checks and observation rejection.
 - [`direct_map.h`](../cpp/core/slam_direct/direct_map.h): persistent observations, landmarks and reference-relative trajectory storage.
 - [`direct_slam_module.h`](../cpp/core/slam_direct/py_module/direct_slam_module.h): NumPy input ownership, GIL handling and snapshot bindings.
 
-The existing tests cover synthetic photometric and geometric motion, stereo/RGBD scale, native-rig BA, outlier rejection, fixed gauges, bounded windows, unobservable graph rejection, failure/recovery, corrected trajectories, reset, and shared feature rendering. Recorded KITTI metrics are local validation results, not a claim of equivalence to the official KITTI segment-drift score or to vslam on every dataset.
+The existing tests cover synthetic photometric and geometric motion, stereo/RGBD scale, native-rig BA, outlier rejection, fixed gauges, bounded windows, archived observers of active landmarks, unobservable graph rejection, failure/recovery, corrected trajectories, reset, and shared feature rendering. For `semi_direct` they also check the depth-filter update against a transcription of SVO's `updateSeed`, the one-pixel τ geometry, subpixel epipolar depth, tracking of landmarks anchored on an older keyframe, monocular bootstrap with gradual promotion, and, through the Python binding, monocular bootstrap and RGBD seeds where depth is missing. `cpp/core/slam/build/tests_cpp/direct_slam/test_direct_slam --backend-only` runs the backend and correction checks separately. Recorded KITTI metrics are local validation results, not a claim of equivalence to the official KITTI segment-drift score or to vslam on every dataset.

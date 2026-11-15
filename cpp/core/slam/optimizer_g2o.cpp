@@ -20,19 +20,19 @@
  */
 
 #include "optimizer_g2o.h"
-#include "owned_g2o_optimizer.h"
+#include "common/owned_g2o_optimizer.h"
 
-#include "camera.h"
-#include "camera_edges_g2o.h"
-#include "camera_pose.h"
+#include "camera/camera.h"
+#include "camera/camera_edges_g2o.h"
+#include "camera/camera_pose.h"
 #include "config_parameters.h"
 #include "feature_shared_resources.h"
 #include "frame.h"
 #include "keyframe.h"
 #include "map.h"
 #include "map_point.h"
-#include "utils/eigen_helpers.h"
-#include "utils/messages.h"
+#include "common/eigen_helpers.h"
+#include "common/messages.h"
 
 #include <g2o/core/block_solver.h>
 #include <g2o/core/optimization_algorithm_levenberg.h>

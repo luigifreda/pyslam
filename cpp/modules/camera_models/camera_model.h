@@ -23,7 +23,7 @@
 // pyslam::camera_model in camera_model_math.h. This type is not the SLAM Camera
 // owned by cpp_core.
 
-#include "eigen_aliases.h"
+#include "common/eigen_aliases.h"
 
 #include <Eigen/Core>
 

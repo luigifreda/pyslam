@@ -17,7 +17,7 @@
  * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "ckdtree_eigen.h"
-#include "eigen_aliases.h"
+#include "common/eigen_aliases.h"
 
 #include <Eigen/Core>
 #include <iostream>

@@ -25,7 +25,11 @@ import trimesh
 import copy
 import os
 
-from .scene_from_views_base import SceneFromViewsBase, SceneFromViewsResult
+from .scene_from_views_base import (
+    SceneFromViewsBase,
+    SceneFromViewsResult,
+    depth_from_world_points,
+)
 from pyslam.utilities.dust3r import (
     Dust3rImagePreprocessor,
     convert_mv_output_to_geometry,
@@ -296,29 +300,20 @@ class SceneFromViewsMast3r(SceneFromViewsBase):
         if optim_level == "coarse":
             niter2 = 0
 
-        # Create cache directory
-        import tempfile
-        import os
-
-        cache_dir = tempfile.mkdtemp(suffix="_mast3r_cache")
-        os.makedirs(cache_dir, exist_ok=True)
+        # Create cache directory (removed automatically at the end of reconstruct())
+        cache_dir = self._make_temp_dir(suffix="_mast3r_cache")
 
         # ====================================================================
         # INFERENCE PART: Forward pass to extract features and correspondences
         # ====================================================================
-        from mast3r.cloud_opt.sparse_ga import (
-            convert_dust3r_pairs_naming,
-            forward_mast3r,
-            prepare_canonical_data,
-            condense_data,
-            compute_min_spanning_tree,
-        )
+        from mast3r.cloud_opt.sparse_ga import convert_dust3r_pairs_naming, forward_mast3r
 
         # Convert pair naming convention from dust3r to mast3r
         pairs_in = convert_dust3r_pairs_naming(filelist, pairs)
 
         # Forward pass: runs MASt3R model on all pairs
         # This extracts 3D points, confidence maps, and descriptors for each pair
+        # NOTE: canonical views are computed by the sparse optimizer (prepare_canonical_data)
         pairs_output, cache_path = forward_mast3r(
             pairs_in,
             self.model,
@@ -326,23 +321,6 @@ class SceneFromViewsMast3r(SceneFromViewsBase):
             subsample=subsample,
             desc_conf="desc_conf",
             device=self.device,
-        )
-
-        # Extract canonical pointmaps per image
-        tmp_pairs, pairwise_scores, canonical_views, canonical_paths, preds_21 = (
-            prepare_canonical_data(
-                filelist,
-                pairs_output,
-                subsample=subsample,
-                cache_path=cache_dir,
-                mode="avg-angle",
-                device=self.device,
-            )
-        )
-
-        # Smartly combine all useful data
-        imsizes, pps, base_focals, core_depth, anchors, corres, corres2d, preds_21 = condense_data(
-            filelist, tmp_pairs, canonical_views, preds_21, dtype=torch.float32
         )
 
         # ====================================================================
@@ -380,10 +358,6 @@ class SceneFromViewsMast3r(SceneFromViewsBase):
         scene = optimizer_output.scene
 
         # Extract additional data if available
-        additional_data = optimizer_output.additional_data or {}
-        pairs_in = additional_data.get("pairs_in", pairs_in)
-        anchors = additional_data.get("anchors", anchors)
-        canonical_paths = additional_data.get("canonical_paths", canonical_paths)
 
         # Extract dense 3D map
         rgb_imgs = scene.imgs
@@ -481,14 +455,13 @@ class SceneFromViewsMast3r(SceneFromViewsBase):
         focals = to_numpy(focals)
         confs = [to_numpy(x) for x in confs]
 
-        # Extract depth maps from point clouds
+        # Extract depth maps: pts3d are in world frame, so transform them into each camera frame
         depth_predictions = []
         for i, (pts, msk) in enumerate(zip(pts3d, mask)):
             h, w = rgb_imgs[i].shape[:2]
-            depth = np.zeros((h, w), dtype=pts.dtype)
-            pts_reshaped = pts.reshape(h, w, 3)
-            depth[msk] = pts_reshaped[msk, 2]  # z-component
-            depth_predictions.append(depth)
+            depth_predictions.append(
+                depth_from_world_points(pts.reshape(h, w, 3), cams2world[i], msk)
+            )
 
         # Process images to match original format
         processed_images_list = []
@@ -514,11 +487,11 @@ class SceneFromViewsMast3r(SceneFromViewsBase):
 
         # Build intrinsics list
         intrinsics_list = []
-        for focal in focals:
+        for i, focal in enumerate(focals):
             K = np.eye(3)
             K[0, 0] = focal
             K[1, 1] = focal
-            h, w = rgb_imgs[0].shape[:2]
+            h, w = rgb_imgs[i].shape[:2]
             K[0, 2] = w / 2
             K[1, 2] = h / 2
             intrinsics_list.append(K)

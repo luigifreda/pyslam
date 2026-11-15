@@ -27,7 +27,7 @@
 #include <stdexcept>
 
 #include "casters/opencv_type_casters.h"
-#include "dictionary.h"
+#include "common/dictionary.h"
 #include "slam_direct/direct_frontend.h"
 
 namespace py = pybind11;
@@ -80,8 +80,9 @@ pyslam::ConfigDict direct_config_from_object(const py::handle &obj) {
 
 inline void bind_direct_slam(py::module &m) {
     py::enum_<pyslam::DirectTrackingMode>(m, "DirectTrackingMode")
-        .value("SEMI_DIRECT", pyslam::DirectTrackingMode::SemiDirect)
-        .value("DIRECT", pyslam::DirectTrackingMode::Direct);
+        .value("KLT", pyslam::DirectTrackingMode::Klt)
+        .value("HYBRID", pyslam::DirectTrackingMode::Hybrid)
+        .value("SEMI_DIRECT", pyslam::DirectTrackingMode::SemiDirect);
 
     py::enum_<pyslam::DirectTrackingStatus>(m, "DirectTrackingStatus")
         .value("INIT", pyslam::DirectTrackingStatus::Init)
@@ -122,6 +123,8 @@ inline void bind_direct_slam(py::module &m) {
             py::arg("img_id") = 0, py::arg("timestamp") = py::none())
         .def("reset", &pyslam::DirectSlam::reset)
         .def("bundle_adjustment", &pyslam::DirectSlam::bundle_adjustment, py::call_guard<py::gil_scoped_release>())
+        .def("apply_keyframe_poses", &pyslam::DirectSlam::apply_keyframe_poses, py::arg("poses"),
+             py::call_guard<py::gil_scoped_release>())
         .def("last_ba", &pyslam::DirectSlam::last_ba)
         .def("draw_feature_trails", [](const pyslam::DirectSlam &self, py::object image,
                                        bool with_level_radius, int trail_max_length) {
@@ -148,6 +151,15 @@ inline void bind_direct_slam(py::module &m) {
                 poses.push_back(pose.Tcw);
             }
             return poses;
+        })
+        // Timestamps aligned index-by-index with trajectory().
+        .def("trajectory_timestamps", [](const pyslam::DirectSlam &self) {
+            std::vector<double> timestamps;
+            timestamps.reserve(self.map().trajectory().size());
+            for (const pyslam::DirectTrajectoryPose &pose : self.map().trajectory()) {
+                timestamps.push_back(pose.timestamp);
+            }
+            return timestamps;
         })
         .def("tracked_features", [](const pyslam::DirectSlam &self) {
             std::vector<int64_t> ids;

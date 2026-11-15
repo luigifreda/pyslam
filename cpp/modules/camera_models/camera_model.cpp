@@ -19,8 +19,8 @@
 
 #include "camera_model.h"
 
-#include "camera_model_math.h"
-#include "camera_rig_geometry.h"
+#include "camera/camera_model_math.h"
+#include "camera/camera_rig_geometry.h"
 #include "config_parameters.h"
 
 #include <algorithm>

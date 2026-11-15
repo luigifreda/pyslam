@@ -1,21 +1,23 @@
 # C++ extensions
 
-Utility extensions, the sparse-SLAM core, and the semantic-mapping sources live under this directory. `./build.sh` writes the utility extensions to `lib/`. The sparse-SLAM module `cpp_core` is built from the repository root with `./build_cpp_core.sh` and lands in `core/slam/lib`.
+Utility extensions, the sparse-SLAM core, and the semantic-mapping sources live under this directory. `./build.sh` writes the utility extensions to `lib/`. The sparse-SLAM module `cpp_core` is built from the repository root with `./build_cpp_core.sh` and lands in `core/slam/lib`. `core/camera` and `core/common` are compiled into `cpp_core`, and the `camera_models` and `color_utils` extensions also include them. Headers there are included with their folder, as `"camera/camera.h"` or `"common/eigen_aliases.h"`; `cpp/core` is on every include path that needs them.
 
 ```text
 cpp/
   modules/          # hamming, glutils, solvers, volumetric, camera_models, ...
     tests/          # smoke tests for those extensions
-  casters/          # shared OpenCV pybind11 type casters
+  casters/          # shared pybind11 type casters (OpenCV, nlohmann json, Dict/List)
+  core/camera/      # camera models, projection math, rig geometry, camera g2o/gtsam edges
+  core/common/      # shared headers: Eigen aliases, smart pointers, dictionary, serialization, drawing
   core/slam/        # sparse-SLAM C++ core
-  core/slam_direct/ # direct/semi-direct tracking and local BA, compiled into cpp_core
+  core/slam_direct/ # direct-SLAM (klt/hybrid/semi_direct) tracking and local BA, compiled into cpp_core
   core/semantics/   # compiled into cpp_core
   lib/              # utility extension binaries
 ```
 
 Python imports `cpp_core` through `pyslam/slam/cpp`. The other extension names (`pyslam_utils`, `glutils`, `hamming`, `volumetric`, and so on) are unchanged.
 
-The direct/semi-direct tracking and local BA pipeline is introduced in the [direct-SLAM guide](../docs/direct_slam.md), with source layout and regression checks in [core/slam_direct/README.md](core/slam_direct/README.md).
+The direct-SLAM (klt/hybrid/semi_direct) tracking and local BA pipeline is introduced in the [direct-SLAM guide](../docs/direct_slam.md), with source layout and regression checks in [core/slam_direct/README.md](core/slam_direct/README.md).
 
 ## Available Modules
 

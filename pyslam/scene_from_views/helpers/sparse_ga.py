@@ -182,9 +182,13 @@ class SparseGA:
         res_fine: Dictionary with optimization results (intrinsics, cam2w, depthmaps, pts3d)
         anchors: List of anchor points for each image
         canonical_paths: Optional list of paths to cached canonical views
+        subsample: Anchor subsampling factor used during optimization (must match the
+            one used to build the canonical views and the optimized depthmaps)
     """
 
-    def __init__(self, img_paths, pairs_in, res_fine, anchors, canonical_paths=None):
+    def __init__(
+        self, img_paths, pairs_in, res_fine, anchors, canonical_paths=None, subsample=8
+    ):
         def torgb(x):
             return (x[0].permute(1, 2, 0).numpy() * 0.5 + 0.5).clip(min=0.0, max=1.0)
 
@@ -198,6 +202,7 @@ class SparseGA:
                 img_dict[im2["instance"]] = torgb(im2["img"])
 
         self.canonical_paths = canonical_paths
+        self.subsample = subsample
         self.img_paths = img_paths
         # Fetch images in order, ensuring each img_path gets its corresponding image
         self.imgs = []
@@ -259,7 +264,7 @@ class SparseGA:
         """
         return self.pts3d
 
-    def get_dense_pts3d(self, clean_depth=True, subsample=8):
+    def get_dense_pts3d(self, clean_depth=True, subsample=None):
         """Generate dense 3D points from cached canonical views.
 
         This function loads canonical views from cache and generates dense
@@ -267,7 +272,9 @@ class SparseGA:
 
         Args:
             clean_depth: Whether to clean the point cloud (default: True)
-            subsample: Subsampling factor for anchor points (default: 8)
+            subsample: Subsampling factor for anchor points (default: None, i.e. the
+                subsample used during optimization). Using a different value than the
+                one used during optimization yields wrong dense points.
 
         Returns:
             Tuple of (pts3d, depthmaps, confs) where:
@@ -276,6 +283,8 @@ class SparseGA:
                 confs: List of confidence maps
         """
         assert self.canonical_paths, "cache_path is required for dense 3d points"
+        if subsample is None:
+            subsample = self.subsample
         device = self.cam2w.device
         confs = []
         base_focals = []
@@ -723,6 +732,72 @@ def _extract_initial_poses_from_pairwise(
         return None, None, None
 
 
+@torch.no_grad()
+def initialize_kinematic_chain_from_abs_poses(
+    abs_cam2w, mst, median_depths, imsizes, base_focals, pps, quats, trans
+):
+    """Initialize the relative (kinematic chain) params from absolute camera poses.
+
+    The chain used in sparse_scene_optimizer() composes "anchor" frames along the MST:
+        T_anchor[j] = T_anchor[parent(j)] @ rel[j],  T_anchor[root] = I
+    where anchor frame i has the rotation R_i of camera i and translation
+        a_i = c_i + R_i @ offset_i,   offset_i = z_i * [(0.5 - pp_i) * size_i / f_i, 1]
+    (c_i camera center, z_i the initial camera depth = median depth, pp_i normalized).
+
+    The absolute poses are first expressed in the root anchor frame, so that the root
+    camera has identity rotation and its anchor point lies at the origin.
+
+    Args:
+        abs_cam2w: [N, 4, 4] camera-to-world poses (any world frame)
+        mst: (root_idx, [(parent, child), ...])
+        median_depths: [N] initial camera depths (z_i)
+        imsizes: [N, 2] image sizes (W, H)
+        base_focals: [N] focal lengths
+        pps: [N, 2] principal points normalized by image size
+        quats, trans: lists of per-camera params, updated in place
+
+    Returns:
+        [N] tensor of initial camera-center distances to the root camera
+    """
+    dtype = quats[0].dtype
+    device = quats[0].device
+    abs_cam2w = abs_cam2w.to(device=device, dtype=dtype)
+    n = len(quats)
+    root = mst[0]
+
+    offsets = []
+    for i in range(n):
+        xy = imsizes[i].to(dtype) / base_focals[i].to(dtype) * (0.5 - pps[i].to(dtype))
+        offsets.append(median_depths[i].to(dtype) * torch.cat((xy, xy.new_ones(1))))
+
+    # express the poses in a frame where the root camera has R = I and center -offset_root
+    R_root = abs_cam2w[root, :3, :3]
+    c_root = abs_cam2w[root, :3, 3]
+    anchors_T = []
+    cam_centers = []
+    for i in range(n):
+        R = R_root.T @ abs_cam2w[i, :3, :3]
+        c = R_root.T @ (abs_cam2w[i, :3, 3] - c_root) - offsets[root]
+        T = torch.eye(4, dtype=dtype, device=device)
+        T[:3, :3] = R
+        T[:3, 3] = c + R @ offsets[i]
+        anchors_T.append(T)
+        cam_centers.append(c)
+
+    parent = {child: par for par, child in mst[1]}
+    for i in range(n):
+        if i == root:
+            quats[i].data[:] = torch.tensor((0, 0, 0, 1), dtype=dtype, device=device)
+            trans[i].data[:] = 0
+            continue
+        rel = GeometryUtils.inv(anchors_T[parent[i]]) @ anchors_T[i]
+        quats[i].data[:] = roma.rotmat_to_unitquat(rel[:3, :3])
+        trans[i].data[:] = rel[:3, 3]
+
+    cam_centers = torch.stack(cam_centers)
+    return (cam_centers - cam_centers[root]).norm(dim=-1)
+
+
 def sparse_scene_optimizer(
     imgs,
     subsample,
@@ -829,6 +904,7 @@ def sparse_scene_optimizer(
     # Try to extract initial poses from pairwise predictions if not provided in init
     rel_quats_init = None
     rel_trans_init = None
+    abs_cam2w_init = None  # absolute camera-to-world poses estimated from pairwise predictions
     # Check if init already contains pose information
     has_init_poses = False
     if init:
@@ -845,7 +921,7 @@ def sparse_scene_optimizer(
         rel_trans_init = None
 
         if pairs_output is not None:
-            rel_quats_init, rel_trans_init, abs_cam2w = _extract_initial_poses_from_pairwise(
+            rel_quats_init, rel_trans_init, abs_cam2w_init = _extract_initial_poses_from_pairwise(
                 filelist=imgs,
                 pairs_output=pairs_output,
                 imsizes=imsizes,
@@ -900,16 +976,9 @@ def sparse_scene_optimizer(
         if rel_quat is not None and rel_t is not None:
             quats[idx].data[:] = rel_quat.detach().to(dtype).to(device)
             trans[idx].data[:] = rel_t.detach().to(dtype).to(device)
-        elif (
-            rel_quats_init is not None and rel_trans_init is not None and idx < len(rel_quats_init)
-        ):
-            # Use extracted initial relative poses
-            quats[idx].data[:] = rel_quats_init[idx].to(dtype).to(device)
-            trans[idx].data[:] = rel_trans_init[idx].to(dtype).to(device)
-            if verbose:
-                print(f"  Camera {idx}: Initialized from extracted relative pose")
-                print(f"    rel_trans={rel_trans_init[idx].cpu().numpy()}")
-                print(f"    rel_quat={rel_quats_init[idx].cpu().numpy()}")
+        elif abs_cam2w_init is not None:
+            # Initialized after this loop (needs median depths and normalized pps of all cameras)
+            pass
         else:
             # Fall back to absolute pose initialization (if provided)
             cam2w = init_values.get("cam2w")
@@ -928,6 +997,26 @@ def sparse_scene_optimizer(
                     )
                 # Note: This will initialize the root camera correctly, but child cameras
                 # will need to be converted to relative poses along the MST
+
+    # Initialize the kinematic chain from the absolute poses estimated from pairwise predictions.
+    # NOTE: the chain does not compose camera poses but "anchor" frames: anchor frame i has the
+    # rotation of camera i and is centered at the anchor point a_i = c_i + R_i @ offset_i, where
+    # offset_i = z_i * [(0.5 - pp_i) * size_i / f_i, 1] is the point at depth z_i on the principal
+    # ray (see make_K_cam_depth()). The root anchor frame is fixed at the world origin.
+    initial_root_dists = None  # initial camera-center distances to the root camera
+    if abs_cam2w_init is not None:
+        initial_root_dists = initialize_kinematic_chain_from_abs_poses(
+            abs_cam2w_init.to(device=device, dtype=dtype),
+            mst,
+            median_depths,
+            imsizes,
+            base_focals,
+            pps,
+            quats,
+            trans,
+        )
+        if verbose:
+            print(" >> Initialized kinematic chain (anchor frames) from extracted absolute poses")
 
     # Debug: print initial quats and trans after initialization
     if verbose:
@@ -958,15 +1047,6 @@ def sparse_scene_optimizer(
 
     # Track if this is the first call to make_K_cam_depth for debugging
     make_K_cam_depth_call_count = [0]  # Use list to allow modification in nested function
-
-    # Store initial relative translations for scale regularization
-    initial_rel_trans = None
-    if rel_trans_init is not None:
-        # rel_trans_init is a list of tensors, convert to stacked tensor
-        if isinstance(rel_trans_init, list):
-            initial_rel_trans = torch.stack(rel_trans_init).clone().detach()
-        else:
-            initial_rel_trans = rel_trans_init.clone().detach()
 
     def make_K_cam_depth(log_focals, pps, trans, quats, log_sizes, core_depth):
         nonlocal make_K_cam_depth_call_count
@@ -1026,21 +1106,12 @@ def sparse_scene_optimizer(
             tmp_cam2w[:, :3, 3:4] - tmp_cam2w[:, :3, :3] @ trans_offset.unsqueeze(-1)
         )
 
-        # Enforce root camera at origin with identity rotation
-        # Root camera has identity relative pose, so its absolute pose should be identity
-        root_idx = mst[0]
-        if trans is not None and quats is not None:
-            # Root camera should be at origin with identity rotation
-            # Use clone() to avoid inplace modification that breaks gradients
-            new_trans = new_trans.clone()
-            new_trans[root_idx] = torch.zeros(3, 1, dtype=new_trans.dtype, device=new_trans.device)
-            # Create a new rotation matrix tensor for root camera (avoid inplace modification)
-            root_rot = torch.eye(3, dtype=tmp_cam2w.dtype, device=tmp_cam2w.device)
-            # Clone tmp_cam2w and modify the clone to avoid breaking gradients
-            tmp_cam2w_rot = tmp_cam2w[:, :3, :3].clone()
-            tmp_cam2w_rot[root_idx] = root_rot
-        else:
-            tmp_cam2w_rot = tmp_cam2w[:, :3, :3]
+        # NOTE: the gauge is fixed by keeping the root relative pose at identity (its params are
+        # frozen and reset after each step), i.e. the root *anchor* frame is the world frame.
+        # The root camera center is therefore -offset_root (not the origin): forcing it to the
+        # origin would make it inconsistent with the children, which are chained from the root
+        # anchor frame.
+        tmp_cam2w_rot = tmp_cam2w[:, :3, :3]
 
         cam2w = torch.cat(
             (
@@ -1089,7 +1160,8 @@ def sparse_scene_optimizer(
 
     # Define which pairs are fine to use with matching
     def matching_check(x):
-        return x.max() > matching_conf_thr
+        # empty correspondence sets fall back to the pairwise pointmap (dust3r) loss
+        return x.numel() > 0 and bool(x.max() > matching_conf_thr)
 
     is_matching_ok = {}
     for s in imgs_slices:
@@ -1281,15 +1353,12 @@ def sparse_scene_optimizer(
                     # Compute pairwise distances between cameras
                     cam_positions = cam2w[:, :3, 3]  # [n_cameras, 3]
 
-                    # Get initial distances from initial relative translations
+                    # Initial camera-center distances to the root camera (if available)
                     initial_distances = {}
-                    if initial_rel_trans is not None:
+                    if initial_root_dists is not None:
                         for i in range(len(imgs)):
-                            if i == root_idx:
-                                continue
-                            if i < len(initial_rel_trans):
-                                initial_dist = torch.norm(initial_rel_trans[i])
-                                initial_distances[i] = initial_dist
+                            if i != root_idx:
+                                initial_distances[i] = initial_root_dists[i]
 
                     for i in range(len(imgs)):
                         if i == root_idx:
@@ -1418,7 +1487,9 @@ def sparse_scene_optimizer(
             is_root = i == root_idx
             pps[i].requires_grad_(bool(opt_pp))
             # Keep root camera's log_focals frozen too (affects absolute pose through z_cameras)
-            log_focals[i].requires_grad_(True and not is_root)
+            # with shared intrinsics the focal is a single shared parameter: never freeze it
+            # because of the root (that would freeze it for all cameras, depending on order)
+            log_focals[i].requires_grad_(shared_intrinsics or not is_root)
             # Keep root camera's relative pose and log_sizes frozen
             if not is_root:
                 quats[i].requires_grad_(True)
@@ -1430,7 +1501,8 @@ def sparse_scene_optimizer(
                 quats[i].requires_grad_(False)
                 trans[i].requires_grad_(False)
                 log_sizes[i].requires_grad_(False)
-                log_focals[i].requires_grad_(False)
+                if not shared_intrinsics:
+                    log_focals[i].requires_grad_(False)
                 if verbose:
                     print(f"  Camera {i} (root): quat, trans, log_sizes, and log_focals frozen")
             core_depth[i].requires_grad_(opt_depth)

@@ -28,6 +28,7 @@ There are two pytest passes because `pyslam.slam` binds its classes to one core 
 | `camera/` | Camera models, local-map limits, triangulation, trajectory evaluation (C++ core). |
 | `cv/` | Pose estimators and depth from point clouds. |
 | `viz/` | Viewer startup/shutdown, pending queue data on close, and direct-SLAM map/trajectory snapshots. |
+| `scene_from_views/` | Multi-view reconstruction wrappers and scene optimizers (camera-frame depth, view ordering, sparse-optimizer pose initialization, densification subsample, canonical views, temp-dir cleanup), using synthetic scenes and fake models (no weights needed). |
 | `loopclosing/` | Loop detector database, VPR extractors, loop group consistency. |
 | `semantics/` | Semantic fusion methods. |
 | `dataset/`, `dust3r/` | Dataset readers, image prefetching, DUSt3R processing. |

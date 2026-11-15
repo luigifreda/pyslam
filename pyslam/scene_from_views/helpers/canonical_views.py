@@ -224,16 +224,21 @@ class CanonicalViewUtils:
         canonical_paths = []
         preds_21 = {}
 
+        # Parameters that affect the canonical views (verbose must not change the cache key)
+        kw_canon = {k: v for k, v in kw.items() if k != "verbose"}
         for img in tqdm.tqdm(imgs):
+            cache = None
             if cache_path:
                 cache = os.path.join(
-                    cache_path, "canon_views", hash_md5(img) + f"_{subsample=}_{kw=}.pth"
+                    cache_path, "canon_views", hash_md5(img) + f"_{subsample=}_kw={kw_canon}.pth"
                 )
                 canonical_paths.append(cache)
-            try:
-                (canon, canon2, cconf), focal = torch.load(cache, map_location=device)
-            except IOError:
-                canon = focal = None
+            canon = focal = None
+            if cache is not None:
+                try:
+                    (canon, canon2, cconf), focal = torch.load(cache, map_location=device)
+                except IOError:
+                    canon = focal = None
 
             # collect all pred1
             n_pairs = sum((img in pair) for pair in tmp_pairs)
@@ -258,62 +263,11 @@ class CanonicalViewUtils:
 
                 if img == img2:
                     if path2 is None:
-                        # No reverse pair available - try to use path1 with swapped data
-                        # This can happen with Dust3r when symmetrize=True doesn't create reverse pairs
-                        # Load path1 and swap X1/X2 and C1/C2 to get reverse direction
-                        X1_loaded, C1_loaded, X2_loaded, C2_loaded = torch.load(
-                            path1, map_location=device
-                        )
-                        # For reverse: X = X2 (pts3d for img2), C = C2, X2 = X1 (pts3d for img1), C2 = C1
-                        X, C, X2, C2 = X2_loaded, C2_loaded, X1_loaded, C1_loaded
-                        # Try to find reverse correspondence file by swapping indices in filename
-                        # Extract base directory and filename
-                        corres_dir = os.path.dirname(path_corres)
-                        corres_filename = os.path.basename(path_corres)
-                        # Try to extract indices from filename (format: "idx1-idx2.pth")
-                        # If filename contains "-", try swapping
-                        if "-" in corres_filename:
-                            parts = corres_filename.rsplit(".", 1)[0].split("-", 1)
-                            if len(parts) == 2:
-                                idx1_str, idx2_str = parts
-                                corres_path_rev = os.path.join(
-                                    corres_dir, f"{idx2_str}-{idx1_str}.pth"
-                                )
-                                if os.path.exists(corres_path_rev):
-                                    score, (xy1_rev, xy2_rev, confs_rev) = (
-                                        CanonicalViewUtils.load_corres(
-                                            corres_path_rev, device, min_conf_thr
-                                        )
-                                    )
-                                    pixels[img1] = (
-                                        xy2_rev,
-                                        confs_rev,
-                                    )  # For img2, pixels[img1] uses xy2_rev
-                                else:
-                                    # Use forward correspondences but swap xy1 and xy2
-                                    score, (xy1_fwd, xy2_fwd, confs_fwd) = (
-                                        CanonicalViewUtils.load_corres(
-                                            path_corres, device, min_conf_thr
-                                        )
-                                    )
-                                    pixels[img1] = (
-                                        xy2_fwd,
-                                        confs_fwd,
-                                    )  # Swap: use xy2_fwd for img1 when viewing from img2
-                            else:
-                                # Fallback: use forward correspondences with swapped xy
-                                score, (xy1_fwd, xy2_fwd, confs_fwd) = (
-                                    CanonicalViewUtils.load_corres(
-                                        path_corres, device, min_conf_thr
-                                    )
-                                )
-                                pixels[img1] = xy2_fwd, confs_fwd
-                        else:
-                            # Fallback: use forward correspondences with swapped xy
-                            score, (xy1_fwd, xy2_fwd, confs_fwd) = CanonicalViewUtils.load_corres(
-                                path_corres, device, min_conf_thr
-                            )
-                            pixels[img1] = xy2_fwd, confs_fwd
+                        # No prediction in img2's frame for this pair (reverse pair missing).
+                        # The forward prediction (path1) lives in img1's frame, so it can NOT be
+                        # used as img2's own pointmap: skip this pair for img2. The pair is still
+                        # used through img1 (and its pairwise score is set there).
+                        continue
                     else:
                         X, C, X2, C2 = torch.load(path2, map_location=device)
                         score, (xy1, xy2, confs) = CanonicalViewUtils.load_corres(
@@ -345,10 +299,11 @@ class CanonicalViewUtils:
                     n += 1
 
             if canon is None:
-                # Filter out verbose from kw as canonical_view doesn't accept it
-                kw_filtered = {k: v for k, v in kw.items() if k != "verbose"}
+                if ptmaps11 is None or n == 0:
+                    raise ValueError(f"No pairwise prediction in the frame of image {img}")
+                # only the first n slots are filled (pairs skipped above leave them empty)
                 canon, canon2, cconf = CanonicalViewUtils.canonical_view(
-                    ptmaps11, confs11, subsample, **kw_filtered
+                    ptmaps11[:n], confs11[:n], subsample, **kw_canon
                 )
                 del ptmaps11
                 del confs11
@@ -360,7 +315,7 @@ class CanonicalViewUtils:
                 focal = CameraUtils.estimate_focal_knowing_depth(
                     canon[None], pp, focal_mode="weiszfeld", min_focal=0.5, max_focal=3.5
                 )
-                if cache:
+                if cache is not None:
                     torch.save(to_cpu(((canon, canon2, cconf), focal)), mkdir_for(cache))
 
             # extract depth offsets with correspondences

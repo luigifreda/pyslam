@@ -28,9 +28,9 @@
 #include <Eigen/Dense>
 #include <opencv2/core.hpp>
 
-#include "camera.h"
-#include "camera_pose.h"
-#include "dictionary.h"
+#include "camera/camera.h"
+#include "camera/camera_pose.h"
+#include "common/dictionary.h"
 #include "feature_shared_resources.h"
 #include "frame.h"
 #include "keyframe.h"

@@ -17,14 +17,14 @@
  * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "camera.h"
-#include "camera_pose.h"
+#include "camera/camera.h"
+#include "camera/camera_pose.h"
 #include "frame.h"
 #include "keyframe.h"
 #include "map_point.h"
 
 #include "utils/optional_lock.h"
-#include "utils/serialization_numpy.h"
+#include "common/serialization_numpy.h"
 
 #include <Eigen/Dense>
 

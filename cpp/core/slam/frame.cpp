@@ -18,17 +18,17 @@
  */
 
 #include "frame.h"
-#include "utils/feature_trails.h"
-#include "camera.h"
-#include "camera_pose.h"
+#include "common/feature_trails.h"
+#include "camera/camera.h"
+#include "camera/camera_pose.h"
 #include "config_parameters.h"
 #include "feature_shared_resources.h"
 #include "geometry_matchers.h"
 #include "map_point.h"
-#include "utils/color_helpers.h"
+#include "common/color_helpers.h"
 #include "utils/drawing.h"
 #include "utils/features.h"
-#include "utils/messages.h"
+#include "common/messages.h"
 
 #include <algorithm>
 #include <cmath>

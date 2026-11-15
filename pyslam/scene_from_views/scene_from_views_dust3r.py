@@ -25,7 +25,11 @@ import trimesh
 import copy
 import os
 
-from .scene_from_views_base import SceneFromViewsBase, SceneFromViewsResult
+from .scene_from_views_base import (
+    SceneFromViewsBase,
+    SceneFromViewsResult,
+    depth_from_world_points,
+)
 
 from pyslam.utilities.logging import Printer
 from pyslam.utilities.dust3r import (
@@ -75,7 +79,7 @@ class SceneFromViewsDust3r(SceneFromViewsBase):
             device: Device to run inference on (e.g., 'cuda', 'cpu')
             model_path: Path to model checkpoint (None to use default)
             inference_size: Image size for inference (224 or 512)
-            min_conf_thr: Minimum confidence threshold (percentage of max confidence)
+            min_conf_thr: Confidence percentile threshold in [0, 100] (points below it are discarded)
             scenegraph_type: Scene graph type ('complete', 'swin', 'logwin', 'oneref')
             winsize: Window size for scene graph
             win_cyclic: Whether to use cyclic windows
@@ -363,11 +367,8 @@ class SceneFromViewsDust3r(SceneFromViewsBase):
             # Create cache directory if using sparse optimizer
             cache_dir = None
             if optimizer_type == "sparse_scene_optimizer":
-                import tempfile
-                import os
-
-                cache_dir = tempfile.mkdtemp(suffix="_dust3r_cache")
-                os.makedirs(cache_dir, exist_ok=True)
+                # Removed automatically at the end of reconstruct()
+                cache_dir = self._make_temp_dir(suffix="_dust3r_cache")
                 if verbose:
                     print(f"   Created cache directory: {cache_dir}")
 
@@ -599,10 +600,13 @@ class SceneFromViewsDust3r(SceneFromViewsBase):
 
         # Create confidence masks (work with torch tensors first)
         if verbose:
-            print(f"   Creating confidence masks (threshold: {min_conf_thr}% of max confidence)...")
+            print(f"   Creating confidence masks (threshold: {min_conf_thr}th percentile)...")
         conf_vec = torch.stack([x.reshape(-1) for x in confs])
         conf_sorted = conf_vec.reshape(-1).sort()[0]
-        conf_thres = conf_sorted[int(conf_sorted.shape[0] * float(min_conf_thr) * 0.01)]
+        # min_conf_thr is a percentile in [0, 100]
+        conf_idx = int(conf_sorted.shape[0] * float(min_conf_thr) * 0.01)
+        conf_idx = min(max(conf_idx, 0), conf_sorted.shape[0] - 1)
+        conf_thres = conf_sorted[conf_idx]
         mask = [x >= conf_thres for x in confs]
 
         # Convert to numpy
@@ -618,14 +622,13 @@ class SceneFromViewsDust3r(SceneFromViewsBase):
             print(f"   Converting to {'point cloud' if as_pointcloud else 'mesh'}...")
         global_pc, global_mesh = convert_mv_output_to_geometry(rgb_imgs, pts3d, mask, as_pointcloud)
 
-        # Extract depth maps from point clouds (use z-component)
+        # Extract depth maps: pts3d are in world frame, so transform them into each camera frame
         depth_predictions = []
         for i, (pts, msk) in enumerate(zip(pts3d, mask)):
             h, w = rgb_imgs[i].shape[:2]
-            depth = np.zeros((h, w), dtype=pts.dtype)
-            pts_reshaped = pts.reshape(h, w, 3)
-            depth[msk] = pts_reshaped[msk, 2]  # z-component
-            depth_predictions.append(depth)
+            depth_predictions.append(
+                depth_from_world_points(pts.reshape(h, w, 3), cams2world[i], msk)
+            )
 
         # Process images to match original format
         processed_images_list = []
@@ -872,10 +875,7 @@ class SceneFromViewsDust3r(SceneFromViewsBase):
                     conf2_corr = C2.squeeze(0) if hasattr(C2, "dim") and C2.dim() == 3 else C2
 
                     try:
-                        from mast3r.fast_nn import (
-                            extract_correspondences_nonsym,
-                            fast_reciprocal_NNs,
-                        )
+                        from mast3r.fast_nn import extract_correspondences_nonsym
 
                         desc1 = pred1_desc[i] if i < len(pred1_desc) else None
                         desc2 = pred2_desc[i] if i < len(pred2_desc) else None
@@ -902,6 +902,8 @@ class SceneFromViewsDust3r(SceneFromViewsBase):
                     except Exception as e:
                         # Second attempt: use 3D nearest-neighbor correspondences (works even without descriptors)
                         try:
+                            from mast3r.fast_nn import fast_reciprocal_NNs
+
                             xy1_idx, xy2_idx = fast_reciprocal_NNs(
                                 X1, X2, subsample_or_initxy1=subsample, ret_xy=True, device="cpu"
                             )
@@ -925,32 +927,19 @@ class SceneFromViewsDust3r(SceneFromViewsBase):
                                 C2[xy2_idx[:, 1], xy2_idx[:, 0]].flatten(),
                             )
                         except Exception as e2:
+                            # No valid correspondences for this pair. Do NOT fabricate
+                            # identity (same-pixel) matches: they are geometrically wrong.
+                            # An empty set makes the sparse optimizer fall back to the
+                            # pairwise pointmap (dust3r) loss for this pair.
                             if verbose:
                                 print(
-                                    f"  Warning: Falling back to dense-grid correspondences for pair "
-                                    f"({img1_idx}, {img2_idx}): descriptor/3D matching failed ({e}); "
+                                    f"  Warning: no correspondences for pair "
+                                    f"({img1_idx}, {img2_idx}): descriptor matching failed ({e}); "
                                     f"3D NN failed ({e2})"
                                 )
-                            # Fallback: dense grid correspondences weighted by confidence
-                            h1, w1 = X1.shape[:2]
-                            h2, w2 = X2.shape[:2]
-                            y1_coords, x1_coords = torch.meshgrid(
-                                torch.arange(h1, dtype=torch.long),
-                                torch.arange(w1, dtype=torch.long),
-                                indexing="ij",
-                            )
-                            y2_coords, x2_coords = torch.meshgrid(
-                                torch.arange(h2, dtype=torch.long),
-                                torch.arange(w2, dtype=torch.long),
-                                indexing="ij",
-                            )
-                            xy1 = torch.stack(
-                                [x1_coords.flatten().float(), y1_coords.flatten().float()], dim=1
-                            )
-                            xy2 = torch.stack(
-                                [x2_coords.flatten().float(), y2_coords.flatten().float()], dim=1
-                            )
-                            confs_flat = torch.minimum(C1.flatten(), C2.flatten())
+                            xy1 = torch.zeros((0, 2), dtype=torch.float32)
+                            xy2 = torch.zeros((0, 2), dtype=torch.float32)
+                            confs_flat = torch.zeros((0,), dtype=torch.float32)
 
                     # Score format: (conf_score, corres_sum, len_corres) as expected by sparse optimizer
                     confs_flat_tensor = (

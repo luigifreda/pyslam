@@ -26,7 +26,7 @@
 
 #include <pybind11/embed.h>
 
-#include "camera.h"
+#include "camera/camera.h"
 #include "utils/test_utils.h"
 
 using namespace pyslam;

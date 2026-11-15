@@ -195,6 +195,8 @@ def run(args, guard):
         for root, patterns in (
             (args.pyslam_root / 'pyslam/slam', ('*.py',)),
             (args.pyslam_root / 'cpp/core/slam', ('*.cpp', '*.h', 'lib/cpp_core*.so')),
+            (args.pyslam_root / 'cpp/core/camera', ('*.cpp', '*.h')),
+            (args.pyslam_root / 'cpp/core/common', ('*.h',)),
             (args.pyslam_root / 'pyslam/slam/cpp', ('*.cpp', '*.h', 'lib/cpp_core*.so')),
         )
         for pattern in patterns

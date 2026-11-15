@@ -25,7 +25,7 @@
 #include <pybind11/embed.h>
 #include <pybind11/numpy.h>
 
-#include "utils/serialization_numpy.h"
+#include "common/serialization_numpy.h"
 
 namespace py = pybind11;
 using pyslam::cvmat_to_numpy;

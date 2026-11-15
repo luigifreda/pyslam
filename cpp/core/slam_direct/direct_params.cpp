@@ -56,18 +56,37 @@ const ConfigDict parameter_block(const ConfigDict &config) {
 DirectSlamParams DirectSlamParams::from_config(const ConfigDict &config) {
     ConfigDict block = parameter_block(config);
     DirectSlamParams params;
-    const std::string mode = lower_copy(block.get<std::string>("mode", "semi_direct"));
-    if (mode == "semi_direct" || mode == "semidirect") {
+    const std::string mode = lower_copy(block.get<std::string>("mode", "klt"));
+    // "direct" remains a deprecated alias of hybrid for older settings files.
+    if (mode == "klt") {
+        params.mode = DirectTrackingMode::Klt;
+    } else if (mode == "semi_direct" || mode == "semidirect") {
         params.mode = DirectTrackingMode::SemiDirect;
-    } else if (mode == "direct") {
-        params.mode = DirectTrackingMode::Direct;
+    } else if (mode == "hybrid" || mode == "direct") {
+        params.mode = DirectTrackingMode::Hybrid;
     } else {
-        throw std::invalid_argument("DIRECT_SLAM.mode must be 'semi_direct' or 'direct', got '" +
-                                    mode + "'");
+        throw std::invalid_argument(
+            "DIRECT_SLAM.mode must be 'klt', 'hybrid', or 'semi_direct', got '" + mode + "'");
+    }
+    const std::string detector = lower_copy(block.get<std::string>("corner_detector", "grid_fast"));
+    if (detector == "gftt") {
+        params.corner_detector = CornerDetector::Gftt;
+    } else if (detector == "grid_fast" || detector == "fast_grid") {
+        params.corner_detector = CornerDetector::GridFast;
+    } else {
+        throw std::invalid_argument(
+            "DIRECT_SLAM.corner_detector must be 'gftt' or 'grid_fast', got '" + detector + "'");
     }
 
     // Missing keys retain the defaults documented in DirectSlamParams.
     params.num_features = block.get("num_features", params.num_features);
+    params.grid_cols = block.get("grid_cols", params.grid_cols);
+    params.grid_rows = block.get("grid_rows", params.grid_rows);
+    params.fast_threshold = block.get("fast_threshold", params.fast_threshold);
+    params.fast_nonmax_suppression =
+        block.get("fast_nonmax_suppression", params.fast_nonmax_suppression);
+    params.corner_subpix = block.get("corner_subpix", params.corner_subpix);
+    params.subpixel_window = block.get("subpixel_window", params.subpixel_window);
     params.gftt_quality = block.get("gftt_quality", params.gftt_quality);
     params.gftt_min_distance = block.get("gftt_min_distance", params.gftt_min_distance);
     params.gftt_block_size = block.get("gftt_block_size", params.gftt_block_size);
@@ -81,6 +100,14 @@ DirectSlamParams DirectSlamParams::from_config(const ConfigDict &config) {
     params.pyramid_scale = block.get("pyramid_scale", params.pyramid_scale);
     params.intensity_inlier_threshold =
         block.get("intensity_inlier_threshold", params.intensity_inlier_threshold);
+    params.feature_half_patch = block.get("feature_half_patch", params.feature_half_patch);
+    params.seed_min_depth = block.get("seed_min_depth", params.seed_min_depth);
+    params.seed_max_depth = block.get("seed_max_depth", params.seed_max_depth);
+    params.seed_convergence_sigma2 =
+        block.get("seed_convergence_sigma2", params.seed_convergence_sigma2);
+    params.max_seeds = block.get("max_seeds", params.max_seeds);
+    params.max_seed_updates = block.get("max_seed_updates", params.max_seed_updates);
+    params.init_min_disparity = block.get("init_min_disparity", params.init_min_disparity);
     params.num_features_tracking = block.get("num_features_tracking", params.num_features_tracking);
     params.num_features_tracking_bad =
         block.get("num_features_tracking_bad", params.num_features_tracking_bad);
@@ -107,16 +134,30 @@ DirectSlamParams DirectSlamParams::from_config(const ConfigDict &config) {
         !(params.eps_convergence > 0.0) || !(params.intensity_inlier_threshold > 0.0) ||
         params.pose_iterations < 1 || params.pose_inner_iterations < 1 ||
         !(params.chi2_threshold > 0.0) || !(params.stereo_max_error > 0.0) ||
+        params.grid_cols < 1 || params.grid_rows < 1 || params.fast_threshold < 1 ||
+        params.fast_threshold > 255 ||
+        (params.corner_subpix && (params.subpixel_window < 3 || params.subpixel_window % 2 == 0)) ||
         params.num_features_tracking_bad < 0 ||
         params.num_features_tracking < params.num_features_tracking_bad ||
-        params.num_features_needed_for_keyframe < 1) {
+        params.num_features_needed_for_keyframe < 1 || params.feature_half_patch < 1 ||
+        !(params.seed_min_depth > 0.0) || !(params.seed_max_depth > params.seed_min_depth) ||
+        !(params.seed_convergence_sigma2 > 0.0) || params.max_seeds < 1 || params.max_seed_updates < 1 ||
+        !(params.init_min_disparity > 0.0)) {
         throw std::invalid_argument("DIRECT_SLAM parameters are out of range");
     }
     return params;
 }
 
 std::string DirectSlamParams::mode_name() const {
-    return mode == DirectTrackingMode::Direct ? "direct" : "semi_direct";
+    switch (mode) {
+    case DirectTrackingMode::Hybrid:
+        return "hybrid";
+    case DirectTrackingMode::SemiDirect:
+        return "semi_direct";
+    case DirectTrackingMode::Klt:
+        return "klt";
+    }
+    return "klt";
 }
 
 } // namespace pyslam

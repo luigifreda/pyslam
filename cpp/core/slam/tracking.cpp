@@ -26,7 +26,7 @@
 #include "rotation_histogram.h"
 #include "slam.h"
 #include "tracking_core.h"
-#include "utils/descriptor_helpers.h"
+#include "common/descriptor_helpers.h"
 
 #include <algorithm>
 #include <chrono>

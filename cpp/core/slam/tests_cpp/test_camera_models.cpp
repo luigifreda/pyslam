@@ -25,8 +25,8 @@
 
 #include <nlohmann/json.hpp>
 
-#include "camera_model_math.h"
-#include "camera_models.h"
+#include "camera/camera_model_math.h"
+#include "camera/camera_models.h"
 
 using namespace pyslam;
 

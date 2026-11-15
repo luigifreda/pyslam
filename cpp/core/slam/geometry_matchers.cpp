@@ -18,7 +18,7 @@
  */
 
 #include "geometry_matchers.h"
-#include "camera_rig_geometry.h"
+#include "camera/camera_rig_geometry.h"
 #include "config_parameters.h"
 #include "feature_shared_resources.h"
 #include "frame.h"
@@ -27,7 +27,7 @@
 #include "map_point.h"
 #include "rotation_histogram.h"
 #include "utils/geom_2views.h"
-#include "utils/messages.h"
+#include "common/messages.h"
 
 #include <Eigen/Dense>
 #include <opencv2/opencv.hpp>

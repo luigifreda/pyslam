@@ -20,7 +20,7 @@
 #include "keyframe.h"
 
 #include "utils/optional_lock.h"
-#include "utils/serialization_numpy.h"
+#include "common/serialization_numpy.h"
 
 namespace pyslam {
 

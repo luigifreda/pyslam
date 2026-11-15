@@ -17,12 +17,12 @@
  * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "camera.h"
+#include "camera/camera.h"
 #include "config_parameters.h"
 #include "feature_shared_resources.h"
 #include "map.h"
 #include "utils/cv_ops.h"
-#include "utils/messages.h"
+#include "common/messages.h"
 
 #include <algorithm>
 #include <array>

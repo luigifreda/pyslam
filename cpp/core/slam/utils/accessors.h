@@ -19,8 +19,8 @@
 
 #pragma once
 
-#include "eigen_aliases.h"
-#include "messages.h"
+#include "common/eigen_aliases.h"
+#include "common/messages.h"
 
 #include <Eigen/Dense>
 #include <array>

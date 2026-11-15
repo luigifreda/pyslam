@@ -27,6 +27,7 @@ import threading
 import numpy as np
 import cv2
 from enum import Enum
+from collections import deque
 import traceback
 import g2o
 
@@ -396,9 +397,18 @@ class GlobalBundleAdjustment:
                 print(f"GlobalBundleAdjustment: correcting keyframes...")
 
                 # Correct keyframes starting at map first keyframe
-                keyframes_to_check = list(self.map.keyframe_origins)
+                keyframes_to_check = deque(self.map.keyframe_origins)
+                # Guard against a corrupted spanning tree (cycles or multiple
+                # parents): without it this walk never ends while holding the map lock.
+                visited_ids = set()
                 while keyframes_to_check:
-                    keyframe = keyframes_to_check.pop(0)
+                    keyframe = keyframes_to_check.popleft()
+                    if keyframe.id in visited_ids:
+                        GlobalBundleAdjustment.print(
+                            f"GlobalBundleAdjustment: WARNING: keyframe {keyframe.id} reached twice in the spanning tree!"
+                        )
+                        continue
+                    visited_ids.add(keyframe.id)
                     child_keyframes = keyframe.get_children()
                     Twc = keyframe.Twc()
 

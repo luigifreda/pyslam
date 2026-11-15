@@ -19,8 +19,8 @@
 
 #pragma once
 
-#include "eigen_aliases.h"
-#include "utils/eigen_helpers.h"
+#include "common/eigen_aliases.h"
+#include "common/eigen_helpers.h"
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>

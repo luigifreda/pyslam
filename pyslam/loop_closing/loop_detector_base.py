@@ -72,7 +72,7 @@ class LoopDetectorTaskType(Enum):
 
 # keyframe (picklable) data that are needed for loop detection
 class LoopDetectKeyframeData:
-    def __init__(self, keyframe: KeyFrame = None, img=None):
+    def __init__(self, keyframe: KeyFrame = None, img=None, with_img=True):
         # keyframe data
         self.id = keyframe.id if keyframe is not None else -1
         self.kps = keyframe.kps if keyframe is not None else []
@@ -81,7 +81,9 @@ class LoopDetectKeyframeData:
         self.octaves = keyframe.octaves if keyframe is not None else []
         self.des = keyframe.des if keyframe is not None else []
 
-        self.img = img if img is not None else (keyframe.img if keyframe is not None else None)
+        if img is None and keyframe is not None and with_img:
+            img = keyframe.img
+        self.img = img
 
         # NOTE: The kid is not actually used for the processing in this whole file
         if isinstance(keyframe, KeyFrame):
@@ -101,6 +103,7 @@ class LoopDetectorTask:
         covisible_keyframes=None,
         connected_keyframes=None,
         load_save_path=None,
+        feature_extraction=None,
     ):
         if covisible_keyframes is None:
             covisible_keyframes = []
@@ -109,13 +112,22 @@ class LoopDetectorTask:
 
         self.task_type = task_type
         self.keyframe_data = LoopDetectKeyframeData(keyframe, img)
+        # A covisible image is only read to compute a missing global descriptor
+        # (compute_reference_similarity_score), so skip it when g_des is known.
+        # Direct-frontend tasks never need it: the detector process caches the
+        # g_des of recent keyframes and fills it in (LoopKeyframeFeatureExtractor).
+        # Neighbor images were ~75% of the pickled task otherwise.
         self.covisible_keyframes_data = [
-            LoopDetectKeyframeData(kf)
+            LoopDetectKeyframeData(
+                kf, with_img=feature_extraction is None and kf.g_des is None)
             for kf in covisible_keyframes
             if not kf.is_bad() and kf.id != self.keyframe_data.id
         ]
         self.connected_keyframes_ids = [kf.id for kf in connected_keyframes]
         self.load_save_path = load_save_path
+        # Optional raw-image extraction request (direct frontend only). Native
+        # keyframes remain in the parent; the worker returns owned NumPy arrays.
+        self.feature_extraction = feature_extraction
         # # for loop closing
         # self.loop_query_id = None
         # self.num_loop_words = 0
@@ -163,6 +175,7 @@ class LoopDetectorOutput:
         # potential img output
         self.similarity_matrix = None
         self.loop_detection_img_candidates = None
+        self.local_features = None
 
     def __str__(self) -> str:
         return f"LoopDetectorOutput: task_type = {self.task_type.name}, candidate_idxs = {self.candidate_idxs}, candidate_scores = {self.candidate_scores}, frame_id = {self.frame_id}"
