@@ -41,6 +41,7 @@
 #include "slam_direct/features/corner_grid.h"
 #include "slam_direct/features/corner_detection.h"
 #include "slam_direct/geometry/reprojection_pose.h"
+#include "slam_direct/geometry/monocular_initializer.h"
 #include "slam_direct/klt/klt_tracker.h"
 
 using namespace pyslam;
@@ -906,6 +907,52 @@ void test_frontend_applies_backend_updates() {
 }
 
 // A loop-closure pose update moves the referenced landmark and trajectory, and leaves other keyframes fixed.
+// Monocular Sim(3) correction: with scale s on a keyframe, a landmark anchored there keeps its
+// bearing and its depth shrinks by 1/s; frame offsets and inverse-depth priors follow.
+void test_apply_keyframe_poses_with_scale() {
+    auto camera = std::make_shared<PinholeCamera>(make_camera(320, 240, 200, 200, 160, 120));
+    camera->sensor_type = SensorType::RGBD;
+    ConfigDict config;
+    config["local_ba"] = false;
+    config["max_keyframe_interval"] = 1;
+    config["num_features_needed_for_keyframe"] = 100000;
+    DirectSlam slam(camera, config);
+    cv::Mat image = checkerboard(320, 240, 16, 0);
+    cv::Mat depth(240, 320, CV_32F, cv::Scalar(4));
+    slam.track(image, cv::Mat(), depth, 0, 0.0);
+    cv::Mat shifted;
+    const cv::Mat transform = (cv::Mat_<double>(2, 3) << 1, 0, 6, 0, 1, 0);
+    cv::warpAffine(image, shifted, transform, image.size());
+    slam.track(shifted, cv::Mat(), depth, 1, 0.1);
+    require(slam.map().keyframes().size() == 2, "scaled correction test did not create two keyframes");
+    const Eigen::Matrix4d T0 = slam.map().keyframes()[0].pose.Tcw();
+    const Eigen::Matrix4d T1 = slam.map().keyframes()[1].pose.Tcw();
+    int64_t id = -1;
+    for (const auto &observation : slam.map().keyframes()[0].points)
+        if (!observation.outlier) { id = observation.id; break; }
+    require(id >= 0, "the first keyframe has no inlier landmark");
+    const Vec3d X_before = slam.map().landmarks().at(id).position_w;
+    const Vec3d X_cam = T0.topLeftCorner<3, 3>() * X_before + T0.topRightCorner<3, 1>();
+
+    bool rejected = false;
+    try {
+        slam.apply_keyframe_poses({T0, T1}, {1.0, -2.0});
+    } catch (const std::invalid_argument &) {
+        rejected = true;
+    }
+    require(rejected, "a negative keyframe scale was accepted");
+
+    // Keyframe 1 moves to half its distance from keyframe 0, as a monocular correction with s = 2 would.
+    Eigen::Matrix4d T1_new = T1;
+    T1_new.topRightCorner<3, 1>() /= 2.0;
+    slam.apply_keyframe_poses({T0, T1_new}, {2.0, 2.0});
+    const Vec3d X_after = slam.map().landmarks().at(id).position_w;
+    const Vec3d X_cam_after = T0.topLeftCorner<3, 3>() * X_after + T0.topRightCorner<3, 1>();
+    require((X_cam_after - X_cam / 2.0).norm() < 1e-8, "a scaled correction did not shrink the anchored landmark");
+    require((slam.map().trajectory()[1].Tcw - T1_new).norm() < 1e-8,
+            "the keyframe trajectory entry did not follow the scaled correction");
+}
+
 void test_apply_keyframe_poses() {
     auto camera = std::make_shared<PinholeCamera>(make_camera(320, 240, 200, 200, 160, 120));
     camera->sensor_type = SensorType::RGBD;
@@ -1361,7 +1408,8 @@ void test_semi_direct_stereo_and_monocular() {
     cv::GaussianBlur(mono_ref, mono_ref, cv::Size(5, 5), 1.2);
     mono_slam.track(mono_ref, cv::Mat(), cv::Mat(), 0, 0.0);
     require(mono_slam.status() == DirectTrackingStatus::Init, "monocular semi-direct left INIT on the first frame");
-    require(mono_slam.map().keyframes().size() == 1, "monocular initialization did not store the reference");
+    // Keyframes are created only once the two-view initializer accepts a geometry.
+    require(mono_slam.map().keyframes().empty(), "monocular initialization stored a keyframe without parallax");
     for (int step = 1; step <= 6 && mono_slam.status() == DirectTrackingStatus::Init; ++step) {
         Eigen::Isometry3d motion = Eigen::Isometry3d::Identity();
         motion.translation() = Vec3d(0.12 * step, 0.0, 0.0);
@@ -1371,7 +1419,8 @@ void test_semi_direct_stereo_and_monocular() {
     std::cout << "mono status " << mono_slam.status_name() << " inliers " << mono_slam.last_inliers()
               << " ba " << mono_slam.last_ba().applied << std::endl;
     require(mono_slam.status() == DirectTrackingStatus::Good || mono_slam.status() == DirectTrackingStatus::Bad,
-            "monocular semi-direct did not leave INIT after the depth filter");
+            "monocular semi-direct did not leave INIT after two-view initialization");
+    require(mono_slam.map().keyframes().size() == 2, "monocular initialization did not store two keyframes");
     require(mono_slam.last_ba().applied, "monocular local BA did not apply the inverse-depth prior");
 }
 
@@ -1549,9 +1598,65 @@ void test_semi_direct_tracks_points_from_older_keyframes() {
             "pose from older-keyframe points is wrong");
 }
 
-// Monocular bootstrap: a few early promotions must not replace the seeds as pose support,
-// and bootstrap ends once enough landmarks were promoted over several frames.
-void test_semi_direct_bootstrap_with_gradual_promotion() {
+// Monocular two-view initialization: LK tracks from a reference frame, essential matrix,
+// triangulation. Scale puts the median depth at sqrt(seed_min_depth * seed_max_depth).
+// A tracked correspondence is triangulated against the seed's keyframe: correct depth on the
+// epipolar line, a failed match off it, and no measurement without parallax.
+// DIRECT_SLAM.monocular.<key> overrides apply only when from_config is told the input is monocular.
+void test_monocular_param_overrides() {
+    ConfigDict flat;
+    flat["DIRECT_SLAM.num_features"] = 200;
+    flat["DIRECT_SLAM.max_seeds"] = 400;
+    flat["DIRECT_SLAM.monocular.num_features"] = 400;
+    flat["DIRECT_SLAM.monocular.max_seeds"] = 800;
+    const DirectSlamParams stereo = DirectSlamParams::from_config(flat);
+    const DirectSlamParams mono = DirectSlamParams::from_config(flat, true);
+    require(stereo.num_features == 200 && stereo.max_seeds == 400, "monocular overrides leaked into stereo");
+    require(mono.num_features == 400 && mono.max_seeds == 800, "flat monocular overrides were ignored");
+    ConfigDict block;
+    block["num_features"] = 200;
+    ConfigDict overrides;
+    overrides["num_features"] = 300;
+    block["monocular"] = static_cast<Dict>(overrides);
+    ConfigDict nested;
+    nested["DIRECT_SLAM"] = static_cast<Dict>(block);
+    require(DirectSlamParams::from_config(nested, true).num_features == 300, "nested monocular overrides were ignored");
+    require(DirectSlamParams::from_config(nested).num_features == 200, "nested monocular overrides leaked");
+}
+
+void test_seed_measurement_from_track() {
+    auto camera = std::make_shared<PinholeCamera>(make_camera(160, 120, 140.0, 140.0, 80.0, 60.0));
+    DirectSlamParams params;
+    params.seed_min_depth = 1.0;
+    params.seed_max_depth = 20.0;
+    const Vec2d pixel_ref(50.0, 70.0);
+    const double depth = 4.0;
+    Vec3d X_ref = Vec3d::Zero();
+    require(lift_reference_point(*camera, pixel_ref, depth, X_ref), "lift failed");
+    Eigen::Isometry3d T_cur_ref = Eigen::Isometry3d::Identity();
+    T_cur_ref.translation() = Vec3d(-0.3, 0.05, -0.1);
+    T_cur_ref.linear() = Eigen::AngleAxisd(0.02, Vec3d::UnitY()).toRotationMatrix();
+    const Vec2d pixel_cur = camera->project_point(T_cur_ref * X_ref).first;
+
+    const EpipolarMatch match = measure_seed_from_track(*camera, params, pixel_ref, pixel_cur, T_cur_ref);
+    require(match.searched && match.matched, "tracked seed was not measured");
+    require(std::abs(match.depth - depth) < 1e-6, "tracked seed depth is wrong");
+    require(match.inverse_variance > 0.0 && match.parallax_px > 2.0, "tracked seed has no variance or parallax");
+
+    // Five pixels off the epipolar line: inconsistent with the pose, counted as a failed match.
+    const Vec2d off = pixel_cur + Vec2d(0.0, 5.0);
+    const EpipolarMatch wrong = measure_seed_from_track(*camera, params, pixel_ref, off, T_cur_ref);
+    require(wrong.searched && !wrong.matched, "off-epipolar track was accepted");
+
+    // A tiny baseline carries no depth information: skipped, not an outlier.
+    Eigen::Isometry3d tiny = Eigen::Isometry3d::Identity();
+    tiny.translation() = Vec3d(-1e-4, 0.0, 0.0);
+    const Vec2d still = camera->project_point(tiny * X_ref).first;
+    require(!measure_seed_from_track(*camera, params, pixel_ref, still, tiny).searched,
+            "a track without parallax was searched");
+}
+
+void test_monocular_two_view_initializer() {
     const int width = 160;
     const int height = 120;
     auto camera = std::make_shared<PinholeCamera>(make_camera(width, height, 140.0, 140.0, 80.0, 60.0));
@@ -1562,61 +1667,57 @@ void test_semi_direct_bootstrap_with_gradual_promotion() {
     params.num_features = 60;
     params.gftt_quality = 0.001;
     params.gftt_min_distance = 8.0;
+    params.border = 8;
+    params.num_features_tracking = 10;
     params.num_features_tracking_bad = 5;
     params.seed_min_depth = 2.0;
-    params.seed_max_depth = 8.0;
-    params.feature_half_patch = 2;
-    params.num_iterations = 12;
+    params.seed_max_depth = 8.0; // Median depth target 4 m, the true plane depth.
+    params.init_min_disparity = 15.0;
     cv::Mat reference(height, width, CV_8U);
     cv::RNG rng(19);
     rng.fill(reference, cv::RNG::UNIFORM, 0, 255);
     cv::GaussianBlur(reference, reference, cv::Size(5, 5), 1.2);
+    const double plane_depth = 4.0;
 
-    DirectMap map;
-    DirectKeyframe kf0;
-    kf0.id = 0;
-    kf0.pose = CameraPose(Eigen::Isometry3d::Identity());
-    kf0.gray = reference.clone();
-    map.add_keyframe(kf0);
-    std::vector<LivePoint> live;
-    int64_t next_id = 0;
-    TrackerMapState state{map, live, next_id};
-    SemiDirectPoseTracker tracker(camera, params);
-    const cv::Mat empty;
-    const TrackingFrame first{reference, empty, empty, 0};
-    require(tracker.start_monocular(first, 0, state) > params.num_features_tracking_bad,
-            "monocular start found too few seeds");
-    require(tracker.in_bootstrap(), "monocular start did not enter bootstrap");
-
-    // Two landmarks were promoted early: fewer than the six a pose needs on their own.
-    for (int i = 0; i < 2; ++i) {
-        LivePoint point;
-        point.id = next_id++;
-        point.uv_ref = Vec2d(40.0 + 60.0 * i, 60.0);
-        point.reference_keyframe = 0;
-        require(lift_reference_point(*camera, point.uv_ref, 5.0, point.position_w), "lift failed");
-        point.uv = point.uv_ref;
-        live.push_back(point);
-    }
+    MonocularInitializer init(camera, params);
+    require(!init.add_frame(reference, 0, 0.0), "initializer accepted a single frame");
+    require(init.num_tracks() > params.num_features_tracking, "initializer found too few corners");
+    // Small motion: below init_min_disparity, so no attempt yet.
     Eigen::Isometry3d motion = Eigen::Isometry3d::Identity();
-    motion.translation() = Vec3d(0.02, 0.0, 0.0);
-    const cv::Mat current = render_plane(*camera, reference, 5.0, motion);
-    const TrackingFrame frame{current, empty, empty, 1};
-    const Eigen::Isometry3d identity = Eigen::Isometry3d::Identity();
-    const TrackingResult result = tracker.track(TrackingInput{frame, reference, live, map, identity, identity});
-    require(result.accepted, "bootstrap tracking dropped the seeds after an early promotion");
-    require(result.inliers > static_cast<int>(live.size()), "seeds did not support the bootstrap pose");
-
-    // Promotions accumulate: once enough landmarks exist, bootstrap ends even if this frame
-    // promoted none.
-    while (static_cast<int>(live.size()) <= params.num_features_tracking_bad) {
-        LivePoint point = live.back();
-        point.id = next_id++;
-        live.push_back(point);
+    motion.translation() = Vec3d(-0.1, 0.0, 0.0); // Tcw: the camera moves +x.
+    require(!init.add_frame(render_plane(*camera, reference, plane_depth, motion), 1, 1.0),
+            "initializer accepted a geometry below the disparity threshold");
+    bool accepted = false;
+    Eigen::Isometry3d truth = Eigen::Isometry3d::Identity();
+    for (int step = 2; step <= 8 && !accepted; ++step) {
+        truth.translation() = Vec3d(-0.1 * step, 0.02 * step, 0.0);
+        accepted = init.add_frame(render_plane(*camera, reference, plane_depth, truth), step, step);
     }
-    const AcceptOutcome outcome = tracker.after_accept(frame, result.T_cur_w, state);
-    require(outcome.bootstrap_finished && outcome.force_keyframe && !tracker.in_bootstrap(),
-            "bootstrap did not end after cumulative promotions");
+    require(accepted, "two-view initialization did not succeed");
+    const MonocularInitResult &result = init.result();
+    const Vec3d t = result.T_cur_ref.translation();
+    std::cout << "mono init points " << result.X_ref.size() << " t " << t.transpose() << " truth "
+              << truth.translation().transpose() << std::endl;
+    require(static_cast<int>(result.X_ref.size()) > params.num_features_tracking, "too few initial points");
+    require(Eigen::AngleAxisd(result.T_cur_ref.linear()).angle() < 0.01, "initial rotation is wrong");
+    require((t - truth.translation()).norm() < 0.1 * truth.translation().norm(), "initial translation is wrong");
+    for (size_t i = 0; i < result.X_ref.size(); ++i) {
+        require(std::abs(result.X_ref[i].z() - plane_depth) < 0.3, "initial point is off the plane");
+        require(result.inverse_depth_sigma2[i] > 0.0, "initial point has no inverse-depth prior");
+    }
+
+    // Unrelated content drops every track: the reference restarts on the new frame.
+    MonocularInitializer restart(camera, params);
+    restart.add_frame(reference, 0, 0.0);
+    cv::Mat other(height, width, CV_8U);
+    cv::RNG other_rng(77);
+    other_rng.fill(other, cv::RNG::UNIFORM, 0, 255);
+    cv::GaussianBlur(other, other, cv::Size(5, 5), 1.2);
+    require(!restart.add_frame(other, 1, 1.0), "initializer accepted unrelated images");
+    require(restart.num_tracks() > params.num_features_tracking, "initializer did not restart its reference");
+    for (const LivePoint &track : restart.tracks()) {
+        require(track.uv == track.uv_ref, "restarted tracks are not on the new reference");
+    }
 }
 
 } // namespace
@@ -1634,6 +1735,7 @@ int main(int argc, char **argv) {
         test_ba_rejects_unobservable_graphs();
         test_frontend_applies_backend_updates();
         test_apply_keyframe_poses();
+        test_apply_keyframe_poses_with_scale();
         test_direct_map_observer_index();
         if (argc > 1 && std::string(argv[1]) == "--backend-only") {
             std::cout << "direct backend tests passed" << std::endl;
@@ -1658,7 +1760,9 @@ int main(int argc, char **argv) {
         test_depth_filter_matches_svo_update();
         test_svo_one_pixel_tau();
         test_semi_direct_tracks_points_from_older_keyframes();
-        test_semi_direct_bootstrap_with_gradual_promotion();
+        test_monocular_param_overrides();
+        test_seed_measurement_from_track();
+        test_monocular_two_view_initializer();
         test_semi_direct_stereo_and_monocular();
     } catch (const std::exception &error) {
         std::cerr << "test_direct_slam failed: " << error.what() << std::endl;

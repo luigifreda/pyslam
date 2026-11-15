@@ -51,10 +51,25 @@ const ConfigDict parameter_block(const ConfigDict &config) {
     return config;
 }
 
+// Monocular input usually needs other values than stereo/RGBD from the same settings
+// file (e.g. more corners and seeds, since only converged seeds create landmarks).
+ConfigDict apply_monocular_overrides(ConfigDict block) {
+    const ConfigDict nested = block.get("monocular", ConfigDict());
+    ConfigDict overrides;
+    for (const auto &entry : nested) overrides[entry.first] = entry.second;
+    const std::string prefix = "monocular.";
+    for (const auto &entry : block) {
+        if (entry.first.rfind(prefix, 0) == 0) overrides[entry.first.substr(prefix.size())] = entry.second;
+    }
+    for (const auto &entry : overrides) block[entry.first] = entry.second;
+    return block;
+}
+
 } // namespace
 
-DirectSlamParams DirectSlamParams::from_config(const ConfigDict &config) {
+DirectSlamParams DirectSlamParams::from_config(const ConfigDict &config, bool monocular) {
     ConfigDict block = parameter_block(config);
+    if (monocular) block = apply_monocular_overrides(std::move(block));
     DirectSlamParams params;
     const std::string mode = lower_copy(block.get<std::string>("mode", "klt"));
     // "direct" remains a deprecated alias of hybrid for older settings files.

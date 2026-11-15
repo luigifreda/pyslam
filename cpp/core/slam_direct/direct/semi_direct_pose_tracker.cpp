@@ -23,6 +23,7 @@
 #include "slam_direct/direct/planar_patch.h"
 #include "slam_direct/features/corner_detection.h"
 #include "slam_direct/geometry/reprojection_pose.h"
+#include "slam_direct/klt/klt_tracker.h"
 
 #include <opencv2/imgproc.hpp>
 
@@ -38,6 +39,7 @@ SemiDirectPoseTracker::SemiDirectPoseTracker(CameraPtr camera, const DirectSlamP
 
 void SemiDirectPoseTracker::reset() {
     seeds_.clear();
+    prev_gray_.release();
 }
 
 TrackingResult SemiDirectPoseTracker::track(const TrackingInput &input) {
@@ -122,13 +124,25 @@ TrackingResult SemiDirectPoseTracker::track(const TrackingInput &input) {
 AcceptOutcome SemiDirectPoseTracker::after_accept(const TrackingFrame &frame, const Eigen::Isometry3d &T_cur_w,
                                                   TrackerMapState &state) {
     update_depth_seeds(frame.gray, T_cur_w, state.map);
+    prev_gray_ = frame.gray.clone();
     promote_depth_seeds(T_cur_w, state);
     return {};
 }
 
 void SemiDirectPoseTracker::on_keyframe(const TrackingFrame &frame, int keyframe_id, TrackerMapState &state) {
     spawn_depth_seeds(frame, keyframe_id, state);
+    prev_gray_ = frame.gray.clone();
     release_idle_keyframe_images(state.map);
+}
+
+void SemiDirectPoseTracker::apply_keyframe_scales(const std::vector<double> &scales) {
+    // Seed inverse depths live in their keyframe camera: depth / s means inverse depth * s.
+    for (DepthSeed &seed : seeds_) {
+        if (seed.keyframe_id < 0 || static_cast<size_t>(seed.keyframe_id) >= scales.size()) continue;
+        const double scale = scales[static_cast<size_t>(seed.keyframe_id)];
+        seed.belief.mu *= scale;
+        seed.belief.sigma2 *= scale * scale;
+    }
 }
 
 void SemiDirectPoseTracker::spawn_depth_seeds(const TrackingFrame &frame, int keyframe_id,
@@ -149,7 +163,9 @@ void SemiDirectPoseTracker::spawn_depth_seeds(const TrackingFrame &frame, int ke
         block(point.uv);
     }
     for (const DepthSeed &seed : seeds_) {
-        if (seed.keyframe_id == keyframe_id) {
+        if (seed.tracked) {
+            block(seed.pixel_cur); // Tracked seeds are in this image, whatever their keyframe.
+        } else if (seed.keyframe_id == keyframe_id) {
             block(seed.pixel);
         }
     }
@@ -189,6 +205,8 @@ void SemiDirectPoseTracker::spawn_depth_seeds(const TrackingFrame &frame, int ke
         DepthSeed seed;
         seed.keyframe_id = keyframe_id;
         seed.pixel = pixels[i];
+        seed.pixel_cur = pixels[i];
+        seed.tracked = true;
         seed.belief = make_inverse_depth_prior(params_.seed_min_depth, params_.seed_max_depth, scene_depth);
         seeds_.push_back(seed);
     }
@@ -197,23 +215,67 @@ void SemiDirectPoseTracker::spawn_depth_seeds(const TrackingFrame &frame, int ke
 void SemiDirectPoseTracker::update_depth_seeds(const cv::Mat &gray, const Eigen::Isometry3d &T_cur_w,
                                                const DirectMap &map) {
     const auto &keyframes = map.keyframes();
+    // Small inter-frame appearance changes keep LK reliable under forward motion, where a
+    // fronto-parallel patch matched against an older keyframe image no longer fits.
+    std::vector<size_t> tracked_index;
+    std::vector<Vec2d> tracked_prev;
+    for (size_t i = 0; i < seeds_.size(); ++i) {
+        if (seeds_[i].tracked) {
+            tracked_index.push_back(i);
+            tracked_prev.push_back(seeds_[i].pixel_cur);
+        }
+    }
+    if (!tracked_index.empty()) {
+        if (prev_gray_.empty() || prev_gray_.size() != gray.size()) {
+            for (size_t i : tracked_index) seeds_[i].tracked = false;
+        } else {
+            const LkTrack lk = track_pyramidal_lk(prev_gray_, gray, tracked_prev, tracked_prev, params_);
+            for (size_t k = 0; k < tracked_index.size(); ++k) {
+                DepthSeed &seed = seeds_[tracked_index[k]];
+                seed.tracked = lk.status[k] != 0;
+                if (seed.tracked) seed.pixel_cur = lk.points_cur[k];
+            }
+        }
+    }
+
     std::vector<DepthSeed> kept;
     kept.reserve(seeds_.size());
     int searches = 0;
     for (DepthSeed seed : seeds_) {
-        if (seed.keyframe_id < 0 || static_cast<size_t>(seed.keyframe_id) >= keyframes.size() ||
-            keyframes[static_cast<size_t>(seed.keyframe_id)].gray.empty() || searches >= params_.max_seed_updates) {
+        const bool known_keyframe = seed.keyframe_id >= 0 && static_cast<size_t>(seed.keyframe_id) < keyframes.size();
+        if (!known_keyframe) {
             kept.push_back(std::move(seed));
             continue;
         }
         const DirectKeyframe &keyframe = keyframes[static_cast<size_t>(seed.keyframe_id)];
         Eigen::Isometry3d T_ref_w;
         T_ref_w.matrix() = keyframe.pose.Tcw();
-        const EpipolarMatch match = match_seed_on_epipolar_line(
-            *camera_, params_, keyframe.gray, gray, seed.pixel, seed.belief.mu, seed.belief.sigma2,
-            T_cur_w * T_ref_w.inverse());
-        if (match.searched) {
+        const Eigen::Isometry3d T_cur_ref = T_cur_w * T_ref_w.inverse();
+        EpipolarMatch match;
+        if (seed.tracked) {
+            match = measure_seed_from_track(*camera_, params_, seed.pixel, seed.pixel_cur, T_cur_ref);
+        } else {
+            // A lost track gets one epipolar search on the keyframe image (capped per frame).
+            // A match re-acquires the seed; otherwise it is dropped, so stale seeds do not
+            // hold max_seeds slots that new keyframes need.
+            if (keyframe.gray.empty() || searches >= params_.max_seed_updates) {
+                kept.push_back(std::move(seed));
+                continue;
+            }
+            match = match_seed_on_epipolar_line(*camera_, params_, keyframe.gray, gray, seed.pixel,
+                                                seed.belief.mu, seed.belief.sigma2, T_cur_ref);
             ++searches;
+            Vec3d X_ref = Vec3d::Zero();
+            if (!match.matched || !lift_pixel_depth(*camera_, seed.pixel, match.depth, X_ref)) {
+                continue;
+            }
+            const Vec2d reacquired = camera_->project_point(T_cur_ref * X_ref).first;
+            if (!reacquired.allFinite() || reacquired.x() < params_.border || reacquired.y() < params_.border ||
+                reacquired.x() >= gray.cols - params_.border || reacquired.y() >= gray.rows - params_.border) {
+                continue;
+            }
+            seed.pixel_cur = reacquired;
+            seed.tracked = true;
         }
         observe_seed(seed, match, params_.seed_min_depth, params_.seed_max_depth);
         if (!seed_expired(seed, prior_sigma2_)) {
@@ -248,7 +310,7 @@ int SemiDirectPoseTracker::promote_depth_seeds(const Eigen::Isometry3d &T_cur_w,
         live.position_w = T_ref_w.inverse() * X_ref;
         const Vec3d X_cur = T_cur_w * live.position_w;
         const Vec2d projected = camera_->project_point(X_cur).first;
-        live.uv = projected.allFinite() ? projected : seed.pixel;
+        live.uv = seed.tracked ? seed.pixel_cur : (projected.allFinite() ? projected : seed.pixel);
         live.trail.emplace_back(std::floor(live.uv.x()), std::floor(live.uv.y()));
         live.observations = 1;
         DirectLandmark landmark;

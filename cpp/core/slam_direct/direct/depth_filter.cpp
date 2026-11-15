@@ -20,6 +20,7 @@
 #include "slam_direct/direct/depth_filter.h"
 
 #include "slam_direct/direct/direct_aligner.h"
+#include "slam_direct/geometry/triangulation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -30,6 +31,8 @@ namespace pyslam {
 namespace {
 
 constexpr int kMaxSeedFailures = 20;
+// Minimum ray angle of a tracked correspondence, in one-pixel angular errors.
+constexpr double kMinTrackRayAnglePx = 3.0;
 
 float sample_gray(const cv::Mat &img, float x, float y) {
     if (img.cols < 2 || img.rows < 2) {
@@ -291,6 +294,66 @@ EpipolarMatch match_seed_on_epipolar_line(const Camera &camera, const DirectSlam
             match.parallax_px = (matched_px - far_px).norm();
         }
     }
+    return match;
+}
+
+namespace {
+// Pixel baseline between pixel_cur and the reference ray at infinity, in the current image.
+double parallax_to_infinity(const Camera &camera, const Eigen::Isometry3d &T_cur_ref, const Vec2d &pixel_ref,
+                            const Vec2d &pixel_cur) {
+    Vec3d bearing = Vec3d::Zero();
+    if (!camera.unproject_bearing(pixel_ref, bearing, nullptr)) return 0.0;
+    const Vec3d far_cur = T_cur_ref.linear() * bearing;
+    if (!(far_cur.z() > 1e-8)) return 0.0;
+    const Vec2d far_px = camera.project_point(far_cur).first;
+    return far_px.allFinite() ? (pixel_cur - far_px).norm() : 0.0;
+}
+} // namespace
+
+EpipolarMatch measure_seed_from_track(const Camera &camera, const DirectSlamParams &params,
+                                      const Vec2d &pixel_ref, const Vec2d &pixel_cur,
+                                      const Eigen::Isometry3d &T_cur_ref) {
+    EpipolarMatch match;
+    Vec3d f_ref = Vec3d::Zero();
+    Vec3d f_cur = Vec3d::Zero();
+    if (!camera.unproject_bearing(pixel_ref, f_ref, nullptr) || !camera.unproject_bearing(pixel_cur, f_cur, nullptr) ||
+        !f_ref.allFinite() || !f_cur.allFinite() || !(T_cur_ref.translation().norm() > 1e-12)) {
+        return match;
+    }
+    f_ref.normalize();
+    f_cur.normalize();
+    // Rays closer than a few pixels of angle carry no depth information yet (far points,
+    // short baseline): skip instead of counting a noisy triangulation as an outlier.
+    const double px_error_angle = 2.0 * std::atan(1.0 / (2.0 * camera.fx));
+    const double ray_angle = std::acos(std::clamp((T_cur_ref.linear() * f_ref).dot(f_cur), -1.0, 1.0));
+    if (ray_angle < kMinTrackRayAnglePx * px_error_angle) {
+        return match;
+    }
+    match.searched = true;
+    Vec3d X_ref = Vec3d::Zero();
+    if (!triangulate_midpoint(f_ref, f_cur, T_cur_ref.linear(), T_cur_ref.translation(), X_ref)) {
+        return match;
+    }
+    const double depth = X_ref.z();
+    if (depth > params.seed_max_depth) {
+        match.searched = false; // Beyond the far end of the prior: no evidence either way.
+        return match;
+    }
+    const Vec2d reprojected = camera.project_point(T_cur_ref * X_ref).first;
+    if (!(depth >= params.seed_min_depth) || !reprojected.allFinite() ||
+        (reprojected - pixel_cur).squaredNorm() > params.chi2_threshold) {
+        return match;
+    }
+    const double tau = depth_uncertainty_one_pixel(camera, T_cur_ref, pixel_ref, depth, px_error_angle);
+    const double sigma = inverse_depth_sigma(depth, tau);
+    if (!(sigma > 0.0) || !std::isfinite(sigma)) {
+        match.searched = false; // No usable parallax yet: skip, do not penalize.
+        return match;
+    }
+    match.matched = true;
+    match.depth = depth;
+    match.inverse_variance = sigma * sigma;
+    match.parallax_px = parallax_to_infinity(camera, T_cur_ref, pixel_ref, pixel_cur);
     return match;
 }
 

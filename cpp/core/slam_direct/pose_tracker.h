@@ -105,6 +105,8 @@ class PoseTracker {
     }
     // After DirectSlam recorded a keyframe (including the first one).
     virtual void on_keyframe(const TrackingFrame &, int /*keyframe_id*/, TrackerMapState &) {}
+    // A monocular loop correction scaled the geometry seen from keyframe i by 1/scales[i].
+    virtual void apply_keyframe_scales(const std::vector<double> & /*scales*/) {}
 
   protected:
     CameraPtr camera_;

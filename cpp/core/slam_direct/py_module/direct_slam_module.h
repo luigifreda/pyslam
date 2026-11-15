@@ -124,7 +124,31 @@ inline void bind_direct_slam(py::module &m) {
         .def("reset", &pyslam::DirectSlam::reset)
         .def("bundle_adjustment", &pyslam::DirectSlam::bundle_adjustment, py::call_guard<py::gil_scoped_release>())
         .def("apply_keyframe_poses", &pyslam::DirectSlam::apply_keyframe_poses, py::arg("poses"),
-             py::call_guard<py::gil_scoped_release>())
+             py::arg("scales") = std::vector<double>(), py::call_guard<py::gil_scoped_release>())
+        // Landmarks observed by keyframe `index` (insertion order), skipping outliers and bad
+        // landmarks: ids, pixels, and current positions in that keyframe's camera frame.
+        .def("keyframe_observations", [](const pyslam::DirectSlam &self, size_t index) {
+            const auto &keyframes = self.map().keyframes();
+            if (index >= keyframes.size()) throw py::index_error("keyframe index out of range");
+            const auto &keyframe = keyframes[index];
+            const Eigen::Matrix4d Tcw = keyframe.pose.Tcw();
+            std::vector<int64_t> ids;
+            std::vector<pyslam::Vec2d> pixels;
+            std::vector<pyslam::Vec3d> points;
+            for (const auto &obs : keyframe.points) {
+                const auto it = self.map().landmarks().find(obs.id);
+                if (obs.outlier || it == self.map().landmarks().end() || it->second.bad) continue;
+                ids.push_back(obs.id);
+                pixels.push_back(obs.uv);
+                points.push_back(Tcw.topLeftCorner<3, 3>() * it->second.position_w + Tcw.topRightCorner<3, 1>());
+            }
+            Eigen::MatrixXd uv(pixels.size(), 2), xc(points.size(), 3);
+            for (size_t i = 0; i < pixels.size(); ++i) {
+                uv.row(i) = pixels[i].transpose();
+                xc.row(i) = points[i].transpose();
+            }
+            return py::make_tuple(ids, uv, xc);
+        }, py::arg("index"))
         .def("last_ba", &pyslam::DirectSlam::last_ba)
         .def("draw_feature_trails", [](const pyslam::DirectSlam &self, py::object image,
                                        bool with_level_radius, int trail_max_length) {
@@ -182,6 +206,12 @@ inline void bind_direct_slam(py::module &m) {
                 timestamps.push_back(kf.timestamp);
             }
             return py::make_tuple(poses, timestamps);
+        })
+        // Input image id of each keyframe, aligned with keyframes().
+        .def("keyframe_img_ids", [](const pyslam::DirectSlam &self) {
+            std::vector<int> ids;
+            for (const auto &kf : self.map().keyframes()) ids.push_back(kf.img_id);
+            return ids;
         })
         .def_property_readonly("mode", [](const pyslam::DirectSlam &self) { return self.params().mode; });
 }

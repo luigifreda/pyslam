@@ -57,20 +57,32 @@ def main():
     dataset = dataset_factory(config)
     settings = dict(config.cam_settings)
     # Override both settings forms because a nested DIRECT_SLAM block takes precedence.
+    is_monocular = dataset.sensor_type == SensorType.MONOCULAR
     if args.mode:
         # Camera settings normally use flattened OpenCV YAML keys.
         settings["DIRECT_SLAM.mode"] = args.mode
+        # The command line also wins over a DIRECT_SLAM.monocular.mode override.
+        settings.pop("DIRECT_SLAM.monocular.mode", None)
         if "DIRECT_SLAM" in settings:
-            settings["DIRECT_SLAM"] = dict(settings["DIRECT_SLAM"], mode=args.mode)
+            nested = dict(settings["DIRECT_SLAM"], mode=args.mode)
+            nested.pop("monocular.mode", None)
+            if isinstance(nested.get("monocular"), dict):
+                nested["monocular"] = {k: v for k, v in nested["monocular"].items() if k != "mode"}
+            settings["DIRECT_SLAM"] = nested
     requested_mode = str(args.mode or "")
     if not requested_mode:
+        # Same precedence as DirectSlamParams::from_config: a nested block wins over flat keys,
+        # and monocular input applies the DIRECT_SLAM.monocular overrides.
         nested = settings.get("DIRECT_SLAM")
-        if isinstance(nested, dict) and nested.get("mode"):
-            requested_mode = str(nested.get("mode"))
+        if isinstance(nested, dict):
+            mono = nested.get("monocular") if isinstance(nested.get("monocular"), dict) else {}
+            mono_mode = mono.get("mode") or nested.get("monocular.mode")
+            requested_mode = str((is_monocular and mono_mode) or nested.get("mode") or "klt")
         else:
-            requested_mode = str(settings.get("DIRECT_SLAM.mode", "klt"))
+            mono_mode = settings.get("DIRECT_SLAM.monocular.mode")
+            requested_mode = str((is_monocular and mono_mode) or settings.get("DIRECT_SLAM.mode", "klt"))
     requested_mode = requested_mode.lower()
-    if dataset.sensor_type == SensorType.MONOCULAR and requested_mode not in ("semi_direct", "semidirect"):
+    if is_monocular and requested_mode not in ("semi_direct", "semidirect"):
         raise SystemExit(
             "Monocular direct SLAM requires DIRECT_SLAM.mode: semi_direct. "
             "klt and hybrid need stereo or RGBD depth."
@@ -91,16 +103,14 @@ def main():
     slam = DirectSlam(camera, settings)
     Printer.green(f"Direct SLAM mode: {slam.mode}")
     loop_closing = None
-    # Monocular loop closing optimizes Sim(3). The direct map applies SE3 anchor deltas,
-    # so a scale change would not move landmarks consistently.
-    if Parameters.kUseLoopClosing and not args.no_loop_closing and dataset.sensor_type != SensorType.MONOCULAR:
+    # Monocular loop closing optimizes Sim(3); DirectLoopClosing publishes the per-keyframe
+    # scale with the poses, and the direct map rescales landmarks, priors and seeds with it.
+    if Parameters.kUseLoopClosing and not args.no_loop_closing:
         from pyslam.slam.direct_loop_closing import DirectLoopClosing
 
         loop_closing = DirectLoopClosing(
             slam, camera, dataset.sensor_type, config, headless=args.headless
         )
-    elif dataset.sensor_type == SensorType.MONOCULAR and not args.no_loop_closing:
-        Printer.green("Direct SLAM monocular mode skips loop closing.")
     from pyslam.io.ground_truth import groundtruth_factory, is_valid_groundtruth, need_sim3_alignment
 
     groundtruth = groundtruth_factory(config.dataset_settings, cam_settings=config.cam_settings)

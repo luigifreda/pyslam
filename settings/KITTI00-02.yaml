@@ -113,3 +113,11 @@ DIRECT_SLAM.num_active_keyframes: 7
 DIRECT_SLAM.ba_iterations: 10
 # Force a keyframe after this input-frame ID gap when automatic BA is enabled.
 DIRECT_SLAM.max_keyframe_interval: 10
+
+# Monocular-only overrides (ignored for stereo/RGBD): DIRECT_SLAM.monocular.<key> replaces
+# DIRECT_SLAM.<key> when the input is monocular. Monocular semi_direct creates landmarks only
+# from converged depth seeds, so it needs more corners and seeds than the stereo/RGBD setup.
+DIRECT_SLAM.monocular.mode: semi_direct
+DIRECT_SLAM.monocular.num_features: 400
+DIRECT_SLAM.monocular.max_seeds: 800
+DIRECT_SLAM.monocular.max_seed_updates: 200

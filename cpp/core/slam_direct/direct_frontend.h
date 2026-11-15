@@ -54,7 +54,10 @@ class DirectSlam {
     DirectBAResult bundle_adjustment();
     // Replace archived keyframe poses and carry landmarks and the trajectory with them.
     // One finite Tcw is required per archived keyframe, in insertion order.
-    void apply_keyframe_poses(const std::vector<Eigen::Matrix4d> &Tcw);
+    // scales (empty, or one positive value per keyframe) is the monocular Sim(3) part of a
+    // loop correction: geometry seen from keyframe i shrinks by 1/scales[i], as in ORB-SLAM's
+    // point correction. Landmarks, inverse-depth priors, frame offsets and depth seeds follow.
+    void apply_keyframe_poses(const std::vector<Eigen::Matrix4d> &Tcw, const std::vector<double> &scales = {});
     const DirectBAResult &last_ba() const { return last_ba_; }
     cv::Mat draw_feature_trails(const cv::Mat &image, bool with_level_radius = false,
                                 int trail_max_length = 16) const;

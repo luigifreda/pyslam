@@ -28,6 +28,48 @@ class DirectLoopFeaturesTest(unittest.TestCase):
             bridge.map.keyframes_map[keyframe.id] = keyframe
         return bridge
 
+    def test_monocular_scale_is_recovered_from_descriptor_points(self):
+        # Keyframe 0 is not corrected (scale 1). Keyframe 1 is corrected with s = 2: its
+        # points end up at half their camera distance. Keyframe 2 changed but has no point
+        # support, so it takes the nearest estimate.
+        bridge = self.bridge()
+        bridge.sensor_type = SensorType.MONOCULAR
+        rng = np.random.default_rng(3)
+        old_points_c = rng.uniform([-3, -2, 4], [3, 2, 20], size=(12, 3))
+        ids = list(range(100, 112))
+        old_twc = [np.eye(4) for _ in range(3)]
+        for i, twc in enumerate(old_twc):
+            twc[2, 3] = float(i)
+        new_tcw = [np.linalg.inv(twc) for twc in old_twc]
+        new_tcw[1][:3, 3] += [0.3, 0.0, -0.2]
+        new_tcw[2][:3, 3] += [0.0, 0.5, 0.0]
+
+        keyframes = []
+        for i in range(3):
+            matches, points = [], {}
+            if i < 2:
+                scale = 2.0 if i == 1 else 1.0
+                new_twc = np.linalg.inv(new_tcw[i])
+                for k, (landmark_id, x_c) in enumerate(zip(ids, old_points_c)):
+                    world = new_twc[:3, :3] @ (x_c / scale) + new_twc[:3, 3]
+                    points[k] = SimpleNamespace(pt=lambda w=world: w, is_bad=lambda: False)
+                    matches.append((k, landmark_id))
+            keyframe = SimpleNamespace(id=10 + i, get_point_match=points.get)
+            keyframes.append(keyframe)
+            bridge._landmark_matches[keyframe.id] = matches
+        bridge._keyframes = keyframes
+        bridge.direct_slam = SimpleNamespace(
+            keyframes=lambda: (old_twc, [0.0, 0.1, 0.2]),
+            keyframe_observations=lambda i: (ids, np.zeros((12, 2)), old_points_c))
+        # Keyframe 0 keeps its pose exactly.
+        new_tcw[0] = np.linalg.inv(old_twc[0])
+        scales = bridge._monocular_scales(new_tcw)
+        np.testing.assert_allclose(scales, [1.0, 2.0, 2.0], rtol=1e-9)
+
+        # Nothing rescaled: plain SE3 publication.
+        unchanged = [np.linalg.inv(twc) for twc in old_twc]
+        self.assertIsNone(bridge._monocular_scales(unchanged))
+
     def test_registration_queues_raw_input_without_extracting_features(self):
         bridge = self.bridge()
         image = np.zeros((40, 60), dtype=np.uint8)

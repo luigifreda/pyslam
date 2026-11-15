@@ -86,6 +86,7 @@ class DirectMap {
     const std::map<int64_t, DirectLandmark> &landmarks() const { return landmarks_; }
     std::vector<DirectKeyframe> &keyframes_mutable() { return keyframes_; }
     std::map<int64_t, DirectLandmark> &landmarks_mutable() { return landmarks_; }
+    std::vector<DirectTrajectoryPose> &trajectory_mutable() { return trajectory_; }
 
     // Non-keyframe poses keep their transform relative to their reference keyframe.
     // Reconstruct them after BA so exported trajectories use the corrected map.

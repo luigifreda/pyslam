@@ -22,6 +22,7 @@
 #include "slam_direct/depth_measurement.h"
 #include "slam_direct/direct/depth_filter.h"
 #include "slam_direct/features/corner_detection.h"
+#include "slam_direct/geometry/triangulation.h"
 #include "slam_direct/klt/klt_tracker.h"
 
 #include <opencv2/calib3d.hpp>
@@ -47,21 +48,6 @@ double median_of(std::vector<double> values) {
     const size_t mid = values.size() / 2;
     std::nth_element(values.begin(), values.begin() + mid, values.end());
     return values[mid];
-}
-
-// Midpoint triangulation of X = d0 * f0 (reference) and R * X + t = d1 * f1 (current).
-bool triangulate_rays(const Vec3d &f0, const Vec3d &f1, const Mat3d &R, const Vec3d &t, Vec3d &X) {
-    Eigen::Matrix<double, 3, 2> A;
-    A.col(0) = R * f0;
-    A.col(1) = -f1;
-    const Eigen::Matrix2d AtA = A.transpose() * A;
-    if (!(std::abs(AtA.determinant()) > 1e-12)) return false;
-    const Eigen::Vector2d d = AtA.ldlt().solve(A.transpose() * (-t));
-    if (!(d.x() > 0.0) || !(d.y() > 0.0) || !d.allFinite()) return false;
-    const Vec3d X0 = d.x() * f0;
-    const Vec3d X1 = R.transpose() * (d.y() * f1 - t); // Current ray point, in the reference frame.
-    X = 0.5 * (X0 + X1);
-    return X.allFinite();
 }
 
 double scene_depth(const Camera &camera, const Vec3d &X) {
@@ -197,7 +183,7 @@ bool MonocularInitializer::try_two_view() {
         if (!mask.at<uchar>(static_cast<int>(k))) continue;
         const size_t i = index[k];
         Vec3d X = Vec3d::Zero();
-        if (!triangulate_rays(f_ref[i], f_cur[i], R, t, X)) continue;
+        if (!triangulate_midpoint(f_ref[i], f_cur[i], R, t, X)) continue;
         const double cos_parallax = X.normalized().dot((X - center_cur).normalized());
         if (!(cos_parallax < min_cos)) continue;
         const Vec3d X_cur = R * X + t;

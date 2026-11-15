@@ -27,7 +27,7 @@ The tracking modes are:
 
 **Why "direct".** The subsystem name (`main_direct_slam.py`, `slam_direct/`, `DirectSlam`, `DIRECT_SLAM.*`) refers to how image data is used: tracking and local-mapping correspondences come from intensity on raw pixels, never from descriptor matching. Only the optional loop-closing thread extracts descriptors, on separate keyframes. Under the usual taxonomy, which looks at the error that pose and structure are optimized on, the three modes are different. `klt` is indirect: Lucas–Kanade supplies 2D tracks and the pose minimizes reprojection error, as in KLT-based front ends such as VINS-Mono. `hybrid` runs that geometric solve first and then refines it photometrically. `semi_direct` is the SVO-style mode: it minimizes intensity on a planar 3D patch before the reprojection solve, and it estimates unknown depth with a Bayesian inverse-depth filter. Local bundle adjustment stays geometric. There is no photometric bundle adjustment.
 
-`klt` and `hybrid` require **stereo or RGBD input** and estimate metric motion from sensor depth. `semi_direct` uses the same measured landmarks when a depth or a right image is available, and it creates seeds for corners that have no measurement. A monocular `semi_direct` map takes its scale from the inverse-depth prior (`seed_min_depth`, `seed_max_depth`), not from a metric sensor. The runner skips loop closing for monocular input: the loop closer would optimize a Sim(3) correction, while the direct map moves each landmark by the SE3 delta of its anchor keyframe. Stereo and RGBD loop closing is unchanged. `--no-loop-closing` disables it in every case. The runner does not provide dense or semantic mapping. Monocular ground truth is Sim(3)-aligned in the viewer.
+`klt` and `hybrid` require **stereo or RGBD input** and estimate metric motion from sensor depth. `semi_direct` uses the same measured landmarks when a depth or a right image is available, and it creates seeds for corners that have no measurement. A monocular `semi_direct` map takes its scale from the inverse-depth prior (`seed_min_depth`, `seed_max_depth`), not from a metric sensor. Monocular input also runs loop closing, with a Sim(3) correction. Monocular keyframes have no depth for descriptor keypoints, so a keypoint within 3 px of a direct landmark observation takes that landmark's 3D position; one descriptor point per landmark is shared by every keyframe that sees it. Each new keyframe also triangulates unmatched descriptor matches with its three previous keyframes, at the direct poses, so Sim(3) verification has a 3D point on both sides of a match. After a loop correction or global BA, each keyframe's scale is recovered as the median ratio of its landmark-associated points' camera distances before and after (keyframes without enough of those points take the nearest estimate). Triangulated matches are not used for that scale. `apply_keyframe_poses(poses, scales)` then moves each landmark through its anchor keyframe as a similarity, and rescales inverse-depth priors, frame offsets and depth seeds. Stereo and RGBD loop closing is unchanged. `--no-loop-closing` disables it in every case. The runner does not provide dense or semantic mapping. Monocular ground truth is Sim(3)-aligned in the viewer.
 
 ---
 
@@ -40,7 +40,7 @@ Activate the pySLAM environment and build the C++ core from the repository root:
 python main_direct_slam.py -c config.yaml
 ```
 
-In `config.yaml`, select a stereo or RGBD dataset and the corresponding camera settings. A monocular dataset is accepted only when the mode is `semi_direct`. The intrinsics, image dimensions, stereo baseline or RGBD depth factor must match the actual images. The settings files [`KITTI00-02.yaml`](../settings/KITTI00-02.yaml), [`TUM3.yaml`](../settings/TUM3.yaml), and [`TUM_VI.yaml`](../settings/TUM_VI.yaml) contain `DIRECT_SLAM.*` examples. The runner requires `Parameters.USE_CPP_CORE` to be enabled. All three modes accept an undistorted pinhole or a raw-pixel camera. Native TUM-VI uses `sensor_type: stereo` and `stereo_mode: native`; the images are not remapped. Rectified TUM-VI remains an undistorted pinhole.
+In `config.yaml`, select a stereo or RGBD dataset and the corresponding camera settings. A monocular dataset is accepted only when the resolved mode is `semi_direct`, including when `DIRECT_SLAM.monocular.mode` selects it and the stereo mode stays `hybrid`. The intrinsics, image dimensions, stereo baseline or RGBD depth factor must match the actual images. The settings files [`KITTI00-02.yaml`](../settings/KITTI00-02.yaml), [`TUM3.yaml`](../settings/TUM3.yaml), and [`TUM_VI.yaml`](../settings/TUM_VI.yaml) contain `DIRECT_SLAM.*` examples. The runner requires `Parameters.USE_CPP_CORE` to be enabled. All three modes accept an undistorted pinhole or a raw-pixel camera. Native TUM-VI uses `sensor_type: stereo` and `stereo_mode: native`; the images are not remapped. Rectified TUM-VI remains an undistorted pinhole.
 
 ```bash
 # Fast headless smoke test using the mode in the camera settings.
@@ -61,7 +61,7 @@ python main_direct_slam.py -c config.yaml --headless --trajectory-file /tmp/dire
 | `-c`, `--config_path`                   | Main configuration file; omitted means the normal default configuration.                                      |
 | `--headless`                            | Disable both viewers and dataset-rate playback sleeps.                                                        |
 | `--max-frames N`                        | Stop after N input frames; 0 means all frames.                                                                |
-| `--mode klt`, `hybrid`, or `semi_direct` | Override `DIRECT_SLAM.mode`, including when settings use a nested block. `direct` still selects `hybrid`.     |
+| `--mode klt`, `hybrid`, or `semi_direct` | Override `DIRECT_SLAM.mode` and `DIRECT_SLAM.monocular.mode`, including when settings use a nested block. `direct` still selects `hybrid`.     |
 | `--no-local-ba`                         | Disable automatic BA and periodic BA-driven keyframes; manual local BA remains available in interactive mode. |
 | `--no-loop-closing`                     | Do not start the loop-closing thread. `FeatureTrackerConfig` and `LoopDetectionConfig` otherwise select its local and global features, as in `main_slam.py`. A Lucas-Kanade tracker is rejected because loop detection needs descriptors. |
 | `--trajectory-file PATH`                | Export accepted poses after all local and loop corrections, in KITTI format.                                  |
@@ -73,14 +73,16 @@ python main_direct_slam.py -c config.yaml --headless --trajectory-file /tmp/dire
 The diagrams use the tracking, local-mapping, loop-closing, map and component colors from the existing [SLAM workflow diagrams](./images/slam_workflow.md).
 
 ```mermaid
-graph LR
+%%{init: {"theme": "base", "themeVariables": {"darkMode": false, "textColor": "#14202b", "nodeTextColor": "#14202b", "titleColor": "#14202b", "lineColor": "#021526", "primaryTextColor": "#14202b", "clusterBkg": "#ffffff", "clusterBorder": "#c5d0dc", "edgeLabelBackground": "#ffffff", "mainBkg": "#ffffff"}, "htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
+graph TD
     linkStyle default stroke:#021526,stroke-width:2px,font-size:12px;
-    classDef moduleTracking fill:#FFD6D6,stroke:#D7263D,stroke-width:2px,font-weight:bold,font-size:24px;
-    classDef moduleLocalMapping fill:#D6FFD6,stroke:#218380,stroke-width:2px,font-weight:bold,font-size:24px;
-    classDef moduleLoopClosing fill:#D6E4FF,stroke:#00509D,stroke-width:2px,font-weight:bold,font-size:24px;
-    classDef moduleMap fill:#ECECEC,stroke:#333333,stroke-width:2px,font-weight:bold,font-size:24px;
-    classDef component fill:none,stroke:#6EACDA,stroke-width:1px,font-size:24px;
+    classDef moduleTracking fill:#FFD6D6,stroke:#D7263D,stroke-width:2px,color:#14202b,font-size:14px;
+    classDef moduleLocalMapping fill:#D6FFD6,stroke:#218380,stroke-width:2px,color:#14202b,font-size:14px;
+    classDef moduleLoopClosing fill:#D6E4FF,stroke:#00509D,stroke-width:2px,color:#14202b,font-size:14px;
+    classDef moduleMap fill:#ECECEC,stroke:#333333,stroke-width:2px,color:#14202b,font-size:14px;
+    classDef component fill:#ffffff,stroke:#6EACDA,stroke-width:1px,color:#14202b,font-size:14px;
 
+    subgraph plate [" "]
     Config["Config<br>Camera settings"] --> Runner["main_direct_slam.py"]
     Dataset["Dataset<br>Stereo or RGBD"] --> Runner
     Runner --> Binding["pybind11<br>DirectSlam.track"]
@@ -98,6 +100,8 @@ graph LR
     Map -.-> Snapshot
     Snapshot --> Viewers["Viewer3D<br>CvImageViewer"]
     Map -.-> Export["Final accepted trajectory<br>KITTI Twc rows"]
+    end
+    style plate fill:#ffffff,stroke:#c5d0dc,color:#14202b
 
     class Tracking moduleTracking;
     class BA moduleLocalMapping;
@@ -117,14 +121,15 @@ The map keeps an archive of persistent landmark IDs, keyframes and accepted fram
 The first stereo or RGBD frame with enough valid depth-backed corners establishes the world origin and the first keyframe. Until initialization succeeds, a later input frame can retry initialization. After that, `klt` and `hybrid` use the **last accepted image**, which can be older than the immediately preceding input frame:
 
 ```mermaid
-%%{init: {"flowchart": {"nodeSpacing": 20, "rankSpacing": 12, "padding": 6}}}%%
+%%{init: {"theme": "base", "themeVariables": {"darkMode": false, "textColor": "#14202b", "nodeTextColor": "#14202b", "titleColor": "#14202b", "lineColor": "#021526", "primaryTextColor": "#14202b", "clusterBkg": "#ffffff", "clusterBorder": "#c5d0dc", "edgeLabelBackground": "#ffffff", "mainBkg": "#ffffff"}, "htmlLabels": false, "flowchart": {"htmlLabels": false, "nodeSpacing": 20, "rankSpacing": 12, "padding": 6}}}%%
 graph TD
-    linkStyle default stroke:#021526,stroke-width:2px,font-size:10px;
-    classDef moduleTracking fill:#FFD6D6,stroke:#D7263D,stroke-width:2px,font-weight:bold,font-size:10px;
-    classDef moduleLocalMapping fill:#D6FFD6,stroke:#218380,stroke-width:2px,font-weight:bold,font-size:10px;
-    classDef moduleMap fill:#ECECEC,stroke:#333333,stroke-width:2px,font-weight:bold,font-size:10px;
-    classDef component fill:none,stroke:#6EACDA,stroke-width:1px,font-size:10px;
+    linkStyle default stroke:#021526,stroke-width:2px,font-size:12px;
+    classDef moduleTracking fill:#FFD6D6,stroke:#D7263D,stroke-width:2px,color:#14202b,font-size:12px;
+    classDef moduleLocalMapping fill:#D6FFD6,stroke:#218380,stroke-width:2px,color:#14202b,font-size:12px;
+    classDef moduleMap fill:#ECECEC,stroke:#333333,stroke-width:2px,color:#14202b,font-size:12px;
+    classDef component fill:#ffffff,stroke:#6EACDA,stroke-width:1px,color:#14202b,font-size:12px;
 
+    subgraph plate [" "]
     Input["Next stereo / RGBD input"] --> Predict["Predict from last accepted pose<br>and available motion increment"]
     Predict --> Geometry["LK tracks + forward/backward check<br>PnP RANSAC + pose refinement"]
     Geometry --> Mode{"Hybrid mode?"}
@@ -142,6 +147,8 @@ graph TD
     Backend -->|"Yes"| BA["Local BA and correction propagation"]
     Backend -->|"No"| Output["Return accepted tracking state"]
     BA --> Output
+    end
+    style plate fill:#ffffff,stroke:#c5d0dc,color:#14202b
 
     class Predict,Geometry,Photo,Commit moduleTracking;
     class Lost moduleTracking;
@@ -154,7 +161,7 @@ Tracking status uses **strict** inlier thresholds:
 
 | Status          | Meaning                                                                                                    |
 | --------------- | ---------------------------------------------------------------------------------------------------------- |
-| `INIT`          | Fresh or reset system, before initialization. Monocular `semi_direct` stays here until seeds converge.    |
+| `INIT`          | Fresh or reset system, before initialization. Monocular `semi_direct` stays here until the two-view initializer accepts a geometry.    |
 | `TRACKING_GOOD` | Accepted pose with inliers strictly greater than `num_features_tracking`.                                  |
 | `TRACKING_BAD`  | Accepted pose with inliers above `num_features_tracking_bad`, up to and including `num_features_tracking`. |
 | `LOST`          | Initialization or tracking did not obtain sufficient support.                                              |
@@ -165,15 +172,17 @@ Tracking status uses **strict** inlier thresholds:
 2. Each visible patch is then aligned on its own. The pose stays fixed and the solver estimates a 2D translation of the same projected patch, coarse to fine. A feature with a large intensity residual or a large displacement is rejected.
 3. The aligned pixels go to the existing reprojection pose. If the sparse pose has too little support, feature alignment still runs from the motion prior. If that also fails, the frame is `LOST` and the reference is kept. Tracking does not fall through into `klt`.
 
-On an accepted pose the depth filter runs on the tracking thread, with at most `max_seed_updates` searches. It is the SVO depth filter (Forster et al., ICRA 2014, §IV-B), which uses the parametric model of Vogiatzis and Hernández (2011). The fusion step matches `rpg_svo`'s `DepthFilter::updateSeed`, and a C++ test checks it against a line-by-line transcription. A seed stores the reference keyframe, pixel, inverse-depth mean and variance, and Beta counts `a`, `b` that start at 10. The inverse depth is a Gaussian inlier hypothesis mixed with a uniform outlier hypothesis on `[1/seed_max_depth, 1/seed_min_depth]`. The prior variance is set so that ±3σ covers that interval (SVO's `z_range²/36`). As in SVO, the mean starts at the keyframe's median scene depth, taken from its live landmarks. A monocular start has no landmarks yet, so its seeds start at the middle of the interval.
+On an accepted pose the depth filter runs on the tracking thread, with at most `max_seed_updates` searches. It is the SVO depth filter (Forster et al., ICRA 2014, §IV-B), which uses the parametric model of Vogiatzis and Hernández (2011). The fusion step matches `rpg_svo`'s `DepthFilter::updateSeed`, and a C++ test checks it against a line-by-line transcription. A seed stores the reference keyframe, pixel, inverse-depth mean and variance, and Beta counts `a`, `b` that start at 10. The inverse depth is a Gaussian inlier hypothesis mixed with a uniform outlier hypothesis on `[1/seed_max_depth, 1/seed_min_depth]`. The prior variance is set so that ±3σ covers that interval (SVO's `z_range²/36`). As in SVO, the mean starts at the keyframe's median scene depth, taken from its live landmarks.
 
-The search follows the ±3σ segment, clipped to the prior, and skips a segment shorter than about one pixel. At each one-pixel sample the same planar patch is projected and scored with zero-mean SSD. A parabola through the best score and its two neighbors refines the match to subpixel along the segment. One unique score under the intensity gate becomes an inverse-depth measurement. Its variance τ² is SVO's `computeTau`: the depth change that a one-pixel angular error on the current ray, `2·atan(1/(2·fx))`, causes, by the law of sines, converted to inverse depth. A degenerate triangulation is skipped. The Gaussian-plus-uniform update then changes the mean, variance and Beta counts together. As in SVO, a searched segment without a match counts as outlier evidence: `b` grows by one and the mean and variance stay unchanged. A seed is promoted when its variance drops below `seed_convergence_sigma2` and the match has at least two pixels of parallax; the default `1e-4` equals SVO's `σ < z_range / 200` for the default `seed_min_depth`. It is dropped after 20 failed searches, an expected inlier ratio `a/(a+b)` below 0.2 once there are more than 20 votes, or a variance that grows past four times the prior.
+A seed is tracked frame to frame with pyramidal LK, starting at its keyframe pixel. Inter-frame appearance changes stay small, so this keeps working under forward motion, where a fronto-parallel patch matched against an older keyframe image no longer fits. Each tracked position is triangulated (midpoint) against the seed's keyframe ray with the current pose and gives one inverse-depth measurement, with the same one-pixel τ described below. A ray pair closer than three one-pixel angles, or a depth beyond `seed_max_depth`, carries no information and is skipped. A triangulation that misses the `chi2_threshold` reprojection gate, or lies nearer than `seed_min_depth`, is a failed match. When the LK track is lost, the seed gets one epipolar search on its keyframe image, within the `max_seed_updates` budget. A match re-acquires the seed at the matched pixel; otherwise the seed is dropped, so stale seeds do not take `max_seeds` slots from new keyframes.
+
+The epipolar search follows the ±3σ segment, clipped to the prior, and skips a segment shorter than about one pixel. At each one-pixel sample the same planar patch is projected and scored with zero-mean SSD. A parabola through the best score and its two neighbors refines the match to subpixel along the segment. One unique score under the intensity gate becomes an inverse-depth measurement. Its variance τ² is SVO's `computeTau`: the depth change that a one-pixel angular error on the current ray, `2·atan(1/(2·fx))`, causes, by the law of sines, converted to inverse depth. A degenerate triangulation is skipped. The Gaussian-plus-uniform update then changes the mean, variance and Beta counts together. As in SVO, a searched segment without a match counts as outlier evidence: `b` grows by one and the mean and variance stay unchanged. A seed is promoted when its variance drops below `seed_convergence_sigma2` and the match has at least two pixels of parallax; the default `1e-4` equals SVO's `σ < z_range / 200` for the default `seed_min_depth`. It is dropped after 20 failed searches, an expected inlier ratio `a/(a+b)` below 0.2 once there are more than 20 votes, or a variance that grows past four times the prior.
 
 A seed that converges after a newer keyframe was created keeps its pixel on its own keyframe. That pixel is stored as the keyframe observation, and tracking reads the landmark at its projection into the latest keyframe image.
 
-Stereo and RGBD still create a landmark immediately from a successful measurement. A corner with no valid depth becomes a seed. A monocular keyframe creates only seeds. The first monocular frame is a keyframe at the identity, and the status stays `INIT` until enough seeds converge with a few pixels of parallax. During that bootstrap the pose uses the reference keyframe's remaining seeds, at their current mean depth, together with the seeds already promoted. Seeds converge at different frames, so bootstrap ends once more than `num_features_tracking_bad` landmarks have been promoted in total. A keyframe is then forced and local BA runs. Until then a failure keeps the same reference.
+Stereo and RGBD still create a landmark immediately from a successful measurement. A corner with no valid depth becomes a seed. A monocular keyframe creates only seeds. The monocular map starts from a two-view initialization (SVO / ORB-SLAM style): corners detected on a reference frame are tracked frame to frame with pyramidal LK. Once their median displacement reaches `init_min_disparity` pixels, a 5-point essential matrix with RANSAC on the bearings gives the relative pose, and the inliers are triangulated (at least 0.5° per point, a median of 1°, and the reprojection gate in both views). More than `num_features_tracking` points are required. The scale puts the median scene depth at `sqrt(seed_min_depth * seed_max_depth)`. The reference frame becomes keyframe 0 at the identity and the current frame becomes keyframe 1. Each triangulated landmark carries the same inverse-depth prior as a promoted seed, and local BA runs. The reference is replaced when too few tracks survive or when the geometry fails at more than four times `init_min_disparity` (e.g. pure rotation). The status stays `INIT` and no keyframe is stored until then.
 
-A failed tracking frame does not integrate the predicted motion, create keyframes, or add a trajectory row. Recovery retries against the retained reference and does not change the world origin. This is local tracking recovery, not place-recognition relocalization. Persistent loss needs an explicit reset. Feature trails break across failed or skipped input frames. During monocular initialization a failure stays `INIT` instead of `LOST`.
+A failed tracking frame does not integrate the predicted motion, create keyframes, or add a trajectory row. Recovery retries against the retained reference and does not change the world origin. This is local tracking recovery, not place-recognition relocalization. Persistent loss needs an explicit reset. Feature trails break across failed or skipped input frames. During monocular initialization the status stays `INIT`.
 
 Some validation limits are currently fixed in the implementation: LK forward/backward error is at most **1.5 px**, rectified stereo vertical mismatch is at most **2 px**, and usable sensor depth is in **(0.5, 80) m**. The configured `stereo_max_error` applies to calibrated native-rig triangulation.
 
@@ -193,26 +202,29 @@ The backend follows vslam's joint pose/landmark formulation, with these implemen
 - The final full robust objective is checked, including excluded edges. Non-finite or rejected solutions leave map estimates and observation flags unchanged.
 
 ```mermaid
-%%{init: {"flowchart": {"nodeSpacing": 24, "rankSpacing": 12, "padding": 6}}}%%
+%%{init: {"theme": "base", "themeVariables": {"darkMode": false, "textColor": "#14202b", "nodeTextColor": "#14202b", "titleColor": "#14202b", "lineColor": "#021526", "primaryTextColor": "#14202b", "clusterBkg": "#ffffff", "clusterBorder": "#c5d0dc", "edgeLabelBackground": "#ffffff", "mainBkg": "#ffffff"}, "htmlLabels": false, "flowchart": {"htmlLabels": false, "nodeSpacing": 24, "rankSpacing": 12, "padding": 6}}}%%
 graph TD
     linkStyle default stroke:#021526,stroke-width:2px,font-size:12px;
-    classDef moduleTracking fill:#FFD6D6,stroke:#D7263D,stroke-width:2px,font-weight:bold,font-size:10px;
-    classDef moduleLocalMapping fill:#D6FFD6,stroke:#218380,stroke-width:2px,font-weight:bold,font-size:10px;
-    classDef moduleMap fill:#ECECEC,stroke:#333333,stroke-width:2px,font-weight:bold,font-size:10px;
-    classDef component fill:none,stroke:#6EACDA,stroke-width:1px,font-size:10px;
+    classDef moduleTracking fill:#FFD6D6,stroke:#D7263D,stroke-width:2px,color:#14202b,font-size:12px;
+    classDef moduleLocalMapping fill:#D6FFD6,stroke:#218380,stroke-width:2px,color:#14202b,font-size:12px;
+    classDef moduleMap fill:#ECECEC,stroke:#333333,stroke-width:2px,color:#14202b,font-size:12px;
+    classDef component fill:#ffffff,stroke:#6EACDA,stroke-width:1px,color:#14202b,font-size:12px;
 
+    subgraph plate [" "]
     Window["Recent keyframes + shared landmarks"] --> Guard{"Observable connected<br>metric window?"}
     Guard -->|"No"| Unchanged["Leave map unchanged<br>applied = false"]
-    Guard -->|"Yes"| Graph["Fixed oldest pose<br>Free poses + marginalized 3D points<br>Measured left / right / depth edges"]
-    Graph --> Solve["Robust LM<br>Outlier classification<br>Inlier-edge refinement"]
+    Guard -->|"Yes"| OptGraph["Fixed oldest pose<br>Free poses + marginalized 3D points<br>Measured left / right / depth edges"]
+    OptGraph --> Solve["Robust LM<br>Outlier classification<br>Inlier-edge refinement"]
     Solve --> Valid{"Finite estimates and<br>acceptable full objective?"}
     Valid -->|"No"| Unchanged
     Valid -->|"Yes"| Map["Commit optimized poses / landmarks<br>Store per-channel outlier flags"]
     Map --> Frames["Reconstruct accepted frame poses<br>from reference-keyframe transforms"]
     Frames --> Live["Correct current pose, velocity and live points<br>Remove rejected current observations"]
     Live --> Consumers["Next tracking call<br>Viewer snapshots and trajectory export"]
+    end
+    style plate fill:#ffffff,stroke:#c5d0dc,color:#14202b
 
-    class Window,Graph,Solve moduleLocalMapping;
+    class Window,OptGraph,Solve moduleLocalMapping;
     class Map,Frames moduleMap;
     class Live moduleTracking;
     class Guard,Valid,Unchanged,Consumers component;
@@ -253,11 +265,13 @@ Depth remains metric when photometric image coordinates and intrinsics are scale
 
 Parameters live in the camera settings file under `DIRECT_SLAM.*`; [`direct_params.h`](../cpp/core/slam_direct/direct_params.h) documents every default. The parser also accepts a nested `DIRECT_SLAM` dictionary or an already-extracted block. A nested block takes precedence over flat keys. Missing fields retain the C++ defaults. CLI mode/BA overrides update both settings forms.
 
+Monocular input applies a `monocular` override block on top: `DIRECT_SLAM.monocular.<key>` (or a nested `monocular` dictionary) replaces `DIRECT_SLAM.<key>` only when the camera is monocular, so one settings file can serve stereo and monocular runs. The KITTI settings use it to select `semi_direct` and to raise `num_features` to 400, `max_seeds` to 800 and `max_seed_updates` to 200: monocular landmarks come only from converged seeds, and the stereo values do not keep enough of them alive under KITTI's forward motion. A `--mode` given on the command line also replaces `monocular.mode`.
+
 All defaults below come from `DirectSlamParams`; they are not a replacement for dataset-specific calibration or tuning.
 
 | Parameter (`DIRECT_SLAM.` prefix)  | Default       | Meaning                                                                                          |
 | ---------------------------------- | ------------- | ------------------------------------------------------------------------------------------------ |
-| `mode`                             | `klt`         | `klt` uses LK + geometry. `hybrid` adds photometric refinement. `semi_direct` uses planar patches and seeds. The checked-in camera settings use `hybrid`, except `TUM3.yaml` (`semi_direct`). `direct` selects `hybrid`. |
+| `mode`                             | `klt`         | `klt` uses LK + geometry. `hybrid` adds photometric refinement. `semi_direct` uses planar patches and seeds. The checked-in camera settings use `hybrid`, except `TUM3.yaml` and `KITTI04-12.yaml` (`semi_direct`). The other settings that define `DIRECT_SLAM.monocular.mode` select `semi_direct` for monocular input only. `direct` selects `hybrid`. |
 | `corner_detector`                  | `grid_fast`   | `gftt` is one global Shi-Tomasi pass. `grid_fast` keeps the strongest FAST corners in each cell. |
 | `num_features`                     | `200`         | Maximum corners per detection; also the target live-track count when replenishing.               |
 | `grid_cols`                        | `5`           | Grid FAST columns. Reduced, keeping the aspect ratio, when the cell count exceeds `num_features`. `settings/KITTI00-02.yaml` uses 10. |
@@ -293,9 +307,10 @@ All defaults below come from `DirectSlamParams`; they are not a replacement for 
 | `ba_depth_sigma`                   | `0.02`        | RGBD depth sigma (m) = value * max(1, z*z); larger values weaken depth constraints.              |
 | `seed_min_depth`                   | `0.5`         | Near end of the inverse-depth prior and epipolar search, in meters. Monocular scale follows the prior. |
 | `seed_max_depth`                   | `80`          | Far end of that prior, in meters.                                                                 |
+| `init_min_disparity`               | `20`          | Monocular two-view initialization: median corner displacement (px) from the reference frame before the essential matrix is tried. |
 | `seed_convergence_sigma2`          | `1e-4`        | Promote a seed when its inverse-depth variance falls below this. `1e-4` equals SVO's `σ < z_range/200` at `seed_min_depth: 0.5`. |
 | `max_seeds`                        | `400`         | Cap on immature seeds.                                                                            |
-| `max_seed_updates`                 | `100`         | Epipolar searches per accepted frame. The filter runs on the tracking thread.                    |
+| `max_seed_updates`                 | `100`         | Epipolar searches per accepted frame, used to re-acquire seeds whose LK track was lost. The filter runs on the tracking thread. |
 
 Start with `klt` and the existing dataset settings. Raise `num_features`, lower `fast_threshold`, or lower the GFTT quality threshold if initialization has too few corners; this increases detection/tracking work. Larger LK windows and more LK levels can help larger image motion, at additional cost. Larger BA windows increase optimizer cost and retain more inter-keyframe constraints. Raising `chi2_threshold` or `intensity_inlier_threshold` admits more residual error, so inspect the resulting tracking and map rather than tuning only for a higher inlier count.
 
@@ -330,7 +345,7 @@ Pause, step, reset, local BA and quit are supported. The shared viewer's save co
 | Frontend                           | `klt`, `hybrid`, or SVO-style `semi_direct` planar patches and seeds | Configurable feature tracking/matching and local-map tracking        |
 | Input supported by this runner     | Stereo or RGBD for every mode. Monocular only for `semi_direct`. Images are not undistorted. | Broader sensor and camera support; see [camera models](./cameras.md) |
 | Mapping                            | Persistent landmarks, inverse-depth seeds, and synchronous local BA | Full local mapper with additional triangulation, fusion and culling  |
-| Loop closure / global optimization | Same `LoopClosing` thread on descriptor keyframes. Skipped for monocular `semi_direct`. | Available in the full pipeline                                       |
+| Loop closure / global optimization | Same `LoopClosing` thread on descriptor keyframes. Monocular `semi_direct` uses Sim(3) corrections. | Available in the full pipeline                                       |
 | Dense / semantic mapping           | Not provided                                      | Optional modules                                                     |
 | Recovery after tracking loss       | Retry the last accepted reference                 | Full-pipeline tracking/relocalization mechanisms                     |
 | Visualization                      | Shared viewers and feature drawing                | Shared viewers and feature drawing                                   |
@@ -356,4 +371,4 @@ See the [C++ direct-SLAM README](../cpp/core/slam_direct/README.md) for the sour
 - [`direct_map.h`](../cpp/core/slam_direct/direct_map.h): persistent observations, landmarks and reference-relative trajectory storage.
 - [`direct_slam_module.h`](../cpp/core/slam_direct/py_module/direct_slam_module.h): NumPy input ownership, GIL handling and snapshot bindings.
 
-The existing tests cover synthetic photometric and geometric motion, stereo/RGBD scale, native-rig BA, outlier rejection, fixed gauges, bounded windows, archived observers of active landmarks, unobservable graph rejection, failure/recovery, corrected trajectories, reset, and shared feature rendering. For `semi_direct` they also check the depth-filter update against a transcription of SVO's `updateSeed`, the one-pixel τ geometry, subpixel epipolar depth, tracking of landmarks anchored on an older keyframe, monocular bootstrap with gradual promotion, and, through the Python binding, monocular bootstrap and RGBD seeds where depth is missing. `cpp/core/slam/build/tests_cpp/direct_slam/test_direct_slam --backend-only` runs the backend and correction checks separately. Recorded KITTI metrics are local validation results, not a claim of equivalence to the official KITTI segment-drift score or to vslam on every dataset.
+The existing tests cover synthetic photometric and geometric motion, stereo/RGBD scale, native-rig BA, outlier rejection, fixed gauges, bounded windows, archived observers of active landmarks, unobservable graph rejection, failure/recovery, corrected trajectories, reset, and shared feature rendering. For `semi_direct` they also check the depth-filter update against a transcription of SVO's `updateSeed`, the one-pixel τ geometry, subpixel epipolar depth, tracking of landmarks anchored on an older keyframe, monocular two-view initialization and reference restart, and, through the Python binding, monocular initialization and RGBD seeds where depth is missing. `cpp/core/slam/build/tests_cpp/direct_slam/test_direct_slam --backend-only` runs the backend and correction checks separately. Recorded KITTI metrics are local validation results, not a claim of equivalence to the official KITTI segment-drift score or to vslam on every dataset.

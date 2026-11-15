@@ -56,7 +56,8 @@ std::vector<DirectPoint> measured_points(const std::vector<Vec2d> &pixels,
 } // namespace
 
 DirectSlam::DirectSlam(CameraPtr camera, const ConfigDict &config)
-    : camera_(std::move(camera)), params_(DirectSlamParams::from_config(config)) {
+    : camera_(std::move(camera)),
+      params_(DirectSlamParams::from_config(config, camera_ && camera_->sensor_type == SensorType::MONOCULAR)) {
     if (!camera_) {
         throw std::invalid_argument("DirectSlam: camera is null");
     }
@@ -218,7 +219,7 @@ void DirectSlam::refresh_tracking_state_from_map() {
     live_points_ = std::move(corrected);
 }
 
-void DirectSlam::apply_keyframe_poses(const std::vector<Eigen::Matrix4d> &poses) {
+void DirectSlam::apply_keyframe_poses(const std::vector<Eigen::Matrix4d> &poses, const std::vector<double> &scales) {
     auto &keyframes = map_.keyframes_mutable();
     if (poses.size() != keyframes.size()) {
         throw std::invalid_argument("DirectSlam::apply_keyframe_poses: one pose is required per keyframe");
@@ -228,6 +229,15 @@ void DirectSlam::apply_keyframe_poses(const std::vector<Eigen::Matrix4d> &poses)
             throw std::invalid_argument("DirectSlam::apply_keyframe_poses: pose is not finite");
         }
     }
+    if (!scales.empty() && scales.size() != keyframes.size()) {
+        throw std::invalid_argument("DirectSlam::apply_keyframe_poses: one scale is required per keyframe");
+    }
+    for (const double scale : scales) {
+        if (!(scale > 0.0) || !std::isfinite(scale)) {
+            throw std::invalid_argument("DirectSlam::apply_keyframe_poses: scale must be positive and finite");
+        }
+    }
+    const auto scale_of = [&](size_t i) { return scales.empty() ? 1.0 : scales[i]; };
 
     std::vector<Eigen::Matrix4d> previous;
     previous.reserve(keyframes.size());
@@ -247,19 +257,49 @@ void DirectSlam::apply_keyframe_poses(const std::vector<Eigen::Matrix4d> &poses)
         }
     }
 
-    for (size_t i = 0; i < keyframes.size(); ++i) keyframes[i].pose = CameraPose(poses[i]);
+    for (size_t i = 0; i < keyframes.size(); ++i) {
+        keyframes[i].pose = CameraPose(poses[i]);
+        const double scale = scale_of(i);
+        if (scale != 1.0) {
+            // Initial camera-frame geometry of the keyframe's observations follows its scale.
+            for (DirectPoint &observation : keyframes[i].points) {
+                observation.position_c /= scale;
+                if (camera_->sensor_type == SensorType::MONOCULAR) observation.depth /= scale;
+            }
+        }
+    }
     for (auto &[id, landmark] : map_.landmarks_mutable()) {
+        if (landmark.has_inverse_prior && landmark.prior_keyframe >= 0 &&
+            static_cast<size_t>(landmark.prior_keyframe) < keyframes.size()) {
+            // Depth in the prior keyframe shrinks by 1/s, so inverse depth grows by s.
+            const double scale = scale_of(static_cast<size_t>(landmark.prior_keyframe));
+            landmark.inverse_depth_mu *= scale;
+            landmark.inverse_depth_sigma2 *= scale * scale;
+        }
         const auto found = reference.find(id);
         if (found == reference.end()) continue;
-        const Eigen::Matrix4d delta = poses[found->second].inverse() * previous[found->second];
-        if ((delta - Eigen::Matrix4d::Identity()).norm() < 1e-9) continue;
-        Eigen::Vector4d homogeneous;
-        homogeneous << landmark.position_w, 1.0;
-        const Eigen::Vector3d moved = (delta * homogeneous).head<3>();
+        const size_t anchor = found->second;
+        const double scale = scale_of(anchor);
+        const Eigen::Matrix4d delta = poses[anchor].inverse() * previous[anchor];
+        if (scale == 1.0 && (delta - Eigen::Matrix4d::Identity()).norm() < 1e-9) continue;
+        // Into the anchor camera with the old pose, rescale, back out with the new pose.
+        const Eigen::Vector3d X_anchor =
+            (previous[anchor].topLeftCorner<3, 3>() * landmark.position_w + previous[anchor].topRightCorner<3, 1>()) /
+            scale;
+        const Eigen::Matrix4d Twc = poses[anchor].inverse();
+        const Eigen::Vector3d moved = Twc.topLeftCorner<3, 3>() * X_anchor + Twc.topRightCorner<3, 1>();
         if (!moved.allFinite()) {
             throw std::invalid_argument("DirectSlam::apply_keyframe_poses: landmark correction is not finite");
         }
         landmark.position_w = moved;
+    }
+    if (!scales.empty()) {
+        // A frame's offset from its reference keyframe is camera-frame geometry too.
+        for (DirectTrajectoryPose &pose : map_.trajectory_mutable()) {
+            if (pose.reference_keyframe >= 0 && static_cast<size_t>(pose.reference_keyframe) < scales.size())
+                pose.T_frame_reference.topRightCorner<3, 1>() /= scales[static_cast<size_t>(pose.reference_keyframe)];
+        }
+        tracker_->apply_keyframe_scales(scales);
     }
     map_.update_trajectory();
     refresh_tracking_state_from_map();

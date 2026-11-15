@@ -58,7 +58,18 @@ class SemiDirectBindingTest(unittest.TestCase):
                 DirectSlam(camera, {"DIRECT_SLAM": {"mode": mode}})
         DirectSlam(camera, {"DIRECT_SLAM": {"mode": "semi_direct"}})
 
-    def test_monocular_bootstrap_from_depth_seeds(self):
+    def test_monocular_overrides(self):
+        # A settings file shared by stereo and monocular runs: the monocular block applies
+        # only to a monocular camera, in nested or flat (OpenCV YAML) form.
+        nested = {"DIRECT_SLAM": {"mode": "klt", "monocular": {"mode": "semi_direct"}}}
+        flat = {"DIRECT_SLAM.mode": "klt", "DIRECT_SLAM.monocular.mode": "semi_direct"}
+        for settings in (nested, flat):
+            mono = DirectSlam(make_camera(cpp_core.SensorType.MONOCULAR), settings)
+            self.assertEqual(mono.mode, cpp_core.DirectTrackingMode.SEMI_DIRECT)
+            rgbd = DirectSlam(make_camera(cpp_core.SensorType.RGBD), settings)
+            self.assertEqual(rgbd.mode, cpp_core.DirectTrackingMode.KLT)
+
+    def test_monocular_two_view_initialization(self):
         depth = 4.0
         settings = {
             "DIRECT_SLAM": {
@@ -74,6 +85,7 @@ class SemiDirectBindingTest(unittest.TestCase):
                 "seed_min_depth": 2.0,
                 "seed_max_depth": 8.0,
                 "seed_convergence_sigma2": 1e-3,
+                "init_min_disparity": 15.0,
                 "local_ba": False,
             }
         }
@@ -81,8 +93,8 @@ class SemiDirectBindingTest(unittest.TestCase):
         image = textured_plane(5)
         slam.track(image, None, None, 0, 0.0)
         self.assertEqual(slam.status_name(), "INIT")
-        self.assertEqual(slam.num_keyframes(), 1)
-        self.assertEqual(len(slam.tracked_features()[0]), 0)  # only immature seeds so far
+        self.assertEqual(slam.num_keyframes(), 0)  # no keyframe before the two-view geometry
+        self.assertEqual(len(slam.tracked_features()[0]), 0)
         step = 0.05
         for i in range(1, 12):
             slam.track(shifted(image, FX * step * i / depth), None, None, i, float(i))
@@ -91,11 +103,12 @@ class SemiDirectBindingTest(unittest.TestCase):
         self.assertIn(slam.status_name(), ("TRACKING_GOOD", "TRACKING_BAD"))
         ids, pixels, points = slam.tracked_features()
         self.assertGreater(len(ids), settings["DIRECT_SLAM"]["num_features_tracking_bad"])
-        # Seeds converged onto the plane: the promoted landmarks share one depth (mono scale
-        # is only fixed up to the prior, so check flatness, not the absolute value).
+        # Triangulated landmarks lie on the plane. The median depth is scaled to
+        # sqrt(seed_min_depth * seed_max_depth) = 4, the true plane depth here.
         z = points[:, 2]
         self.assertLess(np.std(z) / np.mean(z), 0.05)
-        # Bootstrap finished with a forced keyframe.
+        self.assertAlmostEqual(float(np.median(z)), depth, delta=0.2)
+        # Reference and current frame are both keyframes.
         self.assertGreaterEqual(slam.num_keyframes(), 2)
 
     def test_rgbd_with_missing_depth_spawns_and_promotes_seeds(self):

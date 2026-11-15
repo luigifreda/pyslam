@@ -46,6 +46,10 @@ struct DepthSeed {
     InverseDepthBelief belief;
     int failures = 0;
     double parallax_px = 0.0;
+    // Frame-to-frame LK position in the last accepted image. While tracked, the seed is
+    // measured from this correspondence; once lost, by the epipolar search.
+    Vec2d pixel_cur = Vec2d::Zero();
+    bool tracked = false;
 };
 
 // Prior whose ±3σ inverse-depth interval covers [1/far, 1/near] (SVO: sigma2 = z_range^2 / 36).
@@ -74,6 +78,14 @@ EpipolarMatch match_seed_on_epipolar_line(const Camera &camera, const DirectSlam
                                           const cv::Mat &img_ref, const cv::Mat &img_cur,
                                           const Vec2d &pixel_ref, double mu, double sigma2,
                                           const Eigen::Isometry3d &T_cur_ref);
+
+// Depth measurement from a tracked correspondence: triangulate pixel_ref (reference keyframe)
+// with pixel_cur. The variance is the same one-pixel tau as the epipolar search. A match that
+// does not reproject within the chi2 gate, or falls outside the seed range, is a failed match;
+// a ray pair without usable parallax is not searched.
+EpipolarMatch measure_seed_from_track(const Camera &camera, const DirectSlamParams &params,
+                                      const Vec2d &pixel_ref, const Vec2d &pixel_cur,
+                                      const Eigen::Isometry3d &T_cur_ref);
 
 enum class SeedObservation { Skipped, Updated, Failed };
 

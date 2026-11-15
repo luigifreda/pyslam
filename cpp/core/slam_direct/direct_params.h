@@ -95,7 +95,7 @@ struct DirectSlamParams {
     // Promote a seed when its inverse-depth variance drops below this.
     // The default is about a one-pixel depth interval at a few meters for a typical focal length.
     double seed_convergence_sigma2 = 1e-4;
-    // Cap on immature seeds, and on epipolar searches per accepted frame.
+    // Cap on immature seeds, and on epipolar searches (re-acquiring lost seed tracks) per accepted frame.
     int max_seeds = 400;
     int max_seed_updates = 100;
     // Monocular two-view initialization: median corner displacement (px) from the reference
@@ -133,7 +133,9 @@ struct DirectSlamParams {
     // RGBD depth sigma (m) = value * max(1, z*z); larger values weaken depth constraints.
     double ba_depth_sigma = 0.02;
 
-    static DirectSlamParams from_config(const ConfigDict &config);
+    // With monocular true, keys of a "monocular" sub-block (nested dict or flat
+    // "monocular.<key>") override the base values. Stereo/RGBD ignore that block.
+    static DirectSlamParams from_config(const ConfigDict &config, bool monocular = false);
     std::string mode_name() const;
 };
 
