@@ -112,7 +112,8 @@ fi
 
 # Install tesorflow and related packages
 pip install tensorflow==2.13
-pip install tensorflow_hub  # required by VPR
+pip install "tensorflow_hub<0.16"  # required by VPR (>=0.16 pulls tf-keras -> latest tensorflow built against numpy 2). Pure-python wheel, all platforms
+pip install "setuptools<81"  # tensorflow_hub<0.16 imports pkg_resources (removed in setuptools>=81)
 pip install tf_slim==1.1.0
 pip install protobuf==3.20.3 --force-reinstall # delf
 

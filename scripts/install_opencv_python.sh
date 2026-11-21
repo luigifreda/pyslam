@@ -90,11 +90,9 @@ if [[ $version != *"darwin"* ]]; then
     sudo apt-get install -y libicu-dev
     sudo apt-get install -y build-essential cmake 
     if [[ "$CUDA_ON" == "ON" ]]; then 
-        if [[ $version == *"24.04"* ]] ; then
-            sudo apt install -y libcudnn-dev
-        else 
-            sudo apt install -y libcudnn8 libcudnn8-dev  # check and install otherwise this is going to update to the latest version (and that's not we necessary want to do)
-        fi
+        # NOTE: do not install "libcudnn-dev" directly: on Ubuntu 24.04 it resolves to Ubuntu's nvidia-cudnn,
+        #       which installs a second CUDA toolkit and nvidia libs that break the installed driver.
+        install_cudnn_dev_apt "$CUDA_VERSION" || print_yellow "Warning: cuDNN not available"
     fi 
 
     if [[ $version == *"22.04"* || $version == *"24.04"* ]] ; then

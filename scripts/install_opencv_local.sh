@@ -179,6 +179,9 @@ STARTING_DIR=`pwd`
 
 ROOT_DIR="$SCRIPT_DIR_/.."
 
+# Import only the cuDNN install helper (and its deps) from bash_utils.sh without overriding the local functions above
+eval "$(bash -c ". \"$ROOT_DIR/bash_utils.sh\" > /dev/null 2>&1; declare -f install_cudnn_dev_apt get_cuda_version extract_version")"
+
 cd "$ROOT_DIR"
 TARGET_FOLDER="$ROOT_DIR/$TARGET_FOLDER"
 
@@ -265,6 +268,7 @@ if [[ "$version" == *"darwin"* ]]; then
     CUDA_ON=OFF
     WITH_PROTOBUF=OFF  # I am getting a protobuf version error on my mac
 fi
+WITH_CUDNN=$CUDA_ON        # set to OFF below if cuDNN is not available
 
 
 WITH_NEON=OFF
@@ -296,10 +300,11 @@ if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
         sudo apt-get install -y libicu-dev        
         sudo apt-get install -y build-essential cmake 
         if [[ "$CUDA_ON" == "ON" ]]; then 
-            if [[ $version == *"24.04"* ]] ; then
-                sudo apt-get install -y libcudnn-dev
-            else 
-                sudo apt-get install -y libcudnn8 libcudnn8-dev  # check and install otherwise this is going to update to the latest version (and that's not we necessary want to do)
+            # NOTE: do not install "libcudnn-dev" directly: on Ubuntu 24.04 it resolves to Ubuntu's nvidia-cudnn,
+            #       which installs a second CUDA toolkit and nvidia libs that break the installed driver.
+            if ! install_cudnn_dev_apt "$CUDA_VERSION"; then
+                print_yellow "Warning: cuDNN not available. Setting WITH_CUDNN=OFF."
+                WITH_CUDNN=OFF
             fi
         fi 
 
@@ -617,9 +622,9 @@ if [ ! -f $OPENCV_CORE_LIB ]; then
           -DWITH_CUBLAS=$CUDA_ON \
           -DWITH_CUFFT=$CUDA_ON \
           -DCUDA_FAST_MATH=$CUDA_ON \
-          -DWITH_CUDNN=$CUDA_ON \
+          -DWITH_CUDNN=$WITH_CUDNN \
           -DBUILD_opencv_dnn=$WITH_DNN \
-          -DOPENCV_DNN_CUDA=$CUDA_ON \
+          -DOPENCV_DNN_CUDA=$WITH_CUDNN \
           -DCUDA_ARCH_BIN="$CUDA_ARCH_BIN" \
           -DBUILD_opencv_cudacodec=OFF \
           -DENABLE_FAST_MATH=1 \

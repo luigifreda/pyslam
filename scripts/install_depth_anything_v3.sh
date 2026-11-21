@@ -32,7 +32,7 @@ cd $ROOT_DIR/thirdparty
 
 
 if [ ! -d "depth_anything_v3" ]; then
-    echo "Cloning detic..."
+    echo "Cloning depth_anything_v3..."
     git clone https://github.com/ByteDance-Seed/depth-anything-3 depth_anything_v3
 
     cd depth_anything_v3
@@ -42,6 +42,16 @@ if [ ! -d "depth_anything_v3" ]; then
 
     # apply the patch
     git apply ../depth_anything_v3.patch
+
+    cd $ROOT_DIR/thirdparty
+fi
+
+# depth_anything_3 imports "addict" without declaring it (it used to come transitively from open3d<0.20)
+pip install addict
+
+# Install (also when the folder already exists but a previous install failed, e.g. gsplat build error)
+if ! python -c "import depth_anything_3" &> /dev/null; then
+    cd depth_anything_v3
 
     # Install build dependencies required for --no-build-isolation
     pip install "hatchling>=1.25" "hatch-vcs>=0.4" "editables"

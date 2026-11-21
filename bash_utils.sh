@@ -362,10 +362,11 @@ function get_supported_nvcc_archs() {
     if ! command -v nvcc &> /dev/null; then
         return 1
     fi
+    # NOTE: archs can have 3 digits (e.g. sm_100, sm_120 for Blackwell); skip arch-specific variants like sm_90a
     nvcc --help 2>/dev/null | \
-        grep -o "sm_[0-9][0-9]" | \
+        grep -oE "sm_[0-9]+" | \
         sed 's/sm_//' | \
-        sort -u
+        sort -un
 }
 
 
@@ -413,8 +414,9 @@ function detect_cuda_arch_bin() {
         local out=()
         for a in "${supported[@]}"; do
             case "$a" in
-                50|52|53|60|61|70|72|75|80|86|89|90)
-                    out+=("${a:0:1}.${a:1:1}")
+                # desktop/server archs from Maxwell to Blackwell, plus Jetson Xavier (72) and Orin (87)
+                50|52|60|61|70|72|75|80|86|87|89|90|100|120)
+                    out+=("${a%?}.${a: -1}")   # "86" -> "8.6", "120" -> "12.0"
                     ;;
             esac
         done
@@ -461,6 +463,54 @@ else:
     import torch
     print(getattr(torch.version, "cuda", "") or "")
 PY
+}
+
+# Install cuDNN development files via apt in a way that is safe on any Ubuntu version.
+# Usage: install_cudnn_dev_apt [cuda_version]   (e.g. "12.8", "cuda-12.8"; auto-detected if omitted)
+# Returns 0 if cuDNN dev files are available (already present or installed), 1 otherwise.
+# NOTE: On Ubuntu 24.04 the virtual package "libcudnn-dev" resolves to Ubuntu's "nvidia-cudnn", which
+# pulls in Ubuntu's own nvidia-cuda-toolkit and libnvidia-compute-XXX packages. Those clash with the
+# installed NVIDIA driver (CUDA error 803 "unsupported display driver / cuda driver combination").
+# Here we only accept NVIDIA-repo packages and refuse any candidate that would touch driver/toolkit packages.
+function install_cudnn_dev_apt() {
+    if ! command -v apt-get &> /dev/null; then
+        return 1
+    fi
+    # cuDNN headers already available?
+    local cuda_home="${CUDA_HOME:-/usr/local/cuda}"
+    if ls /usr/include/cudnn.h /usr/include/x86_64-linux-gnu/cudnn*.h /usr/include/aarch64-linux-gnu/cudnn*.h "$cuda_home"/include/cudnn.h 1> /dev/null 2>&1; then
+        echo "cuDNN dev files already available"
+        return 0
+    fi
+    local cuda_version="${1:-}"
+    if [[ ! "$cuda_version" =~ [0-9]+\.[0-9]+ ]]; then
+        cuda_version=$(get_cuda_version)
+    fi
+    local cuda_major=$(echo "$cuda_version" | grep -oE '[0-9]+' | head -n 1)
+    if [[ -z "$cuda_major" || "$cuda_major" == "0" ]]; then
+        print_yellow "install_cudnn_dev_apt: cannot detect CUDA version, skipping cuDNN install"
+        return 1
+    fi
+    local candidates=("libcudnn9-dev-cuda-${cuda_major}" "libcudnn8-dev")
+    local pkg candidate
+    for pkg in "${candidates[@]}"; do
+        candidate=$(apt-cache policy "$pkg" 2>/dev/null | awk '/Candidate:/ {print $2}')
+        if [[ -z "$candidate" || "$candidate" == "(none)" ]]; then
+            continue
+        fi
+        # Simulate the install and refuse it if it would install/remove driver or toolkit packages
+        if apt-get install -s -y "$pkg" 2>/dev/null | grep -qE '^(Inst|Remv) (nvidia-cuda-toolkit|nvidia-cudnn|nvidia-driver|libnvidia-compute|nvidia-kernel|nvidia-utils)'; then
+            print_yellow "install_cudnn_dev_apt: skipping $pkg since it would modify NVIDIA driver/toolkit packages"
+            continue
+        fi
+        print_blue "Installing $pkg ($candidate)"
+        if sudo apt-get install -y "$pkg"; then
+            return 0
+        fi
+    done
+    print_yellow "install_cudnn_dev_apt: no safe cuDNN dev package found for CUDA $cuda_major."
+    print_yellow "  Add the NVIDIA CUDA apt repository (https://developer.nvidia.com/cudnn-downloads) and install libcudnn9-dev-cuda-${cuda_major}."
+    return 1
 }
 
 # ====================================================

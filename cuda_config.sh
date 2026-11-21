@@ -83,7 +83,18 @@ if [ $HAVE_CUDA -eq 1 ]; then
         echo CUDA_VERSION_STRING_WITH_HYPHENS: $CUDA_VERSION_STRING_WITH_HYPHENS   
 
         export CUDA_VERSION_STRING_COMPACT=$(remove_dots $CUDA_VERSION)
-        echo CUDA_VERSION_STRING_COMPACT: $CUDA_VERSION_STRING_COMPACT               
+        echo CUDA_VERSION_STRING_COMPACT: $CUDA_VERSION_STRING_COMPACT
+
+        # torch.utils.cpp_extension needs a target arch list when it cannot query a GPU (e.g. docker builds,
+        # broken/mismatched driver); otherwise CUDA extension builds (gsplat, lietorch, ...) crash with
+        # "IndexError: list index out of range" in _get_cuda_arch_flags. Respect a user-provided value.
+        if [ -z "$TORCH_CUDA_ARCH_LIST" ]; then
+            TORCH_CUDA_ARCH_LIST_=$(detect_cuda_arch_bin 2>/dev/null | xargs)
+            if [ -n "$TORCH_CUDA_ARCH_LIST_" ]; then
+                export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST_// /;}"
+                echo TORCH_CUDA_ARCH_LIST: $TORCH_CUDA_ARCH_LIST
+            fi
+        fi
     fi
 fi
 

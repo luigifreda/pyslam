@@ -93,9 +93,11 @@ $SCRIPTS_DIR/install_protobuf.sh
 # NOTE: There can be possible issues with delf and protobuf too. To solve them, run the following command:
 #   cd <pyslam_root>/thirdparty/tensorflow_models/research/delf
 #   protoc -I=. --python_out=. delf/protos/*.proto
-pip install "wandb>=0.25.1,<0.26" --force-reinstall
+pip install "wandb>=0.25.1,<0.26"
+pip install "wandb>=0.25.1,<0.26" --force-reinstall --no-deps  # --no-deps: do not upgrade protobuf/setuptools/... behind our back
 # Verify the detectron2 C++ extension against the installed torch stack and rebuild if needed.
 $SCRIPTS_DIR/detectron_check.sh
-pip install "numpy<2" --force-reinstall 
+# Restore the pins (numpy<2, setuptools<81, typing_extensions, ...) that may have been overridden by previous steps
+$SCRIPTS_DIR/install_final_pip_pins.sh
 
 cd "$STARTING_DIR"
