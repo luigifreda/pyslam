@@ -21,6 +21,9 @@
 
 #include "camera/camera.h"
 #include "slam_direct/direct_params.h"
+#include "slam_direct/live_point.h"
+
+#include <Eigen/Geometry>
 
 #include <opencv2/core.hpp>
 
@@ -74,5 +77,13 @@ std::vector<PixelMeasurement> measure_pixels(const Camera &camera, const DirectS
                                              const cv::Mat &gray, const cv::Mat &gray_right,
                                              const cv::Mat &depth, const std::vector<Vec2d> &pixels,
                                              const std::vector<Vec2d> &right_init = {});
+
+// measure_pixels at every live point's current pixel (one entry per live point). Stereo
+// uses the right image only for a STEREO camera, and seeds LK at the right pixel
+// predicted from the landmark seen at Tcw.
+std::vector<PixelMeasurement> measure_live_points(const Camera &camera, const DirectSlamParams &params,
+                                                  const cv::Mat &gray, const cv::Mat &gray_right,
+                                                  const cv::Mat &depth, const Eigen::Isometry3d &Tcw,
+                                                  const std::vector<LivePoint> &live_points);
 
 } // namespace pyslam

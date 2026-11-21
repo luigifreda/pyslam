@@ -415,6 +415,7 @@ set(SLAM_CPP_CORE_SOURCES
     ${PYSLAM_SLAM_SRC}/local_mapping.cpp
     ${PYSLAM_SLAM_SRC}/slam.cpp
     ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_params.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam_direct/image_utils.cpp
     ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/direct_aligner.cpp
     ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/planar_patch.cpp
     ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/depth_filter.cpp

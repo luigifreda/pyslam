@@ -1,0 +1,66 @@
+---
+config:
+  look: handDrawn
+  flowchart:
+    wrappingWidth: 400
+---
+graph LR;
+    %% Direct / semi-direct SLAM components (main_direct_slam.py, cpp/core/slam_direct, pyslam/slam/direct_loop_closing.py)
+    linkStyle default stroke:#021526,stroke-width:1px,font-size:16px;
+
+    classDef system fill:#ECECEC,stroke:#333333,stroke-width:1.5px,font-size:16px;
+    classDef moduleTracking fill:#FFD6D6,stroke:#D7263D,stroke-width:1.5px,font-size:16px;
+    classDef moduleLocalMapping fill:#D6FFD6,stroke:#218380,stroke-width:1.5px,font-size:16px;
+    classDef moduleLoopClosing fill:#D6E4FF,stroke:#00509D,stroke-width:1.5px,font-size:16px;
+    classDef moduleDepthFilter fill:#FFFACD,stroke:#E1A100,stroke-width:1.5px,font-size:16px;
+    classDef moduleGlobalBA fill:#EAD7F3,stroke:#6A0DAD,stroke-width:1.5px,font-size:16px;
+    classDef moduleMap fill:#F1F1F1,stroke:#555555,stroke-width:1.5px,font-size:16px;
+    classDef moduleFeatureTracker fill:#FDEEDC,stroke:#FB8500,stroke-width:1.5px,font-size:16px;
+    classDef moduleViz fill:#E8F4F8,stroke:#457B9D,stroke-width:1.5px,font-size:16px;
+
+    classDef component fill:none,stroke:#6EACDA,stroke-width:1px,font-size:16px;
+
+    %% Runner
+    Runner["main_direct_slam.py<br><i>Runner</i>"];
+    Runner -->|"`_has-a_`"| DirectSlam["DirectSlam<br><b>[C++, caller thread]</b>"];
+    Runner -->|"`_has-a_`"| DirectLoopClosing["DirectLoopClosing<br><b>[Python, optional]</b>"];
+    Runner -->|"`_has-a_`"| DirectSlamDisplay["DirectSlamDisplay<br><i>Viewers</i>"];
+
+    %% C++ core
+    DirectSlam -->|"`_has-a_`"| PoseTracker["PoseTracker<br><i>klt / hybrid / semi_direct</i>"];
+    DirectSlam -->|"`_has-a_`"| MonocularInitializer["MonocularInitializer<br><i>Two-view init (monocular only)</i>"];
+    DirectSlam -->|"`_has-a_`"| DirectMap;
+    DirectSlam -->|"`_has-a_`"| LivePoints["LivePoint[]<br><i>Live tracks</i>"];
+    DirectSlam -->|"`_has-a_`"| DirectSlamParams;
+    DirectSlam -->|"`_uses_`"| DirectBackend["optimize_direct_map<br><i>Local BA</i>"];
+    DirectBackend -->|"`_updates_`"| DirectMap;
+    PoseTracker -->|"`_has-a (semi_direct)_`"| DepthSeeds["DepthSeed[]<br><i>Inverse-depth filter</i>"];
+
+    %% Loop closing (reuses the indirect pipeline's LoopClosing)
+    DirectLoopClosing -->|"`_has-a_`"| DirectLoopGate["DirectLoopGate<br><i>Tracking / loop synchronization</i>"];
+    DirectLoopClosing -->|"`_has-a_`"| Map["Map<br><i>Descriptor keyframes and points</i>"];
+    DirectLoopClosing -->|"`_has-a_`"| FeatureTracker;
+    DirectLoopClosing -->|"`_has-a_`"| LoopClosing["LoopClosing<br><b>[Thread]</b>"];
+    LoopClosing -->|"`_has-a_`"| LoopDetectingProcess["LoopDetectingProcess<br><b>[Process]</b>"];
+    LoopDetectingProcess -->|"`_has-a_`"| LoopDetectorBase;
+    LoopClosing -->|"`_has-a_`"| LoopGroupConsistencyChecker;
+    LoopClosing -->|"`_has-a_`"| LoopGeometryChecker["LoopGeometryChecker<br><i>SE3 / Sim3 validation</i>"];
+    LoopClosing -->|"`_has-a_`"| LoopCorrector;
+    LoopClosing -->|"`_has-a_`"| GlobalBundleAdjustment["GlobalBundleAdjustment<br><b>[Process/Thread]</b>"];
+    DirectLoopClosing -.->|"`_apply_keyframe_poses()_`"| DirectSlam;
+
+    %% Visualization
+    DirectSlamDisplay -->|"`_has-a_`"| Viewer3D["Viewer3D<br><b>[Process]</b>"];
+    DirectSlamDisplay -->|"`_has-a_`"| CvImageViewer;
+
+    class Runner system;
+    class DirectSlam,PoseTracker moduleTracking;
+    class DirectBackend moduleLocalMapping;
+    class DepthSeeds moduleDepthFilter;
+    class DirectMap,Map moduleMap;
+    class DirectLoopClosing,LoopClosing moduleLoopClosing;
+    class GlobalBundleAdjustment moduleGlobalBA;
+    class FeatureTracker moduleFeatureTracker;
+    class DirectSlamDisplay moduleViz;
+
+    class MonocularInitializer,LivePoints,DirectSlamParams,DirectLoopGate,LoopDetectingProcess,LoopDetectorBase,LoopGroupConsistencyChecker,LoopGeometryChecker,LoopCorrector,Viewer3D,CvImageViewer component;

@@ -1,0 +1,89 @@
+graph LR;
+    %% Set default styles for all edges
+    linkStyle default stroke:#021526,stroke-width:1px,font-size:10px;
+    
+    classDef factory fill:#D1F0FF,stroke:#0077B6,stroke-width:1.5px;
+    classDef descriptor fill:#FFFACD,stroke:#E1A100,stroke-width:1.5px;
+    classDef classicalDetector fill:#EAD7F3,stroke:#6A0DAD,stroke-width:1.5px;
+    classDef vprDetector fill:#FFE3F1,stroke:#C71585,stroke-width:1.5px;
+    classDef loopDetectorBase fill:#D6FFD6,stroke:#218380,stroke-width:1.5px;
+    classDef loopDetectorVprBase fill:#D6FFD6,stroke:#218380,stroke-width:1.5px;
+
+    loop_detector_factory -->|"`_global_descriptor_type_`"| DBOW2;
+    loop_detector_factory -->|"`_global_descriptor_type_`"| DBOW3;
+    loop_detector_factory -->|"`_global_descriptor_type_`"| VLAD;
+    loop_detector_factory -->|"`_global_descriptor_type_`"| OBINDEX2;
+    loop_detector_factory -->|"`_global_descriptor_type_`"| IBOW;
+    loop_detector_factory -->|"`_global_descriptor_type_`"| HDC_DELF;
+    loop_detector_factory -->|"`_global_descriptor_type_`"| SAD;
+    loop_detector_factory -->|"`_global_descriptor_type_`"| ALEXNET;
+    loop_detector_factory -->|"`_global_descriptor_type_`"| NETVLAD;
+    loop_detector_factory -->|"`_global_descriptor_type_`"| COSPLACE;
+    loop_detector_factory -->|"`_global_descriptor_type_`"| EIGENPLACES;
+    loop_detector_factory -->|"`_global_descriptor_type_`"| MEGALOC;
+
+    DBOW2 -->|"`_creates_`"| LoopDetectorDBoW2;
+    DBOW3 -->|"`_creates_`"| LoopDetectorDBoW3;
+    VLAD -->|"`_creates_`"| LoopDetectorVlad;
+    OBINDEX2 -->|"`_creates_`"| LoopDetectorOBIndex2;
+    IBOW -->|"`_creates_`"| LoopDetectorIBow;
+
+    HDC_DELF -->|"`_creates_`"| LoopDetectorHdcDelf;
+    SAD -->|"`_creates_`"| LoopDetectorSad;
+    ALEXNET -->|"`_creates_`"| LoopDetectorAlexNet;
+    NETVLAD -->|"`_creates_`"| LoopDetectorNetVLAD;
+    COSPLACE -->|"`_creates_`"| LoopDetectorCosPlace;
+    EIGENPLACES -->|"`_creates_`"| LoopDetectorEigenPlaces;
+    MEGALOC -->|"`_creates_`"| LoopDetectorMegaloc;
+
+    %% Hierarchical relationships
+    LoopDetectorDBoW2 -->|"`_is-a_`"| LoopDetectorBase;
+    LoopDetectorDBoW3 -->|"`_is-a_`"| LoopDetectorBase;
+    LoopDetectorVlad -->|"`_is-a_`"| LoopDetectorBase;
+    LoopDetectorOBIndex2 -->|"`_is-a_`"| LoopDetectorBase;
+    LoopDetectorIBow -->|"`_is-a_`"| LoopDetectorBase;
+
+    LoopDetectorHdcDelf -->|"`_is-a_`"| LoopDetectorVprBase;
+    LoopDetectorSad -->|"`_is-a_`"| LoopDetectorVprBase;
+    LoopDetectorAlexNet -->|"`_is-a_`"| LoopDetectorVprBase;
+    LoopDetectorNetVLAD -->|"`_is-a_`"| LoopDetectorVprBase;
+    LoopDetectorCosPlace -->|"`_is-a_`"| LoopDetectorVprBase;
+    LoopDetectorEigenPlaces -->|"`_is-a_`"| LoopDetectorVprBase;
+    LoopDetectorMegaloc -->|"`_is-a_`"| LoopDetectorVprBase;
+
+    LoopDetectorVprBase -->|"`_is-a_`"| LoopDetectorBase;
+
+    %% loop_detector_factory
+    class loop_detector_factory factory;
+
+    %% Global Descriptor Types
+    class DBOW2 descriptor;
+    class DBOW3 descriptor;
+    class VLAD descriptor;
+    class OBINDEX2 descriptor;
+    class IBOW descriptor;
+    class HDC_DELF descriptor;
+    class SAD descriptor;
+    class ALEXNET descriptor;
+    class NETVLAD descriptor;
+    class COSPLACE descriptor;
+    class EIGENPLACES descriptor;
+    class MEGALOC descriptor;
+
+    %% LoopDetectorBase hierarchy
+    class LoopDetectorBase loopDetectorBase;
+    class LoopDetectorVprBase loopDetectorVprBase;
+
+    class LoopDetectorDBoW2 classicalDetector;
+    class LoopDetectorDBoW3 classicalDetector; 
+    class LoopDetectorVlad classicalDetector; 
+    class LoopDetectorOBIndex2 classicalDetector; 
+    class LoopDetectorIBow classicalDetector; 
+
+    class LoopDetectorHdcDelf vprDetector; 
+    class LoopDetectorSad vprDetector; 
+    class LoopDetectorAlexNet vprDetector; 
+    class LoopDetectorNetVLAD vprDetector; 
+    class LoopDetectorCosPlace vprDetector; 
+    class LoopDetectorEigenPlaces vprDetector;
+    class LoopDetectorMegaloc vprDetector;

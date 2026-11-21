@@ -23,6 +23,7 @@
 
 #include <opencv2/core.hpp>
 
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
@@ -38,5 +39,17 @@ struct LivePoint {
     std::vector<cv::Point> trail; // Newest first, capped at 64 accepted observations.
     int observations = 0;
 };
+
+// A newly created landmark seen once at uv (also its reference pixel).
+inline LivePoint make_live_point(int64_t id, const Vec2d &uv, const Vec3d &position_w) {
+    LivePoint point;
+    point.id = id;
+    point.uv = uv;
+    point.uv_ref = uv;
+    point.position_w = position_w;
+    point.trail.emplace_back(std::floor(uv.x()), std::floor(uv.y()));
+    point.observations = 1;
+    return point;
+}
 
 } // namespace pyslam

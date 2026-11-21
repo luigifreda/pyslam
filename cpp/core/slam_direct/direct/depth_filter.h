@@ -81,8 +81,8 @@ EpipolarMatch match_seed_on_epipolar_line(const Camera &camera, const DirectSlam
 
 // Depth measurement from a tracked correspondence: triangulate pixel_ref (reference keyframe)
 // with pixel_cur. The variance is the same one-pixel tau as the epipolar search. A match that
-// does not reproject within the chi2 gate, or falls outside the seed range, is a failed match;
-// a ray pair without usable parallax is not searched.
+// does not reproject within the chi2 gate, or lies nearer than seed_min_depth, is a failed match.
+// A ray pair without usable parallax, or a match beyond seed_max_depth, is not searched.
 EpipolarMatch measure_seed_from_track(const Camera &camera, const DirectSlamParams &params,
                                       const Vec2d &pixel_ref, const Vec2d &pixel_cur,
                                       const Eigen::Isometry3d &T_cur_ref);

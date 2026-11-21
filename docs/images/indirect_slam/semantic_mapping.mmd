@@ -1,0 +1,80 @@
+graph LR;
+    %% Set default styles for all edges
+    linkStyle default stroke:#021526,stroke-width:1px,font-size:14px;
+
+    classDef factory fill:#D1F0FF,stroke:#0077B6,stroke-width:1.5px;
+    classDef segmentation fill:#FFE3F1,stroke:#C71585,stroke-width:1.5px;
+    classDef mapping fill:#D6FFD6,stroke:#218380,stroke-width:1.5px;
+
+    %% Factory creates different segmentation types
+    semantic_segmentation_factory -->|"`_SemanticSegmentationType_`"| DEEPLABV3;
+    semantic_segmentation_factory -->|"`_SemanticSegmentationType_`"| SEGFORMER;
+    semantic_segmentation_factory -->|"`_SemanticSegmentationType_`"| CLIP;
+    semantic_segmentation_factory -->|"`_SemanticSegmentationType_`"| DETIC;
+    semantic_segmentation_factory -->|"`_SemanticSegmentationType_`"| ODISE;
+    semantic_segmentation_factory -->|"`_SemanticSegmentationType_`"| EOV_SEG;
+    semantic_segmentation_factory -->|"`_SemanticSegmentationType_`"| RFDETR;
+    semantic_segmentation_factory -->|"`_SemanticSegmentationType_`"| YOLO;
+
+
+    %% Segmentation types create corresponding classes
+    DEEPLABV3 -->|"`_creates_`"| SemanticSegmentationDeepLabV3;
+    SEGFORMER -->|"`_creates_`"| SemanticSegmentationSegformer;
+    CLIP -->|"`_creates_`"| SemanticSegmentationCLIP;
+    DETIC -->|"`_creates_`"| SemanticSegmentationDetic;
+    ODISE -->|"`_creates_`"| SemanticSegmentationOdise;
+    EOV_SEG -->|"`_creates_`"| SemanticSegmentationEovSeg;
+    RFDETR -->|"`_creates_`"| SemanticSegmentationRfDetr;
+    YOLO -->|"`_creates_`"| SemanticSegmentationYolo;
+
+    %% Each segmentation class --> base
+    SemanticSegmentationDeepLabV3 -->|"`_is-a_`"| SemanticSegmentationBase;
+    SemanticSegmentationSegformer -->|"`_is-a_`"| SemanticSegmentationBase;
+    SemanticSegmentationCLIP -->|"`_is-a_`"| SemanticSegmentationBase;
+    SemanticSegmentationDetic -->|"`_is-a_`"| SemanticSegmentationBase;
+    SemanticSegmentationEovSeg -->|"`_is-a_`"| SemanticSegmentationBase;   
+    SemanticSegmentationOdise -->|"`_is-a_`"| SemanticSegmentationBase;   
+    SemanticSegmentationRfDetr -->|"`_is-a_`"| SemanticSegmentationBase;
+    SemanticSegmentationYolo -->|"`_is-a_`"| SemanticSegmentationBase;
+
+    %% Semantic mapping creation
+    semantic_mapping_factory -->|"`_SemanticMappingType.DENSE_`"| SemanticMappingDense;
+    semantic_mapping_factory -->|"`_SemanticMappingType.DENSE<br>Parameters.kMoveSemanticSegmentationToProcess=True_`"| SemanticMappingDenseProcess;
+    SemanticMappingDense -->|"`_is-a_`"| SemanticMappingDenseBase;
+    SemanticMappingDenseProcess -->|"`_is-a_`"| SemanticMappingDenseBase;
+    SemanticMappingDenseBase -->|"`_is-a_`"| SemanticMappingBase;
+
+    %% SemanticMappingDense uses semantic_segmentation_factory
+    SemanticMappingDense -->|"`_uses_`"| semantic_segmentation_factory;
+    SemanticMappingDenseProcess -->|"`_uses_`"| semantic_segmentation_factory;
+
+    %% Factory
+    class semantic_segmentation_factory factory;
+    class semantic_mapping_factory factory;
+
+    %% Segmentation models
+    class DEEPLABV3 segmentation;
+    class SEGFORMER segmentation;
+    class CLIP segmentation;
+    class DETIC segmentation;
+    class EOV_SEG segmentation;
+    class ODISE segmentation;
+    class RFDETR segmentation;
+    class YOLO segmentation;
+
+    class SemanticSegmentationDeepLabV3 segmentation;
+    class SemanticSegmentationSegformer segmentation;
+    class SemanticSegmentationCLIP segmentation;
+    class SemanticSegmentationDetic segmentation;
+    class SemanticSegmentationEovSeg segmentation;
+    class SemanticSegmentationOdise segmentation;    
+    class SemanticSegmentationRfDetr segmentation;
+    class SemanticSegmentationYolo segmentation;
+
+    class SemanticSegmentationBase segmentation;
+
+    %% Mapping classes
+    class SemanticMappingBase mapping;
+    class SemanticMappingDenseBase mapping;
+    class SemanticMappingDense mapping;
+    class SemanticMappingDenseProcess mapping;

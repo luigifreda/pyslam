@@ -1,0 +1,100 @@
+---
+config:
+  look: handDrawn
+  flowchart:
+    wrappingWidth: 400
+---
+graph LR
+    %% Direct / semi-direct SLAM workflow (main_direct_slam.py + cpp/core/slam_direct)
+    linkStyle default stroke:#021526,stroke-width:2px,font-size:16px;
+
+    classDef moduleTracking fill:#FFD6D6,stroke:#D7263D,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef moduleLocalMapping fill:#D6FFD6,stroke:#218380,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef moduleLoopClosing fill:#D6E4FF,stroke:#00509D,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef moduleDepthFilter fill:#FFFACD,stroke:#E1A100,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef moduleGlobalBA fill:#EAD7F3,stroke:#6A0DAD,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef moduleMap fill:#ECECEC,stroke:#333333,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef moduleSync fill:#FAFAFA,stroke:#888888,stroke-width:2px,stroke-dasharray:6 4,font-weight:bold,font-size:22px;
+
+    classDef component fill:none,stroke:#6EACDA,stroke-width:1px,font-size:24px;
+    classDef data fill:none,stroke:#6EACDA,stroke-width:1px,font-size:24px;
+
+    subgraph CoreThread["C++ CORE &mdash; SYNCHRONOUS ON THE CALLER THREAD"]
+        subgraph Tracking[TRACKING]
+            FramePreprocessing[Frame<br>Preprocessing] --> Initialization
+            Initialization["Initialization<br>(sensor depth or<br>monocular two-view)"] --> PosePrediction
+            PosePrediction["Pose Prediction<br>(constant velocity)"] --> PoseTracking
+            PoseTracking["Pose Tracking<br>klt / hybrid / semi_direct"] --> AcceptReject
+            AcceptReject["Accept / Reject<br>(inlier thresholds)"] --> NewKeyFrameDecision[New KeyFrame<br>Decision]
+        end
+
+        subgraph DepthFilter["DEPTH&nbsp;FILTER (semi_direct)"]
+            SeedCreation["Seed Creation<br>(corners without depth)"] --> SeedUpdate
+            SeedUpdate["Seed Update<br>(LK track or<br>epipolar search)"] --> SeedFusion
+            SeedFusion["Inverse-Depth Fusion<br>(Gaussian &times; Beta)"] --> SeedPromotion[Seed Promotion<br>to Landmark]
+        end
+
+        subgraph LocalBA["LOCAL BA"]
+            KeyFrameRecording["KeyFrame Recording<br>(measured observations)"] --> WindowSelection
+            WindowSelection["Window Selection<br>(latest keyframes +<br>fixed observers)"] --> GaugeCheck
+            GaugeCheck[Observability /<br>Gauge Check] --> RobustLM
+            RobustLM["Robust LM +<br>Outlier Rejection"] --> CorrectionPropagation[Correction<br>Propagation]
+        end
+
+        subgraph Map["DIRECT MAP"]
+            Landmarks[Landmarks]
+            KeyFrames[KeyFrames]
+            Trajectory["Trajectory<br>(reference-relative)"]
+            ObserverIndex[Observer<br>Index]
+        end
+    end
+
+    subgraph LoopClosing["LOOP CLOSING (optional)"]
+        DescriptorKeyFrame["Descriptor<br>KeyFrame"] --> LoopDetection
+        LoopDetection["Loop Detection<br>(LoopDetectingProcess)"] --> LoopGroupConsistencyChecking
+        LoopGroupConsistencyChecking[Loop Group<br>Consistency Checking] --> LoopGeometryChecking
+        LoopGeometryChecking["Loop Geometry<br>Checking (SE3 / Sim3)"] --> LoopCorrection
+        LoopCorrection[Loop<br>Correction] --> PoseGraphOptimization[Pose Graph<br>Optimization]
+    end
+
+    subgraph GlobalBA[GLOBAL BA]
+        FullBA[Full BA] --> UpdateMap[Update Map]
+    end
+
+    subgraph DescriptorMap["DESCRIPTOR MAP"]
+        DescKeyFrames[KeyFrames]
+        DescMapPoints[MapPoints]
+        DescCovisibility[Covisibility<br>Graph]
+    end
+
+    Frame(Frame) --> Tracking
+    Tracking --> NewKeyFrame(New<br>Keyframe) --> LocalBA
+    Tracking -->|"`_accepted pose_`"| DepthFilter
+    NewKeyFrame --> DepthFilter
+    NewKeyFrame -->|"`_images + pose_`"| LoopClosing
+    LoopClosing <--> GlobalBA
+
+    Tracking <--> Map
+    DepthFilter <--> Map
+    LocalBA <--> Map
+    LoopClosing <--> DescriptorMap
+    GlobalBA <--> DescriptorMap
+    LoopClosing -->|"`_corrected Tcw (+ scales)_<br>_while tracking is idle_`"| Map
+
+    class CoreThread moduleSync;
+    class Tracking moduleTracking;
+    class DepthFilter moduleDepthFilter;
+    class LocalBA moduleLocalMapping;
+    class LoopClosing moduleLoopClosing;
+    class GlobalBA moduleGlobalBA;
+    class Map,DescriptorMap moduleMap;
+
+    class FramePreprocessing,Initialization,PosePrediction,PoseTracking,AcceptReject,NewKeyFrameDecision component;
+    class SeedCreation,SeedUpdate,SeedFusion,SeedPromotion component;
+    class KeyFrameRecording,WindowSelection,GaugeCheck,RobustLM,CorrectionPropagation component;
+    class Landmarks,KeyFrames,Trajectory,ObserverIndex component;
+    class DescriptorKeyFrame,LoopDetection,LoopGroupConsistencyChecking,LoopGeometryChecking,LoopCorrection,PoseGraphOptimization component;
+    class FullBA,UpdateMap component;
+    class DescKeyFrames,DescMapPoints,DescCovisibility component;
+
+    class Frame,NewKeyFrame data;

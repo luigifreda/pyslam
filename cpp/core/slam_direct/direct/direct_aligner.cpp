@@ -20,6 +20,7 @@
 #include "slam_direct/direct/direct_aligner.h"
 
 #include "camera/camera_model_math.h"
+#include "slam_direct/image_utils.h"
 #include "slam_direct/se3.h"
 
 #include <algorithm>
@@ -35,41 +36,6 @@ struct LiftedPoint {
     Vec3d X = Vec3d::Zero();
     bool valid = false;
 };
-
-// Bilinear sampling supports subpixel warps; clamp edge samples used by image gradients.
-float pixel_value(const cv::Mat &img, float x, float y) {
-    if (img.cols < 2 || img.rows < 2) return img.at<uchar>(0, 0);
-    if (x < 0.0f) {
-        x = 0.0f;
-    }
-    if (y < 0.0f) {
-        y = 0.0f;
-    }
-    if (x >= static_cast<float>(img.cols - 1)) {
-        x = static_cast<float>(img.cols - 2);
-    }
-    if (y >= static_cast<float>(img.rows - 1)) {
-        y = static_cast<float>(img.rows - 2);
-    }
-    const float xx = x - std::floor(x);
-    const float yy = y - std::floor(y);
-    const int x0 = static_cast<int>(x);
-    const int y0 = static_cast<int>(y);
-    const int x1 = std::min(img.cols - 1, x0 + 1);
-    const int y1 = std::min(img.rows - 1, y0 + 1);
-    const float i00 = static_cast<float>(img.at<uchar>(y0, x0));
-    const float i10 = static_cast<float>(img.at<uchar>(y0, x1));
-    const float i01 = static_cast<float>(img.at<uchar>(y1, x0));
-    const float i11 = static_cast<float>(img.at<uchar>(y1, x1));
-    return (1.0f - xx) * (1.0f - yy) * i00 + xx * (1.0f - yy) * i10 + (1.0f - xx) * yy * i01 +
-           xx * yy * i11;
-}
-
-void require_gray(const cv::Mat &img, const char *name) {
-    if (img.empty() || img.type() != CV_8UC1) {
-        throw std::invalid_argument(std::string(name) + " must be a non-empty CV_8UC1 image");
-    }
-}
 
 struct Accumulated {
     Mat66d H = Mat66d::Zero();
@@ -111,19 +77,15 @@ Accumulated accumulate(const Camera &camera, double scale, const DirectSlamParam
         double cost = 0.0;
         for (int py = -half; py <= half; ++py) {
             for (int px = -half; px <= half; ++px) {
-                const double error = pixel_value(img_ref, static_cast<float>(pixels_ref[i].x() + px),
-                                                 static_cast<float>(pixels_ref[i].y() + py)) -
-                                     pixel_value(img_cur, static_cast<float>(u + px),
-                                                 static_cast<float>(v + py));
+                const double error = sample_gray_aligner(img_ref, static_cast<float>(pixels_ref[i].x() + px),
+                                                         static_cast<float>(pixels_ref[i].y() + py)) -
+                                     sample_gray_aligner(img_cur, static_cast<float>(u + px),
+                                                         static_cast<float>(v + py));
                 const Vec2d image_gradient(
-                    0.5 * (pixel_value(img_cur, static_cast<float>(u + px + 1),
-                                       static_cast<float>(v + py)) -
-                           pixel_value(img_cur, static_cast<float>(u + px - 1),
-                                       static_cast<float>(v + py))),
-                    0.5 * (pixel_value(img_cur, static_cast<float>(u + px),
-                                       static_cast<float>(v + py + 1)) -
-                           pixel_value(img_cur, static_cast<float>(u + px),
-                                       static_cast<float>(v + py - 1))));
+                    0.5 * (sample_gray_aligner(img_cur, static_cast<float>(u + px + 1), static_cast<float>(v + py)) -
+                           sample_gray_aligner(img_cur, static_cast<float>(u + px - 1), static_cast<float>(v + py))),
+                    0.5 * (sample_gray_aligner(img_cur, static_cast<float>(u + px), static_cast<float>(v + py + 1)) -
+                           sample_gray_aligner(img_cur, static_cast<float>(u + px), static_cast<float>(v + py - 1))));
                 // Chain image gradient and projection Jacobian for I_ref - I_cur.
                 // Huber weights limit individual brightness outliers in the normal equations.
                 const Vec6d J = -J_pixel_xi.transpose() * image_gradient;
@@ -275,31 +237,9 @@ DirectAlignmentResult align_direct_multilayer(const Camera &camera, const Direct
         throw std::invalid_argument("align_direct: pixels and depths have different sizes");
     }
 
-    std::vector<cv::Mat> pyramid_ref;
-    std::vector<cv::Mat> pyramid_cur;
-    std::vector<double> scales;
-    pyramid_ref.reserve(static_cast<size_t>(params.num_pyramid_levels));
-    pyramid_cur.reserve(static_cast<size_t>(params.num_pyramid_levels));
-    scales.reserve(static_cast<size_t>(params.num_pyramid_levels));
-    for (int level = 0; level < params.num_pyramid_levels; ++level) {
-        if (level == 0) {
-            pyramid_ref.push_back(img_ref);
-            pyramid_cur.push_back(img_cur);
-            scales.push_back(1.0);
-            continue;
-        }
-        cv::Mat ref_level;
-        cv::Mat cur_level;
-        const cv::Mat &prev_ref = pyramid_ref.back();
-        const cv::Mat &prev_cur = pyramid_cur.back();
-        const cv::Size size(std::max(1, static_cast<int>(std::lround(prev_ref.cols * params.pyramid_scale))),
-                            std::max(1, static_cast<int>(std::lround(prev_ref.rows * params.pyramid_scale))));
-        cv::resize(prev_ref, ref_level, size, 0.0, 0.0, cv::INTER_LINEAR);
-        cv::resize(prev_cur, cur_level, size, 0.0, 0.0, cv::INTER_LINEAR);
-        pyramid_ref.push_back(ref_level);
-        pyramid_cur.push_back(cur_level);
-        scales.push_back(scales.back() * params.pyramid_scale);
-    }
+    const ImagePyramid pyramid_ref = build_pyramid(img_ref, params);
+    const ImagePyramid pyramid_cur = build_pyramid(img_cur, params);
+    const std::vector<double> &scales = pyramid_ref.scales;
 
     // Lift once at full resolution. Coarse levels only scale the projected pixel and Jacobian.
     const std::vector<LiftedPoint> points = lift_points(camera, pixels_ref, depth_ref);
@@ -313,8 +253,8 @@ DirectAlignmentResult align_direct_multilayer(const Camera &camera, const Direct
         for (const Vec2d &pixel : pixels_ref) {
             pixels_level.push_back(scale * pixel);
         }
-        result = align_layer(camera, scale, params, pyramid_ref[static_cast<size_t>(level)],
-                             pyramid_cur[static_cast<size_t>(level)], pixels_level, points,
+        result = align_layer(camera, scale, params, pyramid_ref.levels[static_cast<size_t>(level)],
+                             pyramid_cur.levels[static_cast<size_t>(level)], pixels_level, points,
                              result.T_cur_ref);
     }
     return result;

@@ -27,19 +27,21 @@ Each tracking mode is a `PoseTracker`. `DirectSlam` keeps only what the modes sh
 | `direct/semi_direct_pose_tracker.h/.cpp` | `semi_direct` (SVO-style): planar-patch pose, per-feature alignment, reprojection pose, and inverse-depth seed lifecycle |
 | `klt/klt_tracker.h/.cpp` | Pyramidal LK with a forward-backward check |
 | `geometry/reprojection_pose.h/.cpp` | PnP RANSAC seed plus robust reprojection Gauss-Newton (shared by all modes) |
-| `features/corner_detection.h/.cpp` | GFTT / grid FAST dispatch with border and occupancy masks |
+| `features/corner_detection.h/.cpp` | GFTT / grid FAST dispatch with border and occupancy masks; `OccupancyMask` keeps new corners away from existing features |
 | `features/corner_grid.h/.cpp` | Grid FAST extraction: strongest corners per cell, optional subpixel refinement |
 | `direct/direct_aligner.h/.cpp` | Single-level and coarse-to-fine photometric alignment for `hybrid` |
 | `direct/planar_patch.h/.cpp` | Fronto-parallel patch pose and per-feature alignment for `semi_direct` |
 | `direct/depth_filter.h/.cpp` | SVO depth filter: Gaussian × Beta inverse-depth seeds, one-pixel τ, subpixel epipolar search, expiry |
-| `depth_measurement.h/.cpp` | RGBD depth sampling, stereo LK triangulation, and metric validity checks |
-| `live_point.h` | `LivePoint`: a landmark tracked from the last accepted image |
+| `depth_measurement.h/.cpp` | RGBD depth sampling, stereo LK triangulation, metric validity checks, and `measure_live_points` (re-measure live points in the current frame) |
+| `image_utils.h/.cpp` | Shared gray-image helpers: `require_gray`, the two bilinear samplers (planar patches / depth filter vs. the photometric aligner, which differ only at the right/bottom edge), `build_pyramid`, `inside_border` |
+| `live_point.h` | `LivePoint`: a landmark tracked from the last accepted image, and `make_live_point` for a newly created one |
 | `direct_backend.h/.cpp` | Robust local g2o bundle adjustment |
 | `direct_map.h` | Persistent landmarks, keyframe observations and corrected `Tcw` trajectory |
 | `direct_params.h/.cpp` | `DIRECT_SLAM` settings |
 | `se3.h` | Eigen left SE(3) increment (no Sophus) |
 | `py_module/direct_slam_module.h` | pybind11 `DirectSlam` |
 | `tests_cpp/test_direct_slam.cpp` | Synthetic photometric, LK, stereo, RGBD, outlier, loss/recovery and settings checks; SVO depth-filter equivalence, τ geometry and semi-direct tracker regressions |
+| `tests_cpp/test_direct_components.cpp` | Unit tests of the shared building blocks: image helpers (sampler edge behavior, pyramid sizes), occupancy masks, `measure_live_points` (RGBD, rectified stereo, right image ignored without stereo), map/landmark bookkeeping, and the tracker hooks (hybrid's depth refresh without BA, keyframe-image ownership per mode) |
 | `tests_python/test_direct_slam.py` | Binding snapshot ownership, shapes, metadata and reset |
 | `tests_python/test_semi_direct_slam.py` | `semi_direct` through the binding: mode aliases, monocular gating and two-view initialization, RGBD seeds where depth is missing |
 | `tests_python/test_direct_loop_features.py`, `test_direct_loop_gate.py` | Loop-closing bridge (`direct_loop_closing.py`): deferred keyframe features, pose sync, reset, and the tracking-idle gate |
@@ -69,7 +71,7 @@ An undistorted pinhole keeps a depth when `z` is finite and in `(0.5, 80)` meter
 
 The backend follows `slamplay/full_slam/vslam`: poses and shared landmarks are optimized together from left/right observations using Levenberg-Marquardt and Huber kernels. This implementation runs synchronously on keyframe insertion, avoiding concurrent map mutation during tracking and Python snapshots. Its active set is the latest `num_active_keyframes` keyframes (default 7), with the oldest pose fixed to remove the gauge freedom. Compared with vslam's distance-based keyframe eviction, this is a chronological window.
 
-Right pixels are measured again at every keyframe, including existing landmarks; they are not synthesized from the estimated depth. Calibrated rigs use their full right-camera extrinsics and projection model. RGBD adds a measured depth edge with standard deviation `ba_depth_sigma * max(1, z*z)` meters. Stereo and RGBD keep metric scale constrained by those measurements. A monocular landmark promoted from a seed adds a unary inverse-depth prior, and that prior is the scale gauge. Robust optimization is followed by outlier exclusion and refinement. Rejected left/right/depth observations are recorded separately, and failed, non-finite, disconnected or scale-unconstrained solves leave the map intact.
+Right pixels are measured again at every keyframe, including existing landmarks; they are not synthesized from the estimated depth. Calibrated rigs use their full right-camera extrinsics and projection model. RGBD adds a measured depth edge with standard deviation `ba_depth_sigma * max(1, z*z)` meters. Stereo and RGBD keep metric scale constrained by those measurements. Monocular landmarks from seed promotion or two-view initialization add inverse-depth priors. Each prior is a binary edge between the landmark and its reference keyframe, constraining depth in that camera and supplying the scale gauge. Robust optimization is followed by outlier exclusion and refinement. Rejected left/right/depth observations are recorded separately, and failed, non-finite, disconnected or scale-unconstrained solves leave the map intact.
 
 After a successful solve, corrected landmarks are copied into live tracking points, rejected current observations are removed, and poses/velocity are updated. Non-keyframe trajectory entries retain their transform relative to their reference keyframe and are reconstructed after BA. The viewer reads the complete optimized landmark map instead of caching stale coordinates. `bundle_adjustment()` also exposes a manual local solve and the viewer's BA button invokes it. `last_ba()` reports graph sizes, costs, outliers and whether the update was applied. Local BA reduces drift inside the active window. Loop closure is applied by the Python runner, not by this backend.
 
@@ -164,8 +166,9 @@ The viewer shows the current camera, keyframes, accumulated landmarks in black, 
 Synthetic checks:
 
 ```bash
-cmake --build cpp/core/slam/build --target test_direct_slam -j"$(nproc)"
+cmake --build cpp/core/slam/build --target test_direct_slam test_direct_components -j"$(nproc)"
 ./cpp/core/slam/build/tests_cpp/direct_slam/test_direct_slam
+./cpp/core/slam/build/tests_cpp/direct_slam/test_direct_components
 python -m unittest discover -s cpp/core/slam_direct/tests_python
 ```
 

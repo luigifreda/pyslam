@@ -30,9 +30,7 @@ namespace pyslam {
 TrackingResult KltPoseTracker::track(const TrackingInput &input) {
     const std::vector<LivePoint> &points = input.points;
     const Eigen::Isometry3d &T_pred_w = input.T_pred_w;
-    TrackingResult result;
-    result.tracked_ok.assign(points.size(), 0);
-    result.tracked_uv.assign(points.size(), Vec2d::Zero());
+    TrackingResult result = TrackingResult::for_points(points.size());
     result.T_cur_w = T_pred_w;
 
     std::vector<Vec2d> pixels_last;

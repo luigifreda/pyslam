@@ -20,6 +20,7 @@
 #include "slam_direct/direct/depth_filter.h"
 
 #include "slam_direct/direct/direct_aligner.h"
+#include "slam_direct/image_utils.h"
 #include "slam_direct/geometry/triangulation.h"
 
 #include <algorithm>
@@ -33,24 +34,6 @@ namespace {
 constexpr int kMaxSeedFailures = 20;
 // Minimum ray angle of a tracked correspondence, in one-pixel angular errors.
 constexpr double kMinTrackRayAnglePx = 3.0;
-
-float sample_gray(const cv::Mat &img, float x, float y) {
-    if (img.cols < 2 || img.rows < 2) {
-        return img.empty() ? 0.0f : static_cast<float>(img.at<uchar>(0, 0));
-    }
-    x = std::clamp(x, 0.0f, static_cast<float>(img.cols - 2));
-    y = std::clamp(y, 0.0f, static_cast<float>(img.rows - 2));
-    const int x0 = static_cast<int>(x);
-    const int y0 = static_cast<int>(y);
-    const float fx = x - static_cast<float>(x0);
-    const float fy = y - static_cast<float>(y0);
-    const float i00 = static_cast<float>(img.at<uchar>(y0, x0));
-    const float i10 = static_cast<float>(img.at<uchar>(y0, x0 + 1));
-    const float i01 = static_cast<float>(img.at<uchar>(y0 + 1, x0));
-    const float i11 = static_cast<float>(img.at<uchar>(y0 + 1, x0 + 1));
-    return (1.0f - fx) * (1.0f - fy) * i00 + fx * (1.0f - fy) * i10 + (1.0f - fx) * fy * i01 +
-           fx * fy * i11;
-}
 
 double normal_density(double x, double mean, double variance) {
     if (!(variance > 0.0)) {

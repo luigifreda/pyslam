@@ -18,6 +18,7 @@
  */
 
 #include "slam_direct/klt/klt_tracker.h"
+#include "slam_direct/image_utils.h"
 
 #include <opencv2/video/tracking.hpp>
 
@@ -33,12 +34,6 @@ std::vector<cv::Point2f> to_cv(const std::vector<Vec2d> &points) {
         out.emplace_back(static_cast<float>(point.x()), static_cast<float>(point.y()));
     }
     return out;
-}
-
-void require_gray(const cv::Mat &img, const char *name) {
-    if (img.empty() || img.type() != CV_8UC1) {
-        throw std::invalid_argument(std::string(name) + " must be a non-empty CV_8UC1 image");
-    }
 }
 
 } // namespace

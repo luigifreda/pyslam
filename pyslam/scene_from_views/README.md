@@ -64,7 +64,7 @@ This directory contains the implementation of the `scene_from_views` factory, wh
 
 
 <p align="center">
-<img src="../../docs/images/scene_from_views.png" alt="3D Scene From Views" /> 
+<img src="../../docs/images/scene_from_views/scene_from_views.png" alt="3D Scene From Views" /> 
 </p>
 
 This diagram illustrates the architecture of the *Scene from Views* module, which provides a unified interface for feed-forward 3D scene reconstruction from multiple views. At its core, the `scene_from_views_factory` instantiates specific reconstruction models based on the selected `SceneFromViewsType`, such as `DUST3R`, `MAST3R`, `DEPTH_ANYTHING_V3`, `MVDUST3R`, `VGGT`, `VGGT_ROBUST`, and `FAST3R`.

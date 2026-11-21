@@ -228,7 +228,7 @@ Further information about volumetric integration models and implementation detai
 ## Semantic Mapping Architecture
 
 <p align="center">
-<img src="./images/semantic_mapping.png" alt="Semantic Mapping"  /> 
+<img src="./images/indirect_slam/semantic_mapping.png" alt="Semantic Mapping"  /> 
 </p>
 
 This diagram outlines the architecture of the *Semantic Mapping* module. At its core is the `semantic_mapping_factory`, which creates semantic mapping instances according to the selected `semantic_mapping_type`. Currently, the supported type is `DENSE`, which instantiates either the `SemanticMappingDense` class or the `SemanticMappingDenseProcess` class if `Parameters.kSemanticMappingMoveSemanticSegmentationToSeparateProcess=True`. Both these classes extend `SemanticMappingDenseBase` and runs asynchronously in a dedicated thread to process keyframes as they become available. In particular, the `SemanticMappingDenseProcess` class offloads semantic segmentation inference to a separate process, thereby making better use of CPU core parallelism.

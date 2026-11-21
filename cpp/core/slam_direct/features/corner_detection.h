@@ -39,4 +39,19 @@ std::vector<Vec2d> detect_gftt(const cv::Mat &gray, const DirectSlamParams &para
 std::vector<Vec2d> detect_corners(const cv::Mat &gray, const DirectSlamParams &params,
                                   const cv::Mat &occupied = cv::Mat(), int max_corners = -1);
 
+// The `occupied` mask for detect_corners: 255 is free, and block() clears a filled disk of
+// radius max(1, round(params.gftt_min_distance)) around an existing feature, so new
+// corners keep the minimum corner spacing from tracked ones.
+class OccupancyMask {
+  public:
+    OccupancyMask(const cv::Size &size, const DirectSlamParams &params);
+    void block(const Vec2d &uv);
+    const cv::Mat &mask() const { return mask_; }
+    int radius() const { return radius_; }
+
+  private:
+    cv::Mat mask_;
+    int radius_ = 1;
+};
+
 } // namespace pyslam

@@ -59,6 +59,14 @@ struct TrackingResult {
     // Aligned with TrackingInput::points: only tracked_ok points survive into the next image.
     std::vector<char> tracked_ok;
     std::vector<Vec2d> tracked_uv;
+
+    // A rejected result with one cleared slot per input live point.
+    static TrackingResult for_points(size_t num_points) {
+        TrackingResult result;
+        result.tracked_ok.assign(num_points, 0);
+        result.tracked_uv.assign(num_points, Vec2d::Zero());
+        return result;
+    }
 };
 
 // Mutable map state a tracker may extend after an accepted pose (e.g. promoted depth seeds).

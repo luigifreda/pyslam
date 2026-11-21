@@ -147,14 +147,8 @@ void DirectSlam::record_keyframe(const cv::Mat &gray, const cv::Mat &gray_right,
     keyframe.img_id = img_id;
     keyframe.timestamp = timestamp;
     keyframe.pose = CameraPose(Tcw);
-    std::vector<Vec2d> left, right_init;
-    for (const auto &point : live_points_) {
-        left.push_back(point.uv);
-        right_init.push_back(predict_right_pixel(*camera_, Tcw * point.position_w, point.uv));
-    }
-    const bool stereo = camera_->sensor_type == SensorType::STEREO;
     const std::vector<PixelMeasurement> measured =
-        measure_pixels(*camera_, params_, gray, stereo ? gray_right : cv::Mat(), depth, left, right_init);
+        measure_live_points(*camera_, params_, gray, gray_right, depth, Tcw, live_points_);
     for (size_t i = 0; i < live_points_.size(); ++i) {
         const auto &point = live_points_[i];
         DirectPoint observation;
@@ -325,14 +319,8 @@ std::vector<LivePoint> DirectSlam::points_from_camera(const std::vector<DirectPo
         if (!point.has_depth || !metric_point_ok(*camera_, point.position_c)) {
             continue;
         }
-        LivePoint live_point;
         // IDs survive temporal tracking and connect later keyframe observations in BA.
-        live_point.id = next_point_id_++;
-        live_point.uv = point.uv;
-        live_point.uv_ref = point.uv;
-        live_point.position_w = Twc * point.position_c;
-        live_point.trail.emplace_back(std::floor(point.uv.x()), std::floor(point.uv.y()));
-        live_point.observations = 1;
+        LivePoint live_point = make_live_point(next_point_id_++, point.uv, Twc * point.position_c);
         map_.landmarks_mutable()[live_point.id] = {live_point.position_w, false};
         live.push_back(live_point);
     }
@@ -345,14 +333,11 @@ void DirectSlam::supplement_live_points(const cv::Mat &gray, const cv::Mat &gray
     if (room < 10) {
         return;
     }
-    cv::Mat occupied(gray.size(), CV_8U, cv::Scalar(255));
-    const int radius = std::max(1, static_cast<int>(std::lround(params_.gftt_min_distance)));
+    OccupancyMask occupied(gray.size(), params_);
     for (const LivePoint &point : live_points_) {
-        cv::circle(occupied, cv::Point(static_cast<int>(std::lround(point.uv.x())),
-                                       static_cast<int>(std::lround(point.uv.y()))),
-                   radius, cv::Scalar(0), cv::FILLED);
+        occupied.block(point.uv);
     }
-    const std::vector<Vec2d> pixels = detect_corners(gray, params_, occupied, room);
+    const std::vector<Vec2d> pixels = detect_corners(gray, params_, occupied.mask(), room);
     if (pixels.empty()) {
         return;
     }
@@ -415,20 +400,16 @@ void DirectSlam::initialize_monocular_map(const cv::Mat &gray, int img_id, doubl
     live_points_.clear();
     live_points_.reserve(init.X_ref.size());
     for (size_t i = 0; i < init.X_ref.size(); ++i) {
-        LivePoint point;
-        point.id = next_point_id_++;
-        point.uv = init.uv_ref[i];
-        point.position_w = init.X_ref[i];
+        // uv_ref is reset by record_keyframe below (semi_direct keeps keyframe images).
+        LivePoint point = make_live_point(next_point_id_++, init.uv_ref[i], init.X_ref[i]);
         point.trail = init.trails[i];
         point.observations = static_cast<int>(point.trail.size());
         DirectLandmark landmark;
         landmark.position_w = point.position_w;
         // Same monocular scale anchor as a promoted seed, on the reference keyframe.
         if (init.inverse_depth_sigma2[i] > 0.0) {
-            landmark.has_inverse_prior = true;
-            landmark.inverse_depth_mu = 1.0 / init.X_ref[i].z();
-            landmark.inverse_depth_sigma2 = init.inverse_depth_sigma2[i];
-            landmark.prior_keyframe = static_cast<int>(map_.keyframes().size());
+            landmark.set_inverse_prior(1.0 / init.X_ref[i].z(), init.inverse_depth_sigma2[i],
+                                       static_cast<int>(map_.keyframes().size()));
         }
         map_.landmarks_mutable()[point.id] = landmark;
         live_points_.push_back(std::move(point));

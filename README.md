@@ -13,11 +13,11 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as *DeepLabv3*, *Segformer*, *CLIP*, *DETIC*, *EOV-SEG*, *ODISE*, *RFDETR*, *YOLO*, etc.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
 - A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between _high-performance/speed_ and _high-flexibility_ modes. The Python and C++ implementations are interoperable: maps saved by one can be loaded by the other. Further details [here](cpp/core/slam/README.md).
-- A C++ **[direct and semi-direct SLAM](docs/direct_slam.md)** pipeline (`main_direct_slam.py`) with three tracking modes: *KLT* tracks, *hybrid* sparse photometric alignment, and an *SVO*-style **semi-direct** mode with a Bayesian inverse-depth filter. It supports **stereo** and **RGBD** input, plus **monocular** in semi-direct mode, with local bundle adjustment and, for stereo and RGBD, the same loop closing as the sparse pipeline. Further details [here](docs/direct_slam.md).
+- A C++ **[direct and semi-direct SLAM](docs/direct_slam.md)** pipeline (`main_direct_slam.py`) with three tracking modes: *KLT* tracks, *hybrid* sparse photometric alignment, and an *SVO*-style **semi-direct** mode with a Bayesian inverse-depth filter. It supports **stereo** and **RGBD** input, plus **monocular** in semi-direct mode, with local bundle adjustment and the same loop closing as the sparse pipeline (with a Sim(3) correction for monocular). Further details [here](docs/direct_slam.md).
 - A modular pipeline for **feed-forward inference of 3D scenes from multiple images**. Supports models like *DUSt3R*, *Mast3r*, *MV-DUSt3R*, *VGGT*, *Robust VGGT*, *DepthFromAnythingV3*, and *Fast3R*. Further details [here](pyslam/scene_from_views/README.md).
 - Built-in support for over **[10 dataset types](#datasets)**.
   
-pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)* and *[semantic mapping](#semantic-mapping)*. It allows to explore, prototype and develop VO/SLAM pipelines both in Python and C++. pySLAM is a research framework and a work in progress.
+pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction)*, *[depth prediction](#depth-prediction)* and *[semantic mapping](#semantic-mapping-and-image-segmentation)*. It allows to explore, prototype and develop VO/SLAM pipelines both in Python and C++. pySLAM is a research framework and a work in progress.
 
 **Enjoy it!**
 
@@ -177,7 +177,7 @@ See the demo **video** for release v2.10.0
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing, dense mapping and depth inference in order to estimate the camera trajectory and build both a sparse and dense map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline.
 
-* `main_direct_slam.py` runs the C++ direct-SLAM frontend (`klt` or `hybrid` tracking) with grid FAST or GFTT corners, pyramidal Lucas-Kanade tracking, optional sparse photometric alignment, and local bundle adjustment of shared landmarks and keyframe poses. It requires stereo or RGBD input and accepts an undistorted pinhole or a raw-pixel camera, including native TUM-VI. Images are not undistorted. It reuses the standard 3D viewer and tracked-feature drawing. When `Parameters.kUseLoopClosing` is enabled, it also runs the standard `LoopClosing` thread on separately extracted descriptor keyframes and writes the corrected poses back into the direct map; `--no-loop-closing` skips that thread. Dense and semantic mapping are not included. See the [direct-SLAM guide](./docs/direct_slam.md) for modes, parameters, architecture diagrams, and trajectory export.
+* `main_direct_slam.py` runs the C++ direct-SLAM frontend (`klt`, `hybrid` or `semi_direct` tracking) with grid FAST or GFTT corners, pyramidal Lucas-Kanade tracking, optional sparse photometric alignment, SVO-style semi-direct alignment with inverse-depth seeds, and local bundle adjustment of shared landmarks and keyframe poses. `klt` and `hybrid` require stereo or RGBD input; `semi_direct` also accepts monocular input. It accepts an undistorted pinhole or a raw-pixel camera, including native TUM-VI. Images are not undistorted. It reuses the standard 3D viewer and tracked-feature drawing. When `Parameters.kUseLoopClosing` is enabled, it also runs the standard `LoopClosing` thread on separately extracted descriptor keyframes and writes the corrected poses back into the direct map (as a Sim(3) correction for monocular); `--no-loop-closing` skips that thread. Dense and semantic mapping are not included. See the [direct-SLAM guide](./docs/direct_slam.md) for modes, parameters, architecture diagrams, and trajectory export.
 
 * `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features. 
 
@@ -345,7 +345,7 @@ Similarly, you can test the **full SLAM** by running `main_slam.py`:
 
 This will process the same default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by clicking on one of the open windows and pressing the key 'Q' or closing the 3D Pangolin GUI. 
 
-For **direct SLAM**, select a stereo or RGBD dataset and matching camera settings in `config.yaml`, build `cpp_core` with `./build_cpp_core.sh`, then run. All three modes run on an undistorted pinhole or a raw-pixel model such as native TUM-VI:
+For **direct SLAM**, select a stereo or RGBD dataset (or a monocular one with `semi_direct` mode) and matching camera settings in `config.yaml`, build `cpp_core` with `./build_cpp_core.sh`, then run. All three modes run on an undistorted pinhole or a raw-pixel model such as native TUM-VI:
 
 ```bash
 python main_direct_slam.py -c config.yaml
@@ -365,7 +365,7 @@ To process a different **dataset** with both VO and SLAM scripts, you need to up
 * Select your dataset `type` in the section `DATASET` (further details in the section *[Datasets](#datasets)* below for further details). This identifies a corresponding dataset section (e.g. `KITTI_DATASET`, `TUM_DATASET`, etc). 
 * Select the `sensor_type` (`mono`, `stereo`, `rgbd`) in the chosen dataset section.  
 * Select the camera `settings` file in the dataset section (further details in the section *[Camera Settings](#camera-settings)* below).
-* Set the `groundtruth_file` accordingly. Further details in the section *[Datasets](#datasets)* below (see also the files `io/ground_truth.py`, `io/convert_groundtruth_to_simple.py`).
+* Set the `groundtruth_file` accordingly. Further details in the section *[Datasets](#datasets)* below (see also the files `pyslam/io/ground_truth.py`, `pyslam/io/convert_groundtruth_to_simple.py`).
 
 You can use the section `GLOBAL_PARAMETERS` of the file [config.yaml](./config.yaml) to override the global configuration parameters set in [pyslam/config_parameters.py](./pyslam/config_parameters.py). This is particularly useful when running a [SLAM evaluation](#evaluating-slam).
 
@@ -397,7 +397,7 @@ Some basic examples are available in the subfolder `examples/cv`. In particular,
   <img src="./images/loop-detection2.png" height="300" /> 
 </p>
 
-Many [loop closing methods](#loop-closing) are available, combining different [aggregation methods](#local-descriptor-aggregation-methods) and [global descriptors](#global-descriptors).
+Many [loop closing methods](#loop-closing-and-relocalization) are available, combining different [aggregation methods](#local-descriptor-aggregation-methods) and [global descriptors](#global-descriptors).
 
 While running full SLAM, loop closing is enabled by default and can be disabled by setting `kUseLoopClosing=False` in `pyslam/config_parameters.py`. Different configuration options `LoopDetectorConfigs` can be found in [pyslam/loop_closing/loop_detector_configs.py](./pyslam/loop_closing/loop_detector_configs.py): Code comments provide additional useful details.
 
@@ -517,7 +517,7 @@ The available depth prediction models can be utilized both in the SLAM back-end 
 * In the case of a **monocular SLAM**, do NOT use depth prediction in the back-end volumetric integration: The SLAM (fake) scale will conflict with the absolute metric scale of depth predictions. With monocular datasets, you can enable depth prediction to run in the front-end (to emulate an RGBD sensor).
 - Depth inference may be very slow (for instance, with DepthPro it takes ~1s per image on a typical machine). Therefore, the resulting volumetric reconstruction pipeline may be very slow.
 
-Refer to the file `depth_estimation/depth_estimator_factory.py` for further details. Both stereo and monocular prediction approaches are supported. You can test depth prediction/estimation by using the script `main_depth_prediction.py`.
+Refer to the file `pyslam/depth_estimation/depth_estimator_factory.py` for further details. Both stereo and monocular prediction approaches are supported. You can test depth prediction/estimation by using the script `main_depth_prediction.py`.
 
 ---
 
@@ -725,7 +725,7 @@ Additionally, the `gtsam_factors` package provides custom Python bindings for fe
 
 Some quick information about the non-trivial GUI buttons of `main_slam.py`: 
 - `Step`: Enter in the *Step by step mode*. Press the button `Step` a first time to pause. Then, press it again to make the pipeline process a single new frame.
-- `Save`: Save the map into the file `map.json`. You can visualize it back by using the script `/main_map_viewer.py` (as explained above). 
+- `Save`: Save the map into the file `map.json`. You can visualize it back by using the script `main_map_viewer.py` (as explained above). 
 - `Reset`: Reset SLAM system. 
 - `Draw Ground Truth`:  If a ground truth dataset (e.g., KITTI, TUM, EUROC, or REPLICA) is loaded, you can visualize it by pressing this button. The ground truth trajectory will be displayed in 3D and will be progressively aligned with the estimated trajectory, updating approximately every 10-30 frames. As more frames are processed, the alignment between the ground truth and estimated trajectory becomes more accurate. After about 20 frames, if the button is pressed, a window will appear showing the Cartesian alignment errors along the main axes (i.e., $e_x$, $e_y$, $e_z$) and the history of the total $RMSE$ between the ground truth and the aligned estimated trajectories.
 
@@ -745,9 +745,9 @@ This table report the sparse SLAM submodules along with their generated logs (st
 | `local_mapping.py` | `local_mapping.log` |
 | `loop_closing.py` | `loop_closing.log` |
 | `loop_detecting_process.py` | `loop_detecting.log` |
-| `global_bundle_adjustments.py` | `gba.log` |
+| `global_bundle_adjustment.py` | `gba.log` |
 | `volumetric_integrator_<X>.py` | `volumetric_integrator.log` |
-| `relocalizater.py` | `relocalization.log` |
+| `relocalizer.py` | `relocalization.log` |
 | `semantic_segmentation_<X>.py` | `semantic_segmentation.log` |
 | `semantic_mapping_<X>.py` | `semantic_mapping.log` |
 
@@ -765,7 +765,7 @@ Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
 
 #### Run a SLAM evaluation 
 
-The `main_slam_evaluation.py` script enables automated SLAM evaluation by executing `main_slam.py` across a collection of **datasets** and configuration **presets**. The main input to the script is an evaluation configuration file (e.g., `evaluation/configs/evaluation.json`) that specifies which datasets and presets to be used. For convenience, sample configurations for the datasets `TUM`, `EUROC` and `KITTI` datasets are already provided in the `evaluation/configs/` directory.
+The `main_slam_evaluation.py` script enables automated SLAM evaluation by executing `main_slam.py` across a collection of **datasets** and configuration **presets**. The main input to the script is an evaluation configuration file (e.g., `pyslam/evaluation/configs/evaluation.json`) that specifies which datasets and presets to be used. For convenience, sample configurations for the datasets `TUM`, `EUROC` and `KITTI` datasets are already provided in the `pyslam/evaluation/configs/` directory.
 
 For each evaluation run, results are stored in a dedicated subfolder within the `results` directory, containing all the computed metrics. These metrics are then processed and compared. The final output is a report, available in `PDF`, `LaTeX`, and `HTML` formats, that includes comparison tables summarizing the *Absolute Trajectory Error* (ATE), the maximum deviation from the ground truth trajectory and other metrics. 
 
@@ -881,7 +881,7 @@ The function `feature_tracker_factory()` can be found in the file `pyslam/local_
 * *[LoFTR](https://arxiv.org/abs/2104.00680)*
 * *[MASt3R](https://arxiv.org/abs/2406.09756)*
   
-See the file `local_features/feature_matcher.py` for further details.
+See the file `pyslam/local_features/feature_matcher.py` for further details.
 
 
 ### Supported global descriptors and local descriptor aggregation methods
@@ -909,7 +909,7 @@ Also referred to as *holistic descriptors*:
 * [Megaloc](https://github.com/gmberton/MegaLoc)
 
 
-Different [loop closing methods](#loop-closing) are available. These combines the above aggregation methods and global descriptors.
+Different [loop closing methods](#loop-closing-and-relocalization) are available. These combines the above aggregation methods and global descriptors.
 See the file [pyslam/loop_closing/loop_detector_configs.py](pyslam/loop_closing/loop_detector_configs.py) for further details.
 
 
@@ -1049,7 +1049,7 @@ You can download the dataset [here](https://www.doc.ic.ac.uk/~ahanda/VaFRIC/icln
 #### EuRoC Datasets
 
 1. Download a sequence (ASL format) from http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets (check this direct [link](http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/))
-2. Use the script `io/generate_euroc_groundtruths_as_tum.sh` to generate the TUM-like groundtruth files `path + '/' + name + '/mav0/state_groundtruth_estimate0/data.tum'` that are required by the `EurocGroundTruth` class.
+2. Use the script `pyslam/io/generate_euroc_groundtruths_as_tum.sh` to generate the TUM-like groundtruth files `path + '/' + name + '/mav0/state_groundtruth_estimate0/data.tum'` that are required by the `EurocGroundTruth` class.
 3. Select the corresponding calibration settings file (section `EUROC_DATASET: settings:` in the file `config.yaml`).
 
 
@@ -1125,7 +1125,7 @@ A concise introduction of the `mcap` format is available [here](https://foxglove
 
 #### Video and Folder Datasets
 
-You can use the `VIDEO_DATASET` and `FOLDER_DATASET` types to read generic video files and image folders (specifying a glob pattern), respectively. A companion ground truth file can be set in the simple format type: Refer to the class `SimpleGroundTruth` in `io/ground_truth.py` and check the script `io/convert_groundtruth_to_simple.py`.  
+You can use the `VIDEO_DATASET` and `FOLDER_DATASET` types to read generic video files and image folders (specifying a glob pattern), respectively. A companion ground truth file can be set in the simple format type: Refer to the class `SimpleGroundTruth` in `pyslam/io/ground_truth.py` and check the script `pyslam/io/convert_groundtruth_to_simple.py`.  
 
 --- 
 ### Camera Settings
@@ -1225,7 +1225,7 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [MAST3R](https://github.com/naver/mast3r) 
 * [EOV-Seg](https://github.com/nhw649/EOV-Seg.git)
 * [ODISE](https://github.com/NVlabs/ODISE.git)
-* [RF-DETR](from https://github.com/roboflow/rf-detr.git)
+* [RF-DETR](https://github.com/roboflow/rf-detr.git)
 * [Detic](https://github.com/facebookresearch/Detic.git)
 * [Detectron2](https://github.com/facebookresearch/detectron2.git)
 * [Nanoflann](https://github.com/jlblancoc/nanoflann)

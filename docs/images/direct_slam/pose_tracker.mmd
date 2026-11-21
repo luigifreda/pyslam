@@ -1,0 +1,45 @@
+---
+config:
+  look: handDrawn
+  flowchart:
+    wrappingWidth: 400
+---
+graph LR;
+    %% Direct SLAM pose tracker (cpp/core/slam_direct/pose_tracker.h)
+    linkStyle default stroke:#021526,stroke-width:1px,font-size:14px;
+
+    classDef factory fill:#D1F0FF,stroke:#0077B6,stroke-width:1.5px,font-size:16px;
+    classDef tracker fill:#FFFACD,stroke:#E1A100,stroke-width:1.5px,font-size:16px;
+    classDef singleTracker fill:#EAD7F3,stroke:#6A0DAD,stroke-width:1.5px,font-size:16px;
+    classDef poseTracker fill:#D6FFD6,stroke:#218380,stroke-width:1.5px,font-size:16px;
+    classDef component fill:none,stroke:#6EACDA,stroke-width:1px,font-size:16px;
+
+    make_pose_tracker -->|"`_mode_`"| HYBRID["hybrid<br>(alias: direct)"];
+    make_pose_tracker -->|"`_mode_`"| KLT["klt"];
+    make_pose_tracker -->|"`_mode_`"| SEMI_DIRECT["semi_direct<br>(alias: semidirect)"];
+
+    HYBRID -->|"`_creates_`"| HybridPoseTracker["HybridPoseTracker<br><i>KltPoseTracker seed + photometric refinement</i>"];
+    KLT -->|"`_creates_`"| KltPoseTracker["KltPoseTracker<br><i>LK tracks + reprojection pose</i>"];
+    SEMI_DIRECT -->|"`_creates_`"| SemiDirectPoseTracker["SemiDirectPoseTracker<br><i>planar patches + depth seeds</i>"];
+
+    HybridPoseTracker -->|"`_is-a_`"| PoseTracker["PoseTracker<br><i>track(), after_accept(), on_keyframe(), reset()</i>"];
+    KltPoseTracker -->|"`_is-a_`"| PoseTracker;
+    SemiDirectPoseTracker -->|"`_is-a_`"| PoseTracker;
+
+    %% Building blocks used by the pose trackers
+    HybridPoseTracker -.->|"`_has-a_`"| KltPoseTracker;
+    HybridPoseTracker -.->|"`_uses_`"| DirectAligner["direct_aligner<br><i>sparse photometric alignment</i>"];
+    KltPoseTracker -.->|"`_uses_`"| DepthMeasurement["depth_measurement<br><i>stereo / RGBD depth</i>"];
+    KltPoseTracker -.->|"`_uses_`"| KltTracker["klt_tracker<br><i>pyramidal LK + fwd/bwd check</i>"];
+    KltPoseTracker -.->|"`_uses_`"| ReprojectionPose["reprojection_pose<br><i>PnP RANSAC + robust pose</i>"];
+    SemiDirectPoseTracker -.->|"`_uses_`"| KltTracker;
+    SemiDirectPoseTracker -.->|"`_uses_`"| ReprojectionPose;
+    SemiDirectPoseTracker -.->|"`_uses_`"| PlanarPatch["planar_patch<br><i>patch pose + feature alignment</i>"];
+    SemiDirectPoseTracker -.->|"`_has-a_`"| DepthFilter["depth_filter<br><i>DepthSeed: SVO inverse-depth filter</i>"];
+    SemiDirectPoseTracker -.->|"`_uses_`"| CornerDetection["corner_detection<br><i>grid FAST / GFTT</i>"];
+
+    class make_pose_tracker factory;
+    class KLT,HYBRID,SEMI_DIRECT tracker;
+    class KltPoseTracker,HybridPoseTracker,SemiDirectPoseTracker singleTracker;
+    class PoseTracker poseTracker;
+    class KltTracker,ReprojectionPose,DepthMeasurement,DirectAligner,PlanarPatch,DepthFilter,CornerDetection component;

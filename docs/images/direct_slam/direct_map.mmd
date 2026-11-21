@@ -1,0 +1,40 @@
+---
+config:
+  look: handDrawn
+  flowchart:
+    wrappingWidth: 400
+---
+graph TD;
+    %% Direct map data model and local BA (cpp/core/slam_direct/direct_map.h, direct_backend.h, direct/depth_filter.h)
+    linkStyle default stroke:#021526,stroke-width:1px,font-size:16px;
+
+    classDef moduleTracking fill:#FFD6D6,stroke:#D7263D,stroke-width:1.5px,font-size:16px;
+    classDef moduleLocalMapping fill:#D6FFD6,stroke:#218380,stroke-width:1.5px,font-size:16px;
+    classDef moduleDepthFilter fill:#FFFACD,stroke:#E1A100,stroke-width:1.5px,font-size:16px;
+    classDef moduleMap fill:#F1F1F1,stroke:#555555,stroke-width:1.5px,font-size:16px;
+    classDef component fill:none,stroke:#6EACDA,stroke-width:1px,font-size:16px;
+
+    DirectSlam -->|"`_has-a_`"| DirectMap["DirectMap<br><i>Unbounded archive</i>"];
+    DirectSlam -->|"`_has-a_`"| LivePoint["LivePoint[]<br><i>id, uv, uv_ref, reference_keyframe, position_w, trail</i>"];
+
+    DirectMap -->|"`_has-a_`"| DirectKeyframe["DirectKeyframe[]<br><i>id, img_id, pose Tcw, gray (semi_direct)</i>"];
+    DirectMap -->|"`_has-a_`"| DirectLandmark["DirectLandmark{id}<br><i>position_w, bad, inverse-depth prior</i>"];
+    DirectMap -->|"`_has-a_`"| DirectTrajectoryPose["DirectTrajectoryPose[]<br><i>Tcw = T_frame_reference &middot; T_reference_world</i>"];
+    DirectMap -->|"`_has-a_`"| ObserverIndex["Observer index<br><i>landmark id &rarr; keyframe ids</i>"];
+
+    DirectKeyframe -->|"`_has-a_`"| DirectPoint["DirectPoint[]<br><i>Measured uv, uv_right / depth, outlier flags</i>"];
+    DirectPoint -.->|"`_observes (id)_`"| DirectLandmark;
+    DirectTrajectoryPose -.->|"`_reference_keyframe_`"| DirectKeyframe;
+    LivePoint -.->|"`_tracks (id)_`"| DirectLandmark;
+
+    SemiDirectPoseTracker -->|"`_has-a_`"| DepthSeed["DepthSeed[]<br><i>keyframe_id, pixel, InverseDepthBelief (mu, sigma2, a, b)</i>"];
+    DepthSeed -.->|"`_promoted to_`"| DirectLandmark;
+
+    LocalBA["optimize_direct_map<br><i>Local BA</i>"] -->|"`_reads window /_<br>_commits poses + landmarks_`"| DirectMap;
+    LocalBA -->|"`_returns_`"| DirectBAResult["DirectBAResult<br><i>applied, sizes, outliers, costs</i>"];
+
+    class DirectSlam,SemiDirectPoseTracker,LivePoint moduleTracking;
+    class LocalBA moduleLocalMapping;
+    class DepthSeed moduleDepthFilter;
+    class DirectMap moduleMap;
+    class DirectKeyframe,DirectLandmark,DirectTrajectoryPose,ObserverIndex,DirectPoint,DirectBAResult component;

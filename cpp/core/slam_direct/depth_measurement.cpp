@@ -153,4 +153,17 @@ std::vector<PixelMeasurement> measure_pixels(const Camera &camera, const DirectS
     return measured;
 }
 
+std::vector<PixelMeasurement> measure_live_points(const Camera &camera, const DirectSlamParams &params,
+                                                  const cv::Mat &gray, const cv::Mat &gray_right,
+                                                  const cv::Mat &depth, const Eigen::Isometry3d &Tcw,
+                                                  const std::vector<LivePoint> &live_points) {
+    std::vector<Vec2d> left, right_init;
+    for (const auto &point : live_points) {
+        left.push_back(point.uv);
+        right_init.push_back(predict_right_pixel(camera, Tcw * point.position_w, point.uv));
+    }
+    const bool stereo = camera.sensor_type == SensorType::STEREO;
+    return measure_pixels(camera, params, gray, stereo ? gray_right : cv::Mat(), depth, left, right_init);
+}
+
 } // namespace pyslam

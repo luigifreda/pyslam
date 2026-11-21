@@ -20,6 +20,7 @@
 #include "slam_direct/direct/planar_patch.h"
 
 #include "slam_direct/direct/direct_aligner.h"
+#include "slam_direct/image_utils.h"
 #include "slam_direct/se3.h"
 
 #include <algorithm>
@@ -30,56 +31,6 @@ namespace pyslam {
 namespace {
 
 using Mat66d = Eigen::Matrix<double, 6, 6>;
-
-float sample_gray(const cv::Mat &img, float x, float y) {
-    if (img.cols < 2 || img.rows < 2) {
-        return img.empty() ? 0.0f : static_cast<float>(img.at<uchar>(0, 0));
-    }
-    x = std::clamp(x, 0.0f, static_cast<float>(img.cols - 2));
-    y = std::clamp(y, 0.0f, static_cast<float>(img.rows - 2));
-    const int x0 = static_cast<int>(x);
-    const int y0 = static_cast<int>(y);
-    const float fx = x - static_cast<float>(x0);
-    const float fy = y - static_cast<float>(y0);
-    const float i00 = static_cast<float>(img.at<uchar>(y0, x0));
-    const float i10 = static_cast<float>(img.at<uchar>(y0, x0 + 1));
-    const float i01 = static_cast<float>(img.at<uchar>(y0 + 1, x0));
-    const float i11 = static_cast<float>(img.at<uchar>(y0 + 1, x0 + 1));
-    return (1.0f - fx) * (1.0f - fy) * i00 + fx * (1.0f - fy) * i10 + (1.0f - fx) * fy * i01 +
-           fx * fy * i11;
-}
-
-void require_gray(const cv::Mat &img, const char *name) {
-    if (img.empty() || img.type() != CV_8UC1) {
-        throw std::invalid_argument(std::string(name) + " must be a non-empty CV_8UC1 image");
-    }
-}
-
-struct ImagePyramid {
-    std::vector<cv::Mat> levels;
-    std::vector<double> scales;
-};
-
-ImagePyramid build_pyramid(const cv::Mat &image, const DirectSlamParams &params) {
-    ImagePyramid pyramid;
-    pyramid.levels.reserve(static_cast<size_t>(params.num_pyramid_levels));
-    pyramid.scales.reserve(static_cast<size_t>(params.num_pyramid_levels));
-    for (int level = 0; level < params.num_pyramid_levels; ++level) {
-        if (level == 0) {
-            pyramid.levels.push_back(image);
-            pyramid.scales.push_back(1.0);
-            continue;
-        }
-        const cv::Mat &previous = pyramid.levels.back();
-        const cv::Size size(std::max(1, static_cast<int>(std::lround(previous.cols * params.pyramid_scale))),
-                            std::max(1, static_cast<int>(std::lround(previous.rows * params.pyramid_scale))));
-        cv::Mat resized;
-        cv::resize(previous, resized, size, 0.0, 0.0, cv::INTER_LINEAR);
-        pyramid.levels.push_back(resized);
-        pyramid.scales.push_back(pyramid.scales.back() * params.pyramid_scale);
-    }
-    return pyramid;
-}
 
 // One pixel of a fronto-parallel patch: unproject at the feature depth, then project.
 bool warp_patch_pixel(const Camera &camera, const Eigen::Isometry3d &T_cur_ref, const Vec2d &pixel_ref,

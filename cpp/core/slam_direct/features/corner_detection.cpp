@@ -20,10 +20,12 @@
 #include "slam_direct/features/corner_detection.h"
 
 #include "slam_direct/features/corner_grid.h"
+#include "slam_direct/image_utils.h"
 
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 
 namespace pyslam {
@@ -36,12 +38,6 @@ std::vector<Vec2d> from_cv(const std::vector<cv::Point2f> &points) {
         out.emplace_back(point.x, point.y);
     }
     return out;
-}
-
-void require_gray(const cv::Mat &img, const char *name) {
-    if (img.empty() || img.type() != CV_8UC1) {
-        throw std::invalid_argument(std::string(name) + " must be a non-empty CV_8UC1 image");
-    }
 }
 
 // A border wider than a quarter of the image would leave nothing to detect.
@@ -99,6 +95,15 @@ std::vector<Vec2d> detect_corners(const cv::Mat &gray, const DirectSlamParams &p
     request.refine_subpixel = params.corner_subpix;
     request.subpixel_window = params.subpixel_window;
     return detect_grid_fast(gray, request, detection_mask(gray, request.border, occupied));
+}
+
+OccupancyMask::OccupancyMask(const cv::Size &size, const DirectSlamParams &params)
+    : mask_(size, CV_8U, cv::Scalar(255)),
+      radius_(std::max(1, static_cast<int>(std::lround(params.gftt_min_distance)))) {}
+
+void OccupancyMask::block(const Vec2d &uv) {
+    cv::circle(mask_, cv::Point(static_cast<int>(std::lround(uv.x())), static_cast<int>(std::lround(uv.y()))),
+               radius_, cv::Scalar(0), cv::FILLED);
 }
 
 } // namespace pyslam

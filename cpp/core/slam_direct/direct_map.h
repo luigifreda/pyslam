@@ -24,6 +24,7 @@
 
 #include <opencv2/core.hpp>
 
+#include <algorithm>
 #include <utility>
 #include <map>
 #include <cstdint>
@@ -65,6 +66,13 @@ struct DirectLandmark {
     double inverse_depth_mu = 0.0;
     double inverse_depth_sigma2 = 0.0;
     int prior_keyframe = -1;
+
+    void set_inverse_prior(double mu, double sigma2, int keyframe_id) {
+        has_inverse_prior = true;
+        inverse_depth_mu = mu;
+        inverse_depth_sigma2 = sigma2;
+        prior_keyframe = keyframe_id;
+    }
 };
 
 // An accepted frame pose with a reference-keyframe transform for later BA corrections.
@@ -97,23 +105,23 @@ class DirectMap {
         }
     }
 
-    // A seed promoted after the keyframe was stored still has to join the observer index.
-    void note_observation(int keyframe_id, int64_t landmark_id) {
-        auto &list = observers_[landmark_id];
-        if (list.empty() || list.back() != keyframe_id) {
-            list.push_back(keyframe_id);
-        }
-    }
-
     void add_keyframe(DirectKeyframe keyframe) {
         for (const DirectPoint &obs : keyframe.points) {
-            auto &list = observers_[obs.id];
-            if (list.empty() || list.back() != keyframe.id) list.push_back(keyframe.id);
+            index_observation(keyframe.id, obs.id);
         }
         keyframes_.push_back(std::move(keyframe));
     }
 
-    // Keyframe IDs that observed a landmark when they were added, in insertion
+    // Append an observation to an already stored keyframe (e.g. a depth seed promoted
+    // after its keyframe was added) and keep the observer index in sync.
+    // Throws std::out_of_range, leaving the map unchanged, for an unknown keyframe.
+    void add_observation(int keyframe_id, DirectPoint observation) {
+        const int64_t landmark_id = observation.id;
+        keyframes_.at(static_cast<size_t>(keyframe_id)).points.push_back(std::move(observation));
+        index_observation(keyframe_id, landmark_id);
+    }
+
+    // Unique keyframe IDs that observed a landmark, in first-observation insertion
     // order, or nullptr. Outlier flags are not tracked here; callers recheck them.
     const std::vector<int> *observers(int64_t landmark_id) const {
         const auto it = observers_.find(landmark_id);
@@ -144,6 +152,11 @@ class DirectMap {
     }
 
   private:
+    void index_observation(int keyframe_id, int64_t landmark_id) {
+        auto &list = observers_[landmark_id];
+        if (std::find(list.begin(), list.end(), keyframe_id) == list.end()) list.push_back(keyframe_id);
+    }
+
     std::map<int64_t, DirectLandmark> landmarks_;
     std::vector<DirectKeyframe> keyframes_;
     std::vector<DirectTrajectoryPose> trajectory_;

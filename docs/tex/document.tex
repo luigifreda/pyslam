@@ -183,7 +183,7 @@ Beyond SLAM, pySLAM also provides a unified \textit{ScenefromViews} architecture
 
 Together, these capabilities position pySLAM as a powerful research toolkit -- aiming to be a ``Swiss army knife`` for SLAM development, evaluation, and education. By streamlining reproducibility, supporting modular experimentation, and lowering the technical threshold for entry, pySLAM addresses some of the most persistent challenges in contemporary SLAM research.
 
-The remainder of this document is organized as follows. Section~\ref{main-features} summarizes the main features of the framework, and Section~\ref{related-work} relates pySLAM to prior SLAM systems and to the methods it integrates. Section~\ref{sec:architecture} describes the system architecture: the processing modules, their main components, the camera models, the C++ core, and the Scene from Views module. Section~\ref{supported-components-and-models} lists the supported components and models. Section~\ref{evaluating-slam} presents the evaluation tools, the results obtained on TUM, EuRoC, and KITTI, the automated test suite, and an initial validation of the camera models on TUM-VI. Section~\ref{conclusions} concludes and outlines future work. Appendix~\ref{usage} describes how to run the main tools, and Appendix~\ref{configuration} how to configure datasets and cameras.
+The remainder of this document is organized as follows. Section~\ref{main-features} summarizes the main features of the framework, and Section~\ref{related-work} relates pySLAM to prior SLAM systems and to the methods it integrates. Section~\ref{sec:architecture} describes the system architecture: the indirect (feature-based) pipeline and its main components, the direct and semi-direct pipeline, the C++ core, the camera models, and the Scene from Views module. Section~\ref{supported-components-and-models} lists the supported components and models. Section~\ref{evaluating-slam} presents the evaluation tools, the results obtained on TUM, EuRoC, and KITTI, the automated test suite, and an initial validation of the camera models on TUM-VI. Section~\ref{conclusions} concludes and outlines future work. Appendix~\ref{usage} describes how to run the main tools, and Appendix~\ref{configuration} how to configure datasets and cameras.
 
 
 \section{Main Features}\label{main-features}
@@ -223,7 +223,7 @@ The remainder of this document is organized as follows. Section~\ref{main-featur
     
     \item A modular sparse SLAM \textbf{\protect\hyperlink{cpp-core}{Core}}, implemented both in Python and C++ (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes.
 
-    \item A C++ \textbf{\protect\hyperlink{direct-slam}{direct and semi-direct SLAM}} pipeline with three tracking modes: KLT tracks\cite{lucas1981iterative}, a hybrid mode with sparse photometric alignment, and an SVO-style\cite{forster2014svo} semi-direct mode with a Bayesian inverse-depth filter\cite{vogiatzis2011video}. It supports stereo and RGB-D input, and monocular input in the semi-direct mode, with local bundle adjustment and the same loop closing as the sparse pipeline.
+    \item A C++ \textbf{\protect\hyperlink{direct-slam}{direct and semi-direct SLAM}} pipeline with three tracking modes: KLT tracks\cite{lucas1981iterative}, a hybrid mode with sparse photometric alignment, and an SVO-style\cite{forster2014svo} semi-direct mode with a Bayesian inverse-depth filter\cite{vogiatzis2011video}. It supports stereo and RGB-D input, and monocular input in the semi-direct mode, with local bundle adjustment and the same loop closing as the sparse pipeline (with Sim(3) corrections for monocular input).
 
     \item Several \textbf{\protect\hyperlink{camera-models}{camera models}} in the sparse pipeline: pinhole, Kannala--Brandt\cite{kannala2006generic}, rational distortion, and double sphere\cite{usenko2018double}, with native and rectified fisheye stereo on TUM-VI\cite{schubert2018tumvi}.
     
@@ -299,8 +299,8 @@ camera pose estimation.
 \item
   \texttt{main\_direct\_slam.py} runs the C++ direct-SLAM pipeline
   (Sect.~\ref{direct-slam}): KLT, hybrid, or semi-direct tracking, local
-  bundle adjustment, and, for stereo and RGB-D input, the same loop closing
-  thread as \texttt{main\_slam.py}.
+  bundle adjustment, and the same loop closing thread as
+  \texttt{main\_slam.py}, with Sim(3) corrections for monocular input.
 \item
   \texttt{main\_feature\_matching.py} shows how to use the basic feature
   tracker capabilities (\emph{feature detector} + \emph{feature
@@ -334,32 +334,49 @@ camera pose estimation.
   \protect\hyperlink{scene-from-views}{here}).
 \end{itemize}
 
-\newpage
+\subsection{System Overview}\label{system_overview}
+
+pySLAM contains two SLAM pipelines and a multi-view reconstruction module, summarized in Table~\ref{tab:system_parts}. The three parts share the configuration, the dataset interface, the camera models, and the viewers. The \textit{indirect} pipeline is described in Sect.~\ref{indirect-components} and the \textit{direct and semi-direct} pipeline in Sect.~\ref{direct-slam}. Sect.~\ref{cpp-core} describes the C++ implementation of the sparse core, Sect.~\ref{camera-models} the camera models shared by both pipelines, and Sect.~\ref{scene-from-views} the \textit{Scene from Views} module. The diagrams in these sections are sketches of the workflows, components, and class relationships; some minor components and arrows are omitted for readability. Their Mermaid sources are kept in \texttt{docs/images}, in one subfolder per part.
+
+\begin{table}[!ht]
+\centering
+\caption{The three main parts of pySLAM.}
+\label{tab:system_parts}
+\fontsize{8pt}{9.6pt}\selectfont
+\begin{tabular}{*{5}{>{\raggedright\arraybackslash}p{0.165\textwidth}}}
+\toprule
+Part & Entry point & Front end & Back end & Maps \\
+\midrule
+Indirect (feature-based) SLAM & \texttt{main\_slam.py} & Local features, descriptor or learned matching, local-map tracking & Local mapping thread, loop closing, global BA, volumetric and semantic mapping & Sparse map, optional dense and semantic maps \\
+Direct and semi-direct SLAM & \texttt{main\_direct\_\allowbreak slam.py} & Descriptor-free \texttt{klt}, \texttt{hybrid}, or \texttt{semi\_direct} tracking in C++ & Synchronous local BA, optional loop closing on descriptor keyframes & Direct landmark map, descriptor map for loop closing \\
+Scene from Views & \texttt{main\_scene\_\allowbreak from\_views.py} & Learned multi-view models (DUSt3R, MASt3R, VGGT, \ldots) & Model-specific global alignment & Point clouds, meshes, camera poses \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\hypertarget{indirect-slam}{%
+\subsection{Indirect (Feature-Based) SLAM}\label{indirect-components}}
 
 \begin{figure}[!t]
 \begin{center}
-    \includegraphics[width=\textwidth]{./images/slam_workflow.png}
+    \includegraphics[width=\textwidth]{./images/indirect_slam/slam_workflow.png}
 \end{center}
-\caption{SLAM workflow.}
+\caption{Indirect (feature-based) SLAM workflow.}
 \label{Fig:SLAMWorfklow}
 \end{figure}
 
 \begin{figure}[!t]
 \begin{center}
-    \includegraphics[width=\textwidth]{./images/slam_components.png}
+    \includegraphics[width=\textwidth]{./images/indirect_slam/slam_components.png}
 \end{center}
-\caption{SLAM components.}
+\caption{Indirect (feature-based) SLAM components.}
 \label{Fig:SLAMComponents}
 \end{figure}
 
-\subsection{System overview}\label{system_overview}
+\subsubsection{Workflow and Components}
 
-This section presents some diagram sketches that provide an overview of the main workflow, system components, and class relationships/dependencies. To make the diagrams more readable, some minor components and arrows have been omitted.
-
-
-\subsubsection{SLAM Workflow and Components} 
-
-Fig.~\ref{Fig:SLAMWorfklow} illustrates the SLAM workflow, which is composed of six main parallel processing modules:
+The main pipeline, run by \texttt{main\_slam.py}, follows the PTAM~\cite{PTAM} and ORB-SLAM~\cite{ORB_SLAM2} paradigm: tracking, local mapping, and loop closing all operate on local features and their descriptors. Fig.~\ref{Fig:SLAMWorfklow} illustrates its workflow, which is composed of six main parallel processing modules:
 
 \begin{itemize}
 \item \textit{Tracking}: estimates the camera pose for each incoming frame by extracting and matching local features to the local map, followed by minimizing the reprojection error through motion-only Bundle Adjustment (BA). It includes components such as pose prediction (or relocalization), feature tracking, local map tracking, and keyframe decision-making.
@@ -370,7 +387,7 @@ Fig.~\ref{Fig:SLAMWorfklow} illustrates the SLAM workflow, which is composed of 
 \item \textit{Semantic Mapping}: enriches the SLAM map with dense semantic information by applying pixel-wise segmentation to selected keyframes. Semantic predictions are fused across views to assign semantic labels or descriptors to keyframes and map points. The module operates in parallel, consuming keyframes and associated image data from a queue, applying a configured semantic segmentation model, and updating the map with fused semantic features. This enables advanced downstream tasks such as semantic navigation, scene understanding, and category-level mapping.
 \end{itemize}
 
-The first four modules follow the established PTAM~\cite{PTAM} and ORB-SLAM~\cite{ORB_SLAM2} paradigm. Here, the \textit{Tracking} module serves as the front-end, while the remaining modules operate as part of the back-end.
+The first four modules reproduce the PTAM and ORB-SLAM decomposition. The \textit{Tracking} module serves as the front-end, while the remaining modules operate as part of the back-end.
 
 In parallel, the system constructs two types of maps:
 \begin{itemize}
@@ -384,13 +401,11 @@ Fig.~\ref{Fig:SLAMComponents} details the internal components and interactions o
 
 \begin{figure}[!ht]
 \begin{center}
-    \includegraphics[width=0.8\textwidth]{./images/feature_tracker.png}
+    \includegraphics[width=0.8\textwidth]{./images/indirect_slam/feature_tracker.png}
 \end{center}
 \caption{Feature tracker.}
 \label{Fig:FeatureTracker}
 \end{figure}
-
-\subsection{Main SLAM System Components}
 
 \subsubsection{Feature Tracker}
 
@@ -417,7 +432,7 @@ The \texttt{FeatureTracker} class is composed of several key sub-components, inc
 
 \begin{figure}[!t]
 \begin{center}
-    \includegraphics[width=0.8\textwidth]{./images/feature_matcher.png}
+    \includegraphics[width=0.8\textwidth]{./images/indirect_slam/feature_matcher.png}
 \end{center}
 \caption{Feature matcher.}
 \label{Fig:FeatureMatcher}
@@ -425,7 +440,7 @@ The \texttt{FeatureTracker} class is composed of several key sub-components, inc
 
 \begin{figure}[!t]
 \begin{center}
-    \includegraphics[width=0.7\textwidth]{./images/loop_detector.png}
+    \includegraphics[width=0.7\textwidth]{./images/indirect_slam/loop_detector.png}
 \end{center}
 \caption{Loop detector.}
 \label{Fig:LoopDetector}
@@ -443,7 +458,7 @@ The Section~\ref{supported-matchers} reports a list of supported feature matcher
 
 \begin{figure}[!t]
 \begin{center}
-    \includegraphics[width=\textwidth]{./images/depth_estimator.png}
+    \includegraphics[width=\textwidth]{./images/indirect_slam/depth_estimator.png}
 \end{center}
 \caption{Depth estimator.}
 \label{Fig:DepthEstimator}
@@ -469,7 +484,7 @@ The Section~\ref{supported-depth-prediction-models} reports a list of supported 
 
 \begin{figure}[!t]
 \begin{center}
-    \includegraphics[width=\textwidth]{./images/volumetric_integrator.png}
+    \includegraphics[width=\textwidth]{./images/indirect_slam/volumetric_integrator.png}
 \end{center}
 \caption{Volumetric integrator.}
 \label{Fig:VolumetricIntegrator}
@@ -486,7 +501,7 @@ The Section~\ref{supported-volumetric-mapping-methods} reports a list of support
 
 \begin{figure}[!t]
 \begin{center}
-    \includegraphics[width=\textwidth]{./images/semantic_mapping.png}
+    \includegraphics[width=\textwidth]{./images/indirect_slam/semantic_mapping.png}
 \end{center}
 \caption{Semantic Mapping.}
 \label{Fig:SemanticMapping}
@@ -515,45 +530,84 @@ This modular design decouples semantic segmentation from mapping logic, enabling
 The Section~\ref{semantic-mapping-and-image-segmentation} provides a list of supported semantic segmentation methods.
 A more in-depth presentation of the semantic mapping module is provided in~\cite{pyslamSemantic2025}.
 
-\hypertarget{camera-models}{%
-\subsection{Camera Models}\label{camera-models}}
+\hypertarget{direct-slam}{%
+\subsection{Direct and Semi-Direct SLAM}\label{direct-slam}}
 
-The sparse pipeline accesses the camera only through its projection $\pi(\mathbf{X}_c)$, its unprojection $\pi^{-1}(\mathbf{u})$, and the analytic Jacobian $\partial \pi / \partial \mathbf{X}_c$ of the projection with respect to a point $\mathbf{X}_c = (x, y, z)^\top$ in the camera frame. Four models are available and are selected by the \texttt{Camera.type} field of the settings file. A settings file without that field keeps the linear pinhole model, so existing calibration files are unaffected.
+\begin{figure}[!t]
+\begin{center}
+    \includegraphics[width=\textwidth]{./images/direct_slam/direct_slam_workflow.png}
+\end{center}
+\caption{Direct and semi-direct SLAM workflow. Tracking, the depth filter, and local BA run synchronously inside one \texttt{DirectSlam.track()} call; loop closing runs on its own thread over a separate descriptor map.}
+\label{Fig:DirectSLAMWorkflow}
+\end{figure}
 
-\paragraph{Pinhole.} The default model is
-\begin{equation}
-u = f_x \frac{x}{z} + c_x, \qquad v = f_y \frac{y}{z} + c_y .
-\end{equation}
-The distortion coefficients are used only to undistort the detected keypoints, and bundle adjustment compares the linear projection with the undistorted keypoints.
+\begin{figure}[!t]
+\begin{center}
+    \includegraphics[width=\textwidth]{./images/direct_slam/direct_slam_components.png}
+\end{center}
+\caption{Direct and semi-direct SLAM components.}
+\label{Fig:DirectSLAMComponents}
+\end{figure}
 
-\paragraph{Kannala--Brandt.} The fisheye model of~\cite{kannala2006generic} with four distortion coefficients (\texttt{kannala\_brandt4}) maps the angle $\theta$ between the ray and the optical axis to a distorted angle $\theta_d$:
-\begin{equation}
-r = \sqrt{x^2 + y^2}, \quad \theta = \operatorname{atan2}(r, z), \quad
-\theta_d = \theta \left(1 + k_1 \theta^2 + k_2 \theta^4 + k_3 \theta^6 + k_4 \theta^8\right),
-\end{equation}
-\begin{equation}
-u = f_x \, \theta_d \, \frac{x}{r} + c_x, \qquad v = f_y \, \theta_d \, \frac{y}{r} + c_y .
-\end{equation}
-This is the polynomial used by OpenCV's fisheye module. Because the field of view can exceed $180^\circ$, a point with $z < 0$ can still have a valid projection.
+\texttt{main\_direct\_slam.py} runs a second visual SLAM pipeline, which exists only in C++ (\texttt{cpp/core/slam\_direct}) and is compiled into the same \texttt{cpp\_core} module. Tracking and local mapping are descriptor-free: their correspondences come from image intensities on raw pixels (grid FAST or GFTT corners, pyramidal Lucas--Kanade, photometric patch alignment), and descriptors are extracted only on separate keyframes for the optional loop closing. The pipeline reuses the configuration, datasets, camera factory, viewers, and feature-trail renderer of the indirect pipeline. It does not provide dense or semantic mapping.
 
-\paragraph{Rational pinhole.} This model (\texttt{pinhole\_radtan8}) distorts the normalized point $(x/z, y/z)$ with the OpenCV rational model, whose eight coefficients are $k_1, k_2, p_1, p_2, k_3, k_4, k_5, k_6$, and then multiplies it by the intrinsic matrix.
+\subsubsection{Workflow and Components}
 
-\paragraph{Double sphere.} The model of~\cite{usenko2018double} (\texttt{double\_sphere}) projects a point through two unit spheres whose centers are offset by $\xi$, followed by a pinhole whose image plane is shifted by $\alpha$:
-\begin{equation}
-d_1 = \Vert \mathbf{X}_c \Vert, \quad d_2 = \sqrt{x^2 + y^2 + (\xi d_1 + z)^2}, \quad
-u = f_x \frac{x}{\alpha d_2 + (1 - \alpha)(\xi d_1 + z)} + c_x ,
-\end{equation}
-and analogously for $v$.
+Fig.~\ref{Fig:DirectSLAMWorkflow} shows the workflow, which has four modules. Unlike in the indirect pipeline, the first three run synchronously on the caller's thread, inside one \texttt{DirectSlam.track()} call, and the Python binding releases the GIL during that call.
+\begin{itemize}
+\item \textit{Tracking}: initializes the map from sensor depth (stereo or RGB-D) or, for monocular input, from a two-view geometry. It predicts each pose with a constant-velocity model, estimates it with the configured mode, and accepts or rejects it from its inlier count. A rejected frame keeps the last accepted reference for recovery. A low live-track count, or the maximum keyframe interval, triggers a new keyframe.
+\item \textit{Depth Filter} (\texttt{semi\_direct} only): corners without a depth measurement become inverse-depth seeds, which each accepted frame updates and which are promoted to landmarks when they converge.
+\item \textit{Local BA}: records the measured keyframe observations and jointly optimizes the latest keyframes and their landmarks. The validated corrections are propagated to non-keyframe poses and live tracks.
+\item \textit{Loop Closing} (optional): reuses the \texttt{LoopClosing} thread of the indirect pipeline on separately extracted descriptor keyframes, and writes the corrected poses back into the direct map while tracking is idle.
+\end{itemize}
 
-\paragraph{Measurements.} For the pinhole model, tracking and optimization use undistorted keypoints, as in ORB-SLAM2~\cite{ORB_SLAM2}. For the three non-linear models, the projection predicts the detected pixel directly, so projection search and bundle adjustment measure the raw keypoints. For every model the framework also keeps the pinhole image of each keypoint ray, which is used by the fundamental-matrix test and by rectified stereo matching. A stereo observation is the triple $(u_l, v_l, u_r)$. With a physical stereo rig, $u_r$ is predicted by projecting the point through the calibrated right camera and its extrinsics. With an RGB-D sensor it is the virtual coordinate $u_r = f_x x/z + c_x - b f_x / z$, where $b f_x$ is the stereo baseline times the focal length.
+The system therefore keeps two maps: the \emph{direct map}, which archives keyframes, persistent landmarks, reference-relative trajectory poses, and an observer index; and the \emph{descriptor map}, a standard pySLAM \texttt{Map} of descriptor keyframes and points that is used only by loop closing and whose keyframes are aligned to the direct keyframes.
 
-\paragraph{Native fisheye stereo.} Rectified-row stereo matching assumes a pinhole image. For the non-linear models, stereo correspondences are instead searched on unit bearings: each left bearing defines an epipolar plane in the right camera, and a right keypoint is a candidate when its bearing lies on that plane, between the image of the point at infinity and the right camera center, within a $\chi^2$ bound (one degree of freedom) of the right keypoint's octave. The best descriptor must pass a ratio test, matches are made one-to-one, and each pair is triangulated from both rays and accepted only if it reprojects within a two-degree-of-freedom $\chi^2$ bound in both images. Triangulation search between keyframes uses the same bearing-to-plane distance.
+Fig.~\ref{Fig:DirectSLAMComponents} shows the main classes. \texttt{DirectSlam} is the C++ system object. It owns the mode-specific \texttt{PoseTracker}, the \texttt{MonocularInitializer}, the \texttt{DirectMap}, the live tracks, and the parameters, and calls \texttt{optimize\_direct\_map} for local BA. On the Python side, \texttt{DirectLoopClosing} adapts the direct map to the standard \texttt{LoopClosing} thread, a \texttt{DirectLoopGate} lets tracking and loop closing take turns on the map, and \texttt{DirectSlamDisplay} copies map snapshots after each \texttt{track()} call and feeds the shared \texttt{Viewer3D} and \texttt{CvImageViewer}.
 
-\paragraph{Implementation.} The projection formulas and their Jacobians are written once, in a single C++ header that depends only on Eigen and is shared by the Python and C++ cores. Optimization factors for g2o~\cite{g2o_kummerle} and GTSAM~\cite{factor_graphs_for_robot_perception} are implemented in C++ with analytic Jacobians, so no per-observation Python callbacks enter the optimization. Pinhole observations keep their original optimizer factors.
+\begin{figure}[!t]
+\begin{center}
+    \includegraphics[width=\textwidth]{./images/direct_slam/pose_tracker.png}
+\end{center}
+\caption{Direct SLAM pose tracker.}
+\label{Fig:DirectPoseTracker}
+\end{figure}
 
-\paragraph{TUM-VI.} The TUM-VI loader~\cite{schubert2018tumvi} supports two stereo modes. The \textit{native} mode keeps the original fisheye images and builds two Kannala--Brandt cameras with the calibrated right-to-left transform. The \textit{rectified} mode remaps the fisheye images once to a pinhole stereo pair, which then runs through the standard pinhole pipeline; this mode should be used with stereo depth estimators and dense reconstruction. Monocular fisheye tracking is also supported. Motion-capture poses are converted to the tracking camera frame and are never interpolated across gaps longer than a configurable threshold. Sect.~\ref{camera-model-validation} reports an initial comparison of the two modes.
+\subsubsection{Pose Tracker}
 
-\paragraph{Limitations.} Stereo depth initialization and the legacy initialization and Sim(3) paths have not yet been validated for fields of view beyond $180^\circ$. Supporting a projection model is therefore not equivalent to supporting complete omnidirectional SLAM.
+The tracking mode is selected by \texttt{DIRECT\_SLAM.mode}, and \texttt{make\_pose\_tracker} creates one implementation of the \texttt{PoseTracker} interface per mode (Fig.~\ref{Fig:DirectPoseTracker}):
+\begin{itemize}
+\item \texttt{klt} (\texttt{KltPoseTracker}): grid FAST or GFTT corners are tracked by pyramidal Lucas--Kanade~\cite{lucas1981iterative} with a forward--backward check. The pose comes from PnP RANSAC followed by robust Gauss--Newton on the reprojection error. In the usual taxonomy, which classifies a method by the error that pose and structure are optimized on, this mode is indirect.
+\item \texttt{hybrid} (\texttt{HybridPoseTracker}): the \texttt{klt} pose is refined by sparse photometric alignment of patches with known depth, and the refinement is kept only when it agrees with the geometric tracks. If corner flow fails, photometric-only tracking can recover when enough reference landmarks support it.
+\item \texttt{semi\_direct} (\texttt{SemiDirectPoseTracker}): the SVO-style mode~\cite{forster2014svo,forster2017svo}. Each frame is aligned to the reference keyframe in three steps. First, a photometric solve aligns fronto-parallel 3D patches, obtained by unprojecting every patch pixel at the feature depth. Then each projected patch is aligned on its own in 2D, with the pose fixed. Finally, the aligned pixels feed the same reprojection pose solver. This mode owns the depth seeds and is the only one that accepts monocular input; it does not fall back to Lucas--Kanade tracking.
+\end{itemize}
+\texttt{DirectSlam} keeps what is common to all modes (input checks, initialization, the accept/reject decision, live-track bookkeeping, keyframes, and local BA), and the trackers plug in through the \texttt{track()}, \texttt{after\_accept()}, \texttt{on\_keyframe()}, and \texttt{reset()} hooks. The building blocks are free functions grouped by folder: Lucas--Kanade code under \texttt{klt/}, photometric code under \texttt{direct/}, and shared geometry, corner detection, depth measurement, and image utilities under \texttt{geometry/} and \texttt{features/}. Undistorted pinhole cameras and the raw-pixel models of Sect.~\ref{camera-models} are supported in all modes without remapping the images; with a raw-pixel model, the photometric warp uses the projection Jacobian of the camera.
+
+\paragraph{Depth filter.} In \texttt{semi\_direct} mode, a corner without sensor depth becomes an inverse-depth seed, updated by the SVO depth filter~\cite{forster2014svo} with the parametric model of Vogiatzis and Hern\'andez~\cite{vogiatzis2011video}. The inverse depth is a Gaussian inlier hypothesis mixed with a uniform outlier hypothesis over $[1/d_{\max}, 1/d_{\min}]$, where $d_{\min}$ and $d_{\max}$ are the configured depth bounds (\texttt{seed\_min\_depth} and \texttt{seed\_max\_depth}), and a Beta distribution models the inlier ratio. The prior variance is chosen so that $\pm 3\sigma$ covers the depth range, and the mean starts at the median scene depth of the keyframe. A seed is tracked from frame to frame with pyramidal Lucas--Kanade, starting at its keyframe pixel; this keeps it alive under forward motion, where a fronto-parallel patch matched against an older keyframe image no longer fits. Each tracked position is triangulated against the keyframe ray and yields one inverse-depth measurement. Its variance $\tau^2$ is the inverse-depth change caused by a one-pixel angular error on the current ray, as in SVO. When the Lucas--Kanade track is lost, the seed receives one epipolar search along its $\pm 3\sigma$ segment, using zero-mean SSD on the same planar patch with a parabolic subpixel refinement. A match re-acquires the seed; otherwise the seed is dropped, so that stale seeds do not take capacity from new keyframes. A seed is promoted to a landmark when its inverse-depth variance falls below a threshold and its match has enough parallax, and it is removed after repeated failures or when its expected inlier ratio becomes too low.
+
+\paragraph{Monocular initialization.} A monocular map starts from a two-view initialization, in the style of SVO and ORB-SLAM. Corners detected on a reference frame are tracked with pyramidal Lucas--Kanade until their median displacement exceeds a threshold. A five-point essential matrix~\cite{nister2004efficient} estimated with RANSAC on the bearings then gives the relative pose, and the inliers are triangulated subject to parallax and reprojection gates. The scale is chosen so that the median scene depth equals $\sqrt{d_{\min} d_{\max}}$. The reference frame becomes the first keyframe at the identity, each triangulated landmark receives the same inverse-depth prior as a promoted seed, and local BA runs. The reference is replaced when too few tracks survive or the geometry is degenerate (e.g., under pure rotation). The tracking state stays \texttt{INIT} until initialization succeeds. With stereo or RGB-D input, the first frame with enough depth-backed corners defines the world origin; a measured corner becomes a landmark immediately, and only corners without a valid depth become seeds.
+
+\begin{figure}[!t]
+\begin{center}
+    \includegraphics[width=\textwidth]{./images/direct_slam/direct_map.png}
+\end{center}
+\caption{Direct map data model and local BA.}
+\label{Fig:DirectMap}
+\end{figure}
+
+\subsubsection{Direct Map and Local Bundle Adjustment}
+
+Fig.~\ref{Fig:DirectMap} shows the data model of the direct map. \texttt{DirectMap} is an unbounded archive; only the optimization window is bounded. A \texttt{DirectKeyframe} stores its pose and the immutable measurements of its observations (\texttt{DirectPoint}: left pixel, right pixel or depth, and per-channel outlier flags); in \texttt{semi\_direct} mode it also keeps its gray image while it is the tracking reference or still owns seeds. A \texttt{DirectLandmark} stores the world position shared by all observations of the same identifier and, for monocular input, the inverse-depth prior of the seed it was promoted from. A \texttt{DirectTrajectoryPose} stores each accepted frame relative to its reference keyframe, $T_{fw} = T_{fr} T_{rw}$, so that non-keyframe poses follow every BA and loop correction. A \texttt{LivePoint} is a track that is currently followed, linked to a landmark and to a reference keyframe.
+
+The backend follows the joint pose--landmark formulation of \texttt{slamplay}'s \texttt{vslam} and runs synchronous local bundle adjustment with g2o~\cite{g2o_kummerle} on the latest keyframes, in chronological order. The oldest active pose is fixed, and older keyframes that observe active landmarks contribute fixed measurement constraints, so that the sliding window cannot move shared points without accounting for their archived observations. The residuals are the left-camera reprojection error, the right-camera reprojection error for stereo (with the full calibrated transform for native rigs), and the measured depth for RGB-D, with standard deviation $\sigma_z = \sigma_0 \max(1, z^2)$, where $\sigma_0$ is the configured \texttt{ba\_depth\_sigma}. Stereo and RGB-D measurements fix the metric scale. A monocular landmark, whether promoted from a seed or triangulated at initialization, adds an inverse-depth prior as a binary edge between the landmark and the keyframe in which the prior was measured; these priors are the scale gauge. Disconnected or scale-unobservable windows are skipped. Robust Levenberg--Marquardt with Huber kernels is followed by outlier exclusion and a second refinement, and the solution is committed only if it is finite and its full robust objective, including excluded edges, is acceptable. There is no photometric bundle adjustment.
+
+\subsubsection{Loop Closing on Descriptor Keyframes}
+
+Loop closing reuses the indirect components of Fig.~\ref{Fig:SLAMComponents}: \texttt{LoopClosing}, \texttt{LoopDetectingProcess} with any loop detector of Sect.~\ref{supported-global-descriptors-and-local-descriptor-aggregation-methods}, the group-consistency and geometry checkers, the loop corrector, pose-graph optimization, and global BA. For each new direct keyframe, the tracking thread registers an empty descriptor keyframe and queues its images; \texttt{LoopDetectingProcess} extracts the configured local features and returns them to the \texttt{LoopClosing} thread, which creates the descriptor map points from the latest direct pose of the keyframe. Feature extraction is therefore removed from the tracking thread. Corrected poses are written back into the direct map only while tracking is idle.
+
+Stereo and RGB-D keyframes obtain the depth of their descriptor keypoints as in the indirect pipeline, and loops are verified and corrected in SE(3). Monocular keyframes have no such depth. A descriptor keypoint within 3\,px of a direct landmark observation takes the 3D position of that landmark, so that one descriptor point per landmark is shared by every keyframe that observes it, and each new keyframe triangulates its remaining descriptor matches with its three predecessors at the direct poses. Geometric verification is then carried out in Sim(3). After a loop correction or global BA, the scale change $s_k$ of each keyframe $k$ is recovered as the median ratio between the camera distances of its landmark-associated points after and before the correction (triangulated matches are excluded), and keyframes with too few such points take the nearest estimate. \texttt{DirectSlam.apply\_keyframe\_poses} then moves each landmark through its anchor keyframe as a similarity transformation and rescales the inverse-depth priors, the reference-relative frame offsets, and the depth seeds accordingly.
+
+\paragraph{Comparison with the indirect pipeline.} The direct pipeline trades the full local mapper of \texttt{main\_slam.py} (with its triangulation, point fusion, and keyframe culling) for a lighter, synchronous design: persistent landmarks, inverse-depth seeds, and a bounded local BA. Recovery after tracking loss retries the last accepted reference rather than performing place-recognition relocalization, and the trajectory is exported as the final accepted poses after all local and loop corrections.
 
 \hypertarget{cpp-core}{%
 \subsection{C++ Core for Sparse SLAM}\label{cpp-core}}
@@ -589,28 +643,71 @@ The C++ core adopts a streamlined design philosophy:
 \end{itemize}
 
 
-\hypertarget{direct-slam}{%
-\subsection{Direct and Semi-Direct SLAM}\label{direct-slam}}
+\hypertarget{camera-models}{%
+\subsection{Camera Models}\label{camera-models}}
 
-\texttt{main\_direct\_slam.py} runs a second visual SLAM pipeline, implemented in C++ (\texttt{cpp/core/slam\_direct}) and compiled into the same \texttt{cpp\_core} module. Its tracking and local-mapping correspondences come from image intensities on raw pixels, not from descriptor matching. It reuses the pySLAM cameras, settings, datasets, and viewers. The tracking mode is selected by \texttt{DIRECT\_SLAM.mode}:
-\begin{itemize}
-\item \texttt{klt}: grid FAST or GFTT corners are tracked by pyramidal Lucas--Kanade~\cite{lucas1981iterative} with a forward--backward check. The pose comes from PnP RANSAC followed by robust Gauss--Newton on reprojection error. In the usual taxonomy this mode is indirect.
-\item \texttt{hybrid}: the \texttt{klt} pose is refined by sparse photometric alignment of patches with known depth. If corner flow fails, photometric-only tracking can recover when enough reference landmarks support it.
-\item \texttt{semi\_direct}: the SVO-style mode~\cite{forster2014svo}. Each frame is aligned to the reference keyframe in three steps. First, a photometric solve aligns fronto-parallel 3D patches, which unproject every patch pixel at the feature depth. Then each projected patch is aligned on its own in 2D, with the pose fixed. Finally, the aligned pixels feed the same reprojection pose solver.
-\end{itemize}
+The sparse pipeline accesses the camera only through its projection $\pi(\mathbf{X}_c)$, its unprojection $\pi^{-1}(\mathbf{u})$, and the analytic Jacobian $\partial \pi / \partial \mathbf{X}_c$ of the projection with respect to a point $\mathbf{X}_c = (x, y, z)^\top$ in the camera frame. Four models are available and are selected by the \texttt{Camera.type} field of the settings file. A settings file without that field keeps the linear pinhole model, so existing calibration files are unaffected. The direct pipeline (Sect.~\ref{direct-slam}) uses the same camera classes; the measurement conventions and the stereo matching described below refer to the sparse pipeline.
 
-In \texttt{semi\_direct} mode, a corner without sensor depth becomes an inverse-depth seed. It is updated by the SVO depth filter~\cite{forster2014svo}, which uses the parametric model of Vogiatzis and Hern\'andez~\cite{vogiatzis2011video}. The inverse depth is a Gaussian inlier hypothesis mixed with a uniform outlier hypothesis over the depth range, and a Beta distribution models the inlier ratio. Each accepted frame searches along the seed's epipolar segment with zero-mean SSD on the same planar patch and refines the best match to subpixel. The measurement variance is the inverse-depth change caused by a one-pixel angular error on the current ray. A searched segment without a match counts as outlier evidence. Converged seeds are promoted to landmarks.
+\paragraph{Pinhole.} The default model is
+\begin{equation}
+u = f_x \frac{x}{z} + c_x, \qquad v = f_y \frac{y}{z} + c_y .
+\end{equation}
+The distortion coefficients are used only to undistort the detected keypoints, and bundle adjustment compares the linear projection with the undistorted keypoints.
 
-\texttt{klt} and \texttt{hybrid} need stereo or RGB-D input. \texttt{semi\_direct} also accepts monocular input: the first frame becomes a keyframe at the identity, and tracking stays in its initialization state until enough seeds converge. Monocular scale follows the depth prior of the seeds. Undistorted pinhole cameras and the raw-pixel models of Sect.~\ref{camera-models} are supported without remapping the images.
+\paragraph{Kannala--Brandt.} The fisheye model of~\cite{kannala2006generic} with four distortion coefficients (\texttt{kannala\_brandt4}) maps the angle $\theta$ between the ray and the optical axis to a distorted angle $\theta_d$:
+\begin{equation}
+r = \sqrt{x^2 + y^2}, \quad \theta = \operatorname{atan2}(r, z), \quad
+\theta_d = \theta \left(1 + k_1 \theta^2 + k_2 \theta^4 + k_3 \theta^6 + k_4 \theta^8\right),
+\end{equation}
+\begin{equation}
+u = f_x \, \theta_d \, \frac{x}{r} + c_x, \qquad v = f_y \, \theta_d \, \frac{y}{r} + c_y .
+\end{equation}
+This is the polynomial used by OpenCV's fisheye module. Because the field of view can exceed $180^\circ$, a point with $z < 0$ can still have a valid projection.
 
-The backend runs synchronous local bundle adjustment with g2o on a window of recent keyframes. It uses Huber kernels and outlier rejection. Stereo and RGB-D measurements keep the metric scale, and monocular landmarks carry an inverse-depth prior from their seed. For stereo and RGB-D input, the runner also starts the standard loop-closing thread on separately extracted descriptor keyframes and writes the corrected poses back into the direct map. There is no photometric bundle adjustment.
+\paragraph{Rational pinhole.} This model (\texttt{pinhole\_radtan8}) distorts the normalized point $x' = x/z$, $y' = y/z$ with the OpenCV rational model, whose eight coefficients are $k_1, k_2, p_1, p_2, k_3, k_4, k_5, k_6$. With $r^2 = x'^2 + y'^2$, the radial factor is a ratio of two polynomials in $r^2$ and the tangential terms are those of the Brown--Conrady model:
+\begin{equation}
+c(r) = \frac{1 + k_1 r^2 + k_2 r^4 + k_3 r^6}{1 + k_4 r^2 + k_5 r^4 + k_6 r^6},
+\end{equation}
+\begin{equation}
+x'' = x' \, c(r) + 2 p_1 x' y' + p_2 \left(r^2 + 2 x'^2\right), \qquad
+y'' = y' \, c(r) + p_1 \left(r^2 + 2 y'^2\right) + 2 p_2 x' y',
+\end{equation}
+\begin{equation}
+u = f_x \, x'' + c_x, \qquad v = f_y \, y'' + c_y .
+\end{equation}
+The projection is defined for $z > 0$. With $k_4 = k_5 = k_6 = 0$ it reduces to the five-coefficient OpenCV model.
+
+\paragraph{Double sphere.} The model of~\cite{usenko2018double} (\texttt{double\_sphere}) projects a point through two unit spheres whose centers are offset by $\xi$, followed by a pinhole whose image plane is shifted by $\alpha$:
+\begin{equation}
+d_1 = \Vert \mathbf{X}_c \Vert = \sqrt{x^2 + y^2 + z^2}, \qquad
+d_2 = \sqrt{x^2 + y^2 + (\xi d_1 + z)^2},
+\end{equation}
+\begin{equation}
+u = f_x \frac{x}{\alpha d_2 + (1 - \alpha)(\xi d_1 + z)} + c_x, \qquad
+v = f_y \frac{y}{\alpha d_2 + (1 - \alpha)(\xi d_1 + z)} + c_y .
+\end{equation}
+A point has a valid projection only if $z > -w_2 d_1$, where
+\begin{equation}
+w_1 = \begin{cases} \alpha / (1 - \alpha), & \alpha \le 0.5, \\ (1 - \alpha) / \alpha, & \alpha > 0.5, \end{cases} \qquad
+w_2 = \frac{w_1 + \xi}{\sqrt{2 w_1 \xi + \xi^2 + 1}} .
+\end{equation}
+
+\paragraph{Measurements.} For the pinhole model, tracking and optimization use undistorted keypoints, as in ORB-SLAM2~\cite{ORB_SLAM2}. For the three non-linear models, the projection predicts the detected pixel directly, so projection search and bundle adjustment measure the raw keypoints. For every model the framework also keeps the pinhole image of each keypoint ray, which is used by the fundamental-matrix test and by rectified stereo matching. A stereo observation is the triple $(u_l, v_l, u_r)$. With a physical stereo rig, $u_r$ is predicted by projecting the point through the calibrated right camera and its extrinsics. With an RGB-D sensor it is the virtual coordinate $u_r = f_x x/z + c_x - b f_x / z$, where $b f_x$ is the stereo baseline times the focal length.
+
+\paragraph{Native fisheye stereo.} Rectified-row stereo matching assumes a pinhole image. For the non-linear models, stereo correspondences are instead searched on unit bearings: each left bearing defines an epipolar plane in the right camera, and a right keypoint is a candidate when its bearing lies on that plane, between the image of the point at infinity and the right camera center, within a $\chi^2$ bound (one degree of freedom) of the right keypoint's octave. The best descriptor must pass a ratio test, matches are made one-to-one, and each pair is triangulated from both rays and accepted only if it reprojects within a two-degree-of-freedom $\chi^2$ bound in both images. Triangulation search between keyframes uses the same bearing-to-plane distance.
+
+\paragraph{Implementation.} The projection formulas and their Jacobians are written once, in a single C++ header that depends only on Eigen and is shared by the Python and C++ cores. Optimization factors for g2o~\cite{g2o_kummerle} and GTSAM~\cite{factor_graphs_for_robot_perception} are implemented in C++ with analytic Jacobians, so no per-observation Python callbacks enter the optimization. Pinhole observations keep their original optimizer factors.
+
+\paragraph{TUM-VI.} The TUM-VI loader~\cite{schubert2018tumvi} supports two stereo modes. The \textit{native} mode keeps the original fisheye images and builds two Kannala--Brandt cameras with the calibrated right-to-left transform. The \textit{rectified} mode remaps the fisheye images once to a pinhole stereo pair, which then runs through the standard pinhole pipeline; this mode should be used with stereo depth estimators and dense reconstruction. Monocular fisheye tracking is also supported. Motion-capture poses are converted to the tracking camera frame and are never interpolated across gaps longer than a configurable threshold. Sect.~\ref{camera-model-validation} reports an initial comparison of the two modes.
+
+\paragraph{Limitations.} Stereo depth initialization and the legacy initialization and Sim(3) paths have not yet been validated for fields of view beyond $180^\circ$. Supporting a projection model is therefore not equivalent to supporting complete omnidirectional SLAM.
 
 \hypertarget{scene-from-views}{%
 \subsection{3D Scene from Views}\label{scene-from-views}}
 
 \begin{figure}[!ht]
 \begin{center}
-    \includegraphics[width=\textwidth]{./images/scene_from_views.png}
+    \includegraphics[width=\textwidth]{./images/scene_from_views/scene_from_views.png}
 \end{center}
 \caption{\textit{SceneFromViews} architecture.}
 \label{Fig:SceneFromViews}
@@ -1230,7 +1327,7 @@ evaluate both online and final errors up to the current time.
 \hypertarget{testing}{%
 \subsection{Automated Testing}\label{testing}}
 
-Reproducibility also depends on detecting regressions as the framework evolves. The repository therefore separates the automated test suite (folder \texttt{tests}) from the usage examples (folder \texttt{examples}). The suite comprises Python unit tests run with \texttt{pytest}, C++ unit tests of the sparse core, Python tests of the C++ core and its bindings, and headless checks of the C++ extension modules. A single launcher, \texttt{tests/run\_all.sh}, runs all of them in sequence and reports the failing steps. Several tests reproduce past defects, such as crashes in local mapping and relocalization or inconsistent loop-detector database indices, so that they cannot reappear unnoticed.
+Reproducibility also depends on detecting regressions as the framework evolves. The repository therefore separates the automated test suite (folder \texttt{tests}) from the usage examples (folder \texttt{examples}). The suite comprises Python unit tests run with \texttt{pytest}, C++ unit tests of the sparse core, Python tests of the C++ core and its bindings, and headless checks of the C++ extension modules. A single launcher, \texttt{tests/run\_all.sh}, runs all of them in sequence and reports the failing steps. Several tests reproduce past defects, such as crashes in local mapping and relocalization or inconsistent loop-detector database indices, so that they cannot reappear unnoticed. The direct-SLAM pipeline has its own synthetic C++ tests: one executable covers photometric and geometric motion, stereo and RGB-D scale, native-rig BA, outlier rejection, fixed gauges, bounded windows, failure and recovery, the depth-filter update against a transcription of SVO's seed update, and monocular two-view initialization, while a second one unit-tests the shared building blocks (image samplers and pyramids, occupancy masks, live-point measurement, map bookkeeping, and the tracker hooks). Python tests check the binding, the monocular semi-direct path, and the loop-closing bridge.
 
 Changes that affect the camera models are additionally checked end to end. A replay harness processes a dataset sequence deterministically (ORB2 features, synchronous local mapping, and no loop closure unless requested) and records tracking states, per-frame timings, keyframe and map-point counts, and the absolute trajectory error, with Sim(3) alignment for monocular runs and SE(3) alignment for metric sensors. A comparison script replays the same sequences with a baseline checkout and with the current one, alternating their order, and fails if the median paired frame-time ratio exceeds $1.20$, if any pair loses more than two percentage points of tracking or ground-truth coverage, or if the trajectory error grows by more than the larger of $20\%$ and $0.02$\,m.
 
@@ -1266,7 +1363,7 @@ These are exploratory measurements on a short segment, not a controlled benchmar
 
 This document presented pySLAM, an open-source framework for visual SLAM that combines a sparse SLAM core, available in both Python and C++, and a C++ direct and semi-direct SLAM pipeline with interchangeable local features, loop detectors, depth estimators, semantic segmentation models, volumetric integrators, and feed-forward multi-view reconstruction models. A unified dataset interface, automated evaluation scripts, and a regression test suite make it possible to compare these components within a complete pipeline and across more than fifteen dataset types. The framework is intended as a research and teaching platform rather than a real-time system.
 
-Several directions remain open. Inertial and LiDAR measurements are not yet integrated. The direct-SLAM pipeline still lacks a photometric bundle adjustment and a full evaluation on RGB-D and monocular benchmarks. Object-level mapping is under development. For the camera models, wide fields of view beyond $180^\circ$ still need to be validated in initialization and Sim(3) estimation, and the native fisheye pipeline needs a full-sequence evaluation on TUM-VI and other fisheye datasets.
+Several directions remain open. Inertial and LiDAR measurements are not yet integrated. The direct-SLAM pipeline still lacks a photometric bundle adjustment, and its monocular Sim(3) loop closing and its RGB-D and monocular tracking need a full evaluation on standard benchmarks. Object-level mapping is under development. For the camera models, wide fields of view beyond $180^\circ$ still need to be validated in initialization and Sim(3) estimation, and the native fisheye pipeline needs a full-sequence evaluation on TUM-VI and other fisheye datasets.
 
 %\hypertarget{Comparison pySLAM vs ORB-SLAM3}{%
 %\section{Comparison pySLAM vs ORB-SLAM3}\label{comparison-pySLAM-ORBSLAM3}}
@@ -1478,7 +1575,7 @@ To run the direct-SLAM pipeline of Sect.~\ref{direct-slam}, select a stereo or R
 \end{Shaded}
 \end{scriptsize}
 
-\texttt{--mode} overrides \texttt{DIRECT\_SLAM.mode} (\texttt{klt}, \texttt{hybrid}, or \texttt{semi\_direct}). \texttt{--no-local-ba} and \texttt{--no-loop-closing} disable the automatic local bundle adjustment and the loop-closing thread. The full parameter reference is in \texttt{docs/direct\_slam.md}.
+\texttt{--mode} overrides \texttt{DIRECT\_SLAM.mode} and \texttt{DIRECT\_SLAM.monocular.mode} (\texttt{klt}, \texttt{hybrid}, or \texttt{semi\_direct}). For a monocular camera, the keys of the \texttt{DIRECT\_SLAM.monocular} block override the corresponding \texttt{DIRECT\_SLAM} keys, so that one settings file serves both stereo and monocular runs; the KITTI settings, for instance, select \texttt{hybrid} for stereo and \texttt{semi\_direct} with a larger corner and seed budget for monocular input. \texttt{--trajectory-file} exports the final accepted trajectory, after all local and loop corrections, as KITTI $T_{wc}$ rows. \texttt{--no-local-ba} and \texttt{--no-loop-closing} disable the automatic local bundle adjustment and the loop-closing thread. The full parameter reference is in \texttt{docs/direct\_slam.md}.
 \hypertarget{selecting-a-dataset-and-different-configuration-parameters}{%
 \subsection{Selecting a dataset and different configuration
 parameters}\label{selecting-a-dataset-and-different-configuration-parameters}}

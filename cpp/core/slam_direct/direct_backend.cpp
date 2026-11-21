@@ -129,6 +129,9 @@ class InverseDepthPriorEdge : public g2o::BaseBinaryEdge<1, double, PointVertex,
     bool write(std::ostream &) const override { return false; }
 };
 
+// What a residual edge measures. InversePrior is the monocular scale anchor, not an observation.
+enum class EdgeKind { Left, Right, Depth, InversePrior };
+
 struct ObservationEdge {
     g2o::OptimizableGraph::Edge *edge;
     DirectPoint *observation;
@@ -136,9 +139,9 @@ struct ObservationEdge {
     PoseVertex *pose;
     Eigen::Isometry3d extrinsic;
     double threshold;
-    int kind; // 0: left, 1: right, 2: depth
+    EdgeKind kind;
     bool inlier() const {
-        if (kind == 3) {
+        if (kind == EdgeKind::InversePrior) {
             return true; // Keep the scale anchor in the refinement.
         }
         const Vec3d X = extrinsic * pose->estimate().map(point->estimate());
@@ -262,7 +265,7 @@ DirectBAResult optimize_direct_map(DirectMap &map, const Camera &camera,
     else right_from_left.translation().x() = -camera.bf / camera.fx;
     const Camera &right_camera = camera.right_camera ? *camera.right_camera : camera;
     auto add_edge = [&](auto *edge, DirectPoint &obs, PointVertex *point, PoseVertex *pose,
-                        const Eigen::Isometry3d &extrinsic, double threshold, int kind) {
+                        const Eigen::Isometry3d &extrinsic, double threshold, EdgeKind kind) {
         edge->setVertex(0, point);
         edge->setVertex(1, pose);
         auto *kernel = optimizer.make<g2o::RobustKernelHuber>();
@@ -282,19 +285,19 @@ DirectBAResult optimize_direct_map(DirectMap &map, const Camera &camera,
             auto *left = optimizer.make<ProjectionEdge>(camera, identity);
             left->setMeasurement(obs.uv);
             left->setInformation(Eigen::Matrix2d::Identity());
-            add_edge(left, obs, point, pose, identity, params.chi2_threshold, 0);
+            add_edge(left, obs, point, pose, identity, params.chi2_threshold, EdgeKind::Left);
             if (obs.has_right && !obs.right_outlier) {
                 auto *right = optimizer.make<ProjectionEdge>(right_camera, right_from_left);
                 right->setMeasurement(obs.uv_right);
                 right->setInformation(Eigen::Matrix2d::Identity());
-                add_edge(right, obs, point, pose, right_from_left, params.chi2_threshold, 1);
+                add_edge(right, obs, point, pose, right_from_left, params.chi2_threshold, EdgeKind::Right);
             }
             if (camera.sensor_type == SensorType::RGBD && obs.has_depth && !obs.depth_outlier) {
                 auto *depth = optimizer.make<DepthEdge>();
                 depth->setMeasurement(obs.depth);
                 const double sigma = params.ba_depth_sigma * std::max(1.0, obs.depth * obs.depth);
                 depth->setInformation(Eigen::Matrix<double, 1, 1>::Constant(1.0 / (sigma * sigma)));
-                add_edge(depth, obs, point, pose, identity, 3.841, 2);
+                add_edge(depth, obs, point, pose, identity, 3.841, EdgeKind::Depth);
             }
             const auto landmark = landmarks.find(obs.id);
             if (camera.sensor_type == SensorType::MONOCULAR && landmark != landmarks.end() &&
@@ -304,7 +307,7 @@ DirectBAResult optimize_direct_map(DirectMap &map, const Camera &camera,
                 prior->setMeasurement(landmark->second.inverse_depth_mu);
                 prior->setInformation(Eigen::Matrix<double, 1, 1>::Constant(
                     1.0 / landmark->second.inverse_depth_sigma2));
-                add_edge(prior, obs, point, pose, identity, 1e9, 3);
+                add_edge(prior, obs, point, pose, identity, 1e9, EdgeKind::InversePrior);
             }
         }
     }
@@ -348,11 +351,11 @@ DirectBAResult optimize_direct_map(DirectMap &map, const Camera &camera,
     std::map<int64_t, int> good_left;
     for (auto &record : edges) {
         const bool bad = !record.inlier();
-        if (record.kind == 0) {
+        if (record.kind == EdgeKind::Left) {
             record.observation->outlier = bad;
             good_left[record.observation->id] += !bad;
-        } else if (record.kind == 1) record.observation->right_outlier = bad;
-        else if (record.kind == 2) record.observation->depth_outlier = bad;
+        } else if (record.kind == EdgeKind::Right) record.observation->right_outlier = bad;
+        else if (record.kind == EdgeKind::Depth) record.observation->depth_outlier = bad;
         result.outliers += bad;
     }
     for (const auto &[id, count] : good_left)
