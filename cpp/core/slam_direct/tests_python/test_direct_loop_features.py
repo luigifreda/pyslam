@@ -64,11 +64,78 @@ class DirectLoopFeaturesTest(unittest.TestCase):
         # Keyframe 0 keeps its pose exactly.
         new_tcw[0] = np.linalg.inv(old_twc[0])
         scales = bridge._monocular_scales(new_tcw)
-        np.testing.assert_allclose(scales, [1.0, 2.0, 2.0], rtol=1e-9)
+        # Keyframe 2 has no support and is outside every supported span: it keeps scale 1
+        # instead of copying its neighbor's (review finding 2).
+        np.testing.assert_allclose(scales, [1.0, 2.0, 1.0], rtol=1e-9)
 
         # Nothing rescaled: plain SE3 publication.
         unchanged = [np.linalg.inv(twc) for twc in old_twc]
         self.assertIsNone(bridge._monocular_scales(unchanged))
+
+    def test_unsupported_keyframe_scale_is_interpolated_between_supported_ones(self):
+        # Keyframe 0 is unchanged (scale 1), keyframe 2 is corrected with s = 3 and has point
+        # support, keyframe 1 changed without support: it takes the interpolated scale 2.
+        bridge = self.bridge()
+        bridge.sensor_type = SensorType.MONOCULAR
+        rng = np.random.default_rng(5)
+        old_points_c = rng.uniform([-3, -2, 4], [3, 2, 20], size=(12, 3))
+        ids = list(range(200, 212))
+        old_twc = [np.eye(4) for _ in range(3)]
+        for i, twc in enumerate(old_twc):
+            twc[2, 3] = float(i)
+        new_tcw = [np.linalg.inv(twc) for twc in old_twc]
+        new_tcw[1][:3, 3] += [0.2, 0.0, 0.0]
+        new_tcw[2][:3, 3] += [0.0, 0.4, 0.0]
+        keyframes = []
+        for i in range(3):
+            matches, points = [], {}
+            if i == 2:
+                new_twc = np.linalg.inv(new_tcw[i])
+                for k, (landmark_id, x_c) in enumerate(zip(ids, old_points_c)):
+                    world = new_twc[:3, :3] @ (x_c / 3.0) + new_twc[:3, 3]
+                    points[k] = SimpleNamespace(pt=lambda w=world: w, is_bad=lambda: False)
+                    matches.append((k, landmark_id))
+            keyframe = SimpleNamespace(id=20 + i, get_point_match=points.get)
+            keyframes.append(keyframe)
+            bridge._landmark_matches[keyframe.id] = matches
+        bridge._keyframes = keyframes
+        bridge.direct_slam = SimpleNamespace(
+            keyframes=lambda: (old_twc, [0.0, 0.1, 0.2]),
+            keyframe_observations=lambda i: (ids, np.zeros((12, 2)), old_points_c))
+        np.testing.assert_allclose(bridge._monocular_scales(new_tcw), [1.0, 2.0, 3.0], rtol=1e-9)
+
+    def test_initialization_keeps_the_reference_frame_however_long_it_takes(self):
+        # Review finding 5: the reference image must never be evicted, and another image must
+        # never be paired with the reference pose.
+        bridge = self.bridge()
+        bridge.sensor_type = SensorType.MONOCULAR
+        reference = 3
+        bridge.direct_slam = SimpleNamespace(init_reference_img_id=lambda: reference)
+        frames = {}
+        for img_id in range(250):
+            frames[img_id] = np.full((4, 6, 3), img_id % 256, dtype=np.uint8)
+            if img_id == 200:
+                reference = 200  # The initializer replaced its reference with this frame.
+            bridge._remember_init_frame(frames[img_id], None, None, img_id, 0.1 * img_id)
+            if img_id == 150:
+                self.assertEqual(list(bridge._pending_init_frames), [3])
+        self.assertEqual(list(bridge._pending_init_frames), [200])
+        np.testing.assert_array_equal(bridge._pending_init_frames[200][0], frames[200])
+
+    def test_a_missing_reference_image_gives_a_blank_keyframe_not_the_current_image(self):
+        bridge = self.bridge()
+        bridge.sensor_type = SensorType.MONOCULAR
+        bridge.direct_slam = SimpleNamespace(
+            keyframes=lambda: ([np.eye(4), np.eye(4)], [0.0, 0.5]),
+            keyframe_img_ids=lambda: [0, 5])
+        current = np.full((4, 6, 3), 99, dtype=np.uint8)
+        added = []
+        with patch.object(DirectLoopClosing, "_add_keyframe",
+                          side_effect=lambda image, *args: added.append((image, args[2]))):
+            bridge.note_tracked_frame(current, None, None, 5, 0.5)
+        self.assertEqual([img_id for _image, img_id in added], [0, 5])
+        self.assertFalse(np.any(added[0][0]))  # Blank: no descriptors for the reference pose.
+        self.assertIs(added[1][0], current)
 
     def test_registration_queues_raw_input_without_extracting_features(self):
         bridge = self.bridge()

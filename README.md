@@ -1,6 +1,6 @@
 <p align="center"><img src="./images/pyslam-logo.png" height="160"></p>
 
-# pySLAM v2.12.0
+# pySLAM v2.12.1
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -13,7 +13,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as *DeepLabv3*, *Segformer*, *CLIP*, *DETIC*, *EOV-SEG*, *ODISE*, *RFDETR*, *YOLO*, etc.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
 - A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between _high-performance/speed_ and _high-flexibility_ modes. The Python and C++ implementations are interoperable: maps saved by one can be loaded by the other. Further details [here](cpp/core/slam/README.md).
-- A C++ **[direct and semi-direct SLAM](docs/direct_slam.md)** pipeline (`main_direct_slam.py`) with three tracking modes: *KLT* tracks, *hybrid* sparse photometric alignment, and an *SVO*-style **semi-direct** mode with a Bayesian inverse-depth filter. It supports **stereo** and **RGBD** input, plus **monocular** in semi-direct mode, with local bundle adjustment and the same loop closing as the sparse pipeline (with a Sim(3) correction for monocular). Further details [here](docs/direct_slam.md).
+- A C++ **[direct and semi-direct SLAM](docs/direct_slam.md)** pipeline (`main_slam_direct.py`) with three tracking modes: *KLT* tracks, *hybrid* sparse photometric alignment, and an *SVO*-style **semi-direct** mode with a Bayesian inverse-depth filter. It supports **stereo** and **RGBD** input, plus **monocular** in semi-direct mode, with local bundle adjustment and the same loop closing as the sparse pipeline (with a Sim(3) correction for monocular). Further details [here](docs/direct_slam.md).
 - A modular pipeline for **feed-forward inference of 3D scenes from multiple images**. Supports models like *DUSt3R*, *Mast3r*, *MV-DUSt3R*, *VGGT*, *Robust VGGT*, *DepthFromAnythingV3*, and *Fast3R*. Further details [here](pyslam/scene_from_views/README.md).
 - Built-in support for over **[10 dataset types](#datasets)**.
   
@@ -53,7 +53,7 @@ See the demo **video** for release v2.10.0
 
 <!-- TOC -->
 
-- [pySLAM v2.12.0](#pyslam-v2120)
+- [pySLAM v2.12.1](#pyslam-v2121)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
@@ -177,7 +177,7 @@ See the demo **video** for release v2.10.0
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing, dense mapping and depth inference in order to estimate the camera trajectory and build both a sparse and dense map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline.
 
-* `main_direct_slam.py` runs the C++ direct-SLAM frontend (`klt`, `hybrid` or `semi_direct` tracking) with grid FAST or GFTT corners, pyramidal Lucas-Kanade tracking, optional sparse photometric alignment, SVO-style semi-direct alignment with inverse-depth seeds, and local bundle adjustment of shared landmarks and keyframe poses. `klt` and `hybrid` require stereo or RGBD input; `semi_direct` also accepts monocular input. It accepts an undistorted pinhole or a raw-pixel camera, including native TUM-VI. Images are not undistorted. It reuses the standard 3D viewer and tracked-feature drawing. When `Parameters.kUseLoopClosing` is enabled, it also runs the standard `LoopClosing` thread on separately extracted descriptor keyframes and writes the corrected poses back into the direct map (as a Sim(3) correction for monocular); `--no-loop-closing` skips that thread. Dense and semantic mapping are not included. See the [direct-SLAM guide](./docs/direct_slam.md) for modes, parameters, architecture diagrams, and trajectory export.
+* `main_slam_direct.py` runs the C++ direct-SLAM frontend (`klt`, `hybrid` or `semi_direct` tracking) with grid FAST or GFTT corners, pyramidal Lucas-Kanade tracking, optional sparse photometric alignment, SVO-style semi-direct alignment with inverse-depth seeds, and local bundle adjustment of shared landmarks and keyframe poses. `klt` and `hybrid` require stereo or RGBD input; `semi_direct` also accepts monocular input. It accepts an undistorted pinhole or a raw-pixel camera, including native TUM-VI, which is tracked on its raw images. A distorted pinhole with monocular or RGBD input is undistorted by the runner (images remapped to the same intrinsics, depth with nearest neighbor). After a tracking loss it relocalizes with loop closing's `Relocalizer`, as `main_slam.py` does. It reuses the standard 3D viewer and tracked-feature drawing. When `Parameters.kUseLoopClosing` is enabled, it also runs the standard `LoopClosing` thread on separately extracted descriptor keyframes and writes the corrected poses back into the direct map (as a Sim(3) correction for monocular); `--no-loop-closing` skips that thread. Dense and semantic mapping are not included. See the [direct-SLAM guide](./docs/direct_slam.md) for modes, parameters, architecture diagrams, and trajectory export.
 
 * `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features. 
 
@@ -348,9 +348,9 @@ This will process the same default [KITTI](http://www.cvlibs.net/datasets/kitti/
 For **direct SLAM**, select a stereo or RGBD dataset (or a monocular one with `semi_direct` mode) and matching camera settings in `config.yaml`, build `cpp_core` with `./build_cpp_core.sh`, then run. All three modes run on an undistorted pinhole or a raw-pixel model such as native TUM-VI:
 
 ```bash
-python main_direct_slam.py -c config.yaml
+python main_slam_direct.py -c config.yaml
 # Or run without viewers for a short check:
-python main_direct_slam.py -c config.yaml --headless --max-frames 100
+python main_slam_direct.py -c config.yaml --headless --max-frames 100
 ```
 
 `DIRECT_SLAM.mode` selects `klt` (Lucas-Kanade tracks + reprojection-error pose), `hybrid` (`klt` plus sparse photometric refinement and fallback), or `semi_direct` (planar-patch alignment, per-feature alignment, and inverse-depth seeds estimated with the SVO depth filter). `--mode` overrides it for a run. `direct` remains an alias of `hybrid`. "Direct" in the pipeline name means that tracking correspondences come from intensity-based alignment rather than descriptors; the `klt` pose itself is geometric, and `semi_direct` is the SVO-style mode (see the [guide](./docs/direct_slam.md#direct-slam-klt-hybrid-and-semi-direct-tracking)). `klt` and `hybrid` need stereo or RGBD. Monocular input is accepted only for `semi_direct`. Camera settings can select that with `DIRECT_SLAM.monocular.mode` without changing the stereo mode, and `--mode` overrides both. Monocular loop closing applies a Sim(3) correction. Local BA is enabled by default and `--no-local-ba` disables automatic solves. Loop closing follows `Parameters.kUseLoopClosing` (enabled by default) and `--no-loop-closing` skips it. Details and configuration comments are in the [direct-SLAM guide](./docs/direct_slam.md) and [C++ component README](./cpp/core/slam_direct/README.md).
@@ -740,16 +740,16 @@ When volumetric semantic mapping is enabled, use the following buttons to toggle
 
 This table report the sparse SLAM submodules along with their generated logs (stored in the `logs` folder):
 
-| Module | Log file |
-| --- | --- |
-| `local_mapping.py` | `local_mapping.log` |
-| `loop_closing.py` | `loop_closing.log` |
-| `loop_detecting_process.py` | `loop_detecting.log` |
-| `global_bundle_adjustment.py` | `gba.log` |
+| Module                         | Log file                    |
+| ------------------------------ | --------------------------- |
+| `local_mapping.py`             | `local_mapping.log`         |
+| `loop_closing.py`              | `loop_closing.log`          |
+| `loop_detecting_process.py`    | `loop_detecting.log`        |
+| `global_bundle_adjustment.py`  | `gba.log`                   |
 | `volumetric_integrator_<X>.py` | `volumetric_integrator.log` |
-| `relocalizer.py` | `relocalization.log` |
+| `relocalizer.py`               | `relocalization.log`        |
 | `semantic_segmentation_<X>.py` | `semantic_segmentation.log` |
-| `semantic_mapping_<X>.py` | `semantic_mapping.log` |
+| `semantic_mapping_<X>.py`      | `semantic_mapping.log`      |
 
 At runtime, for debugging purposes, you can individually monitor any of the log files by running the following command:    
 `tail -f logs/<log file name>`     

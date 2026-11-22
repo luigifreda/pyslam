@@ -62,16 +62,60 @@ struct PoseAccumulation {
     std::vector<unsigned char> inlier_mask;
 };
 
-PoseAccumulation accumulate_pose(const Camera &camera, double scale, const DirectSlamParams &params,
-                                 const cv::Mat &img_ref, const cv::Mat &img_cur,
-                                 const std::vector<Vec2d> &pixels_ref, const std::vector<double> &depths,
-                                 const Eigen::Isometry3d &T_cur_ref) {
-    PoseAccumulation acc;
-    acc.inlier_mask.assign(pixels_ref.size(), 0);
+// The pose-independent part of one pyramid level: each patch pixel lifted to the reference
+// camera at its feature depth, and its reference intensity. Built once per level instead of
+// in every accumulate_pose() call. A point whose patch leaves the reference image or cannot
+// be lifted is invisible at every pose, exactly as when it was checked per call.
+struct ReferenceLevel {
+    std::vector<unsigned char> usable;  // Per point.
+    std::vector<Vec3d> points_ref;      // Per point and patch pixel (row-major patch order).
+    std::vector<float> intensities_ref; // Same layout.
+};
+
+ReferenceLevel build_reference_level(const Camera &camera, double scale, const DirectSlamParams &params,
+                                     const cv::Mat &img_ref, const std::vector<Vec2d> &pixels_ref,
+                                     const std::vector<double> &depths) {
     const int half = params.feature_half_patch;
-    const double gate = params.intensity_inlier_threshold;
+    const size_t patch = static_cast<size_t>((2 * half + 1) * (2 * half + 1));
+    ReferenceLevel level;
+    level.usable.assign(pixels_ref.size(), 0);
+    level.points_ref.assign(pixels_ref.size() * patch, Vec3d::Zero());
+    level.intensities_ref.assign(pixels_ref.size() * patch, 0.0f);
     for (size_t i = 0; i < pixels_ref.size(); ++i) {
         if (!(depths[i] > 0.0) || !std::isfinite(depths[i])) {
+            continue;
+        }
+        bool usable = true;
+        size_t k = i * patch;
+        for (int py = -half; py <= half && usable; ++py) {
+            for (int px = -half; px <= half; ++px, ++k) {
+                const Vec2d ref_level = scale * pixels_ref[i] + Vec2d(px, py);
+                const Vec2d ref_full = ref_level / scale;
+                if (!lift_reference_point(camera, ref_full, depths[i], level.points_ref[k]) ||
+                    ref_level.x() < 1.0 || ref_level.y() < 1.0 || ref_level.x() >= img_ref.cols - 2 ||
+                    ref_level.y() >= img_ref.rows - 2) {
+                    usable = false;
+                    break;
+                }
+                level.intensities_ref[k] =
+                    sample_gray(img_ref, static_cast<float>(ref_level.x()), static_cast<float>(ref_level.y()));
+            }
+        }
+        level.usable[i] = usable;
+    }
+    return level;
+}
+
+PoseAccumulation accumulate_pose(const Camera &camera, double scale, const DirectSlamParams &params,
+                                 const ReferenceLevel &reference, const cv::Mat &img_cur,
+                                 const Eigen::Isometry3d &T_cur_ref) {
+    PoseAccumulation acc;
+    acc.inlier_mask.assign(reference.usable.size(), 0);
+    const int half = params.feature_half_patch;
+    const size_t patch = static_cast<size_t>((2 * half + 1) * (2 * half + 1));
+    const double gate = params.intensity_inlier_threshold;
+    for (size_t i = 0; i < reference.usable.size(); ++i) {
+        if (!reference.usable[i]) {
             continue;
         }
         double abs_error = 0.0;
@@ -80,24 +124,23 @@ PoseAccumulation accumulate_pose(const Camera &camera, double scale, const Direc
         Vec6d bias = Vec6d::Zero();
         double cost = 0.0;
         bool visible = true;
-        for (int py = -half; py <= half && visible; ++py) {
-            for (int px = -half; px <= half; ++px) {
-                const Vec2d ref_level = scale * pixels_ref[i] + Vec2d(px, py);
-                const Vec2d ref_full = ref_level / scale;
+        for (size_t k = i * patch; k < (i + 1) * patch; ++k) {
+            {
+                // Same steps as warp_patch_pixel() after the lift, which is precomputed.
+                const Vec3d point_cur = T_cur_ref * reference.points_ref[k];
                 Vec2d cur_level = Vec2d::Zero();
                 Eigen::Matrix<double, 2, 6> J_pixel = Eigen::Matrix<double, 2, 6>::Zero();
-                if (!warp_patch_pixel(camera, T_cur_ref, ref_full, depths[i], scale, cur_level, &J_pixel)) {
+                if (!photometric_warp_jacobian(camera, point_cur, scale, cur_level, J_pixel) ||
+                    !cur_level.allFinite()) {
                     visible = false;
                     break;
                 }
                 if (cur_level.x() < 1.0 || cur_level.y() < 1.0 || cur_level.x() >= img_cur.cols - 2 ||
-                    cur_level.y() >= img_cur.rows - 2 || ref_level.x() < 1.0 || ref_level.y() < 1.0 ||
-                    ref_level.x() >= img_ref.cols - 2 || ref_level.y() >= img_ref.rows - 2) {
+                    cur_level.y() >= img_cur.rows - 2) {
                     visible = false;
                     break;
                 }
-                const double error = sample_gray(img_ref, static_cast<float>(ref_level.x()),
-                                                 static_cast<float>(ref_level.y())) -
+                const double error = reference.intensities_ref[k] -
                                      sample_gray(img_cur, static_cast<float>(cur_level.x()),
                                                  static_cast<float>(cur_level.y()));
                 const Vec2d gradient(
@@ -143,9 +186,13 @@ PlanarPoseResult align_one_level(const Camera &camera, double scale, const Direc
     PlanarPoseResult result;
     result.T_cur_ref = T_init;
     result.inlier_mask.assign(pixels_ref.size(), 0);
+    if (params.num_iterations <= 0) {
+        return result;
+    }
+    const ReferenceLevel reference = build_reference_level(camera, scale, params, img_ref, pixels_ref, depths);
+    // An accepted candidate becomes the next linearization point, so its accumulation is reused.
+    PoseAccumulation acc = accumulate_pose(camera, scale, params, reference, img_cur, result.T_cur_ref);
     for (int iter = 0; iter < params.num_iterations; ++iter) {
-        const PoseAccumulation acc =
-            accumulate_pose(camera, scale, params, img_ref, img_cur, pixels_ref, depths, result.T_cur_ref);
         result.iterations = iter + 1;
         result.visible = acc.visible;
         result.inliers = acc.inliers;
@@ -164,8 +211,7 @@ PlanarPoseResult align_one_level(const Camera &camera, double scale, const Direc
         }
         Eigen::Isometry3d candidate = result.T_cur_ref;
         left_multiply_translation_rotation(candidate, update);
-        const PoseAccumulation next =
-            accumulate_pose(camera, scale, params, img_ref, img_cur, pixels_ref, depths, candidate);
+        PoseAccumulation next = accumulate_pose(camera, scale, params, reference, img_cur, candidate);
         if (!candidate.matrix().allFinite() || next.visible < 6 || next.cost > acc.cost) {
             break;
         }
@@ -178,6 +224,7 @@ PlanarPoseResult align_one_level(const Camera &camera, double scale, const Direc
             result.converged = true;
             break;
         }
+        acc = std::move(next);
     }
     return result;
 }
@@ -191,11 +238,18 @@ PlanarPoseResult align_planar_patch_pose(const Camera &camera, const DirectSlamP
                                          const Eigen::Isometry3d &T_cur_ref_init) {
     require_gray(img_ref, "planar patch reference");
     require_gray(img_cur, "planar patch current");
+    return align_planar_patch_pose(camera, params, build_pyramid(img_ref, params), build_pyramid(img_cur, params),
+                                   pixels_ref, depth_ref, T_cur_ref_init);
+}
+
+PlanarPoseResult align_planar_patch_pose(const Camera &camera, const DirectSlamParams &params,
+                                         const ImagePyramid &pyramid_ref, const ImagePyramid &pyramid_cur,
+                                         const std::vector<Vec2d> &pixels_ref,
+                                         const std::vector<double> &depth_ref,
+                                         const Eigen::Isometry3d &T_cur_ref_init) {
     if (pixels_ref.size() != depth_ref.size()) {
         throw std::invalid_argument("planar patch: pixels and depths have different sizes");
     }
-    const ImagePyramid pyramid_ref = build_pyramid(img_ref, params);
-    const ImagePyramid pyramid_cur = build_pyramid(img_cur, params);
     PlanarPoseResult result;
     result.T_cur_ref = T_cur_ref_init;
     result.inlier_mask.assign(pixels_ref.size(), 0);
@@ -218,11 +272,18 @@ PatchOffsetResult align_planar_patch_offsets(const Camera &camera, const DirectS
                                              const Eigen::Isometry3d &T_cur_ref) {
     require_gray(img_ref, "patch offset reference");
     require_gray(img_cur, "patch offset current");
+    return align_planar_patch_offsets(camera, params, build_pyramid(img_ref, params),
+                                      build_pyramid(img_cur, params), pixels_ref, depth_ref, T_cur_ref);
+}
+
+PatchOffsetResult align_planar_patch_offsets(const Camera &camera, const DirectSlamParams &params,
+                                             const ImagePyramid &pyramid_ref, const ImagePyramid &pyramid_cur,
+                                             const std::vector<Vec2d> &pixels_ref,
+                                             const std::vector<double> &depth_ref,
+                                             const Eigen::Isometry3d &T_cur_ref) {
     if (pixels_ref.size() != depth_ref.size()) {
         throw std::invalid_argument("patch offset: pixels and depths have different sizes");
     }
-    const ImagePyramid pyramid_ref = build_pyramid(img_ref, params);
-    const ImagePyramid pyramid_cur = build_pyramid(img_cur, params);
     const int half = params.feature_half_patch;
     const double gate = params.intensity_inlier_threshold;
     const double max_shift = std::max(2.0, 2.0 * static_cast<double>(half));
@@ -250,8 +311,10 @@ PatchOffsetResult align_planar_patch_offsets(const Camera &camera, const DirectS
             Eigen::Matrix2d normal = Eigen::Matrix2d::Zero();
             std::vector<Vec2d> gradients;
             std::vector<Vec2d> projected;
+            std::vector<float> intensities_ref; // Fixed per level; sampled once, not per iteration.
             gradients.reserve(static_cast<size_t>((2 * half + 1) * (2 * half + 1)));
             projected.reserve(gradients.capacity());
+            intensities_ref.reserve(gradients.capacity());
             for (int py = -half; py <= half && tracked; ++py) {
                 for (int px = -half; px <= half; ++px) {
                     const Vec2d ref_level_px = scale * pixels_ref[i] + Vec2d(px, py);
@@ -277,6 +340,8 @@ PatchOffsetResult align_planar_patch_offsets(const Camera &camera, const DirectS
                     normal += J * J.transpose();
                     gradients.push_back(J);
                     projected.push_back(cur_level_px);
+                    intensities_ref.push_back(sample_gray(ref_level, static_cast<float>(ref_level_px.x()),
+                                                          static_cast<float>(ref_level_px.y())));
                 }
             }
             if (!tracked || gradients.empty()) {
@@ -294,17 +359,13 @@ PatchOffsetResult align_planar_patch_offsets(const Camera &camera, const DirectS
                 int samples = 0;
                 bool inside = true;
                 for (size_t k = 0; k < gradients.size(); ++k) {
-                    const int py = static_cast<int>(k) / (2 * half + 1) - half;
-                    const int px = static_cast<int>(k) % (2 * half + 1) - half;
-                    const Vec2d ref_level_px = scale * pixels_ref[i] + Vec2d(px, py);
                     const Vec2d cur = projected[k] + offset;
                     if (cur.x() < 1.0 || cur.y() < 1.0 || cur.x() >= cur_level.cols - 2 ||
                         cur.y() >= cur_level.rows - 2) {
                         inside = false;
                         break;
                     }
-                    const double error = sample_gray(ref_level, static_cast<float>(ref_level_px.x()),
-                                                     static_cast<float>(ref_level_px.y())) -
+                    const double error = intensities_ref[k] -
                                          sample_gray(cur_level, static_cast<float>(cur.x()),
                                                      static_cast<float>(cur.y()));
                     rhs += -error * gradients[k];

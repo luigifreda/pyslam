@@ -2,7 +2,7 @@
 
 See the [direct-SLAM guide](../../../docs/direct_slam.md) for the runner, architecture diagrams, complete parameter reference, and comparison with `main_slam.py`.
 
-A KLT/hybrid direct-SLAM frontend and local bundle-adjustment backend compiled into `cpp_core`. It reuses the pyslam camera, settings, and datasets. This C++ map has no loop-closure or global pose-graph optimizer of its own. `main_direct_slam.py` reuses the same `Viewer3D` and `CvImageViewer` as `main_slam.py`. Unless `--no-loop-closing` is set or `Parameters.kUseLoopClosing` is false, the runner starts the standard `LoopClosing` thread on separately extracted descriptor keyframes and writes the corrected poses back into the direct map. See [`direct_loop_closing.py`](../../../pyslam/slam/direct_loop_closing.py).
+A KLT/hybrid direct-SLAM frontend and local bundle-adjustment backend compiled into `cpp_core`. It reuses the pyslam camera, settings, and datasets. This C++ map has no loop-closure or global pose-graph optimizer of its own. `main_slam_direct.py` reuses the same `Viewer3D` and `CvImageViewer` as `main_slam.py`. Unless `--no-loop-closing` is set or `Parameters.kUseLoopClosing` is false, the runner starts the standard `LoopClosing` thread on separately extracted descriptor keyframes and writes the corrected poses back into the direct map. See [`direct_loop_closing.py`](../../../pyslam/slam/direct_loop_closing.py).
 
 Three modes, selected by `DIRECT_SLAM.mode`:
 
@@ -12,7 +12,7 @@ Three modes, selected by `DIRECT_SLAM.mode`:
 
 "Direct" in the component name means that tracking and local-BA correspondences come from intensity on raw pixels instead of descriptor matching. `klt` minimizes reprojection error, so in the usual taxonomy it is an indirect method. `hybrid` adds a photometric step after that geometric solve. `semi_direct` is the SVO-style mode. See the [direct-SLAM guide](../../../docs/direct_slam.md#direct-slam-klt-hybrid-and-semi-direct-tracking) for details.
 
-`klt` and `hybrid` need stereo or RGBD. `semi_direct` accepts those sensors and is the only mode that accepts a monocular camera; monocular scale follows `seed_min_depth` and `seed_max_depth`, and loop closing applies Sim(3) corrections, with a per-keyframe scale passed to `apply_keyframe_poses`. All three accept an undistorted pinhole or a raw-pixel camera (Kannala–Brandt, rational pinhole, double sphere). Images are not remapped. A distorted linear pinhole that does not project raw pixels is rejected.
+`klt` and `hybrid` need stereo or RGBD. `semi_direct` accepts those sensors and is the only mode that accepts a monocular camera; monocular scale follows `seed_min_depth` and `seed_max_depth`, and loop closing applies Sim(3) corrections, with a per-keyframe scale passed to `apply_keyframe_poses`. All three accept an undistorted pinhole or a raw-pixel camera (Kannala–Brandt, rational pinhole, double sphere). The native frontend does not remap images and rejects a distorted linear pinhole that does not project raw pixels. The `main_slam_direct.py` runner remaps distorted pinhole monocular/RGBD images and depth before tracking and loop closing, using the same intrinsics with zero distortion; stereo pinhole input must already be rectified.
 
 ## Layout
 
@@ -45,6 +45,8 @@ Each tracking mode is a `PoseTracker`. `DirectSlam` keeps only what the modes sh
 | `tests_python/test_direct_slam.py` | Binding snapshot ownership, shapes, metadata and reset |
 | `tests_python/test_semi_direct_slam.py` | `semi_direct` through the binding: mode aliases, monocular gating and two-view initialization, RGBD seeds where depth is missing |
 | `tests_python/test_direct_loop_features.py`, `test_direct_loop_gate.py` | Loop-closing bridge (`direct_loop_closing.py`): deferred keyframe features, pose sync, reset, and the tracking-idle gate |
+| `tests_python/test_direct_loop_monocular.py` | Monocular loop-closing bridge: landmark association and late refresh, delayed submission, point fusion, descriptor points kept on the direct landmarks; relocalization (recent keyframes, then the keyframe database) |
+| `tests_python/test_main_slam_direct.py` | `main_slam_direct.py`: viewers stay open after the last frame until closed or `q`; monocular viewer scale; image undistortion for a distorted pinhole |
 
 The sources are listed in `cpp/core/slam/CMakeLists.txt` and linked into `cpp_core`. Python imports the class from `pyslam.slam.cpp`.
 
@@ -63,7 +65,7 @@ The photometric Jacobian is `∂π/∂X` from the camera model times the left SE
 
 Stereo correspondence is pyramidal Lucas–Kanade, not a descriptor match. A right camera then uses `Camera::triangulate_stereo_point`. A rectified stereo camera with no right camera (KITTI) uses `depth = bf / (u_l - u_r)` when the vertical mismatch is under 2 px and the disparity is positive. RGBD samples the depth image and multiplies by `Camera::depth_factor`, then lifts the raw pixel with `unproject_bearing`.
 
-An undistorted pinhole keeps a depth when `z` is finite and in `(0.5, 80)` meters. A raw-pixel camera keeps `z > 0` and applies that window to the ray length. `Camera::depth_threshold` is the sparse SLAM close/far split and is not used as a validity gate here.
+A new landmark needs a finite depth in `(seed_min_depth, seed_max_depth)` (default `(0.5, 80)` meters; `metric_point_ok`). An undistorted pinhole checks `z`; a raw-pixel camera keeps `z > 0` and applies that window to the ray length. `Camera::depth_threshold` is the sparse SLAM close/far split and is not used as a validity gate here.
 
 ## Tracking
 
@@ -90,7 +92,7 @@ Status names reported by `status_name()`:
 
 `from_config` accepts a nested `DIRECT_SLAM` dict, flat pyslam keys prefixed with `DIRECT_SLAM.`, or the block itself. For a monocular camera, `DirectSlam` also applies the `monocular` sub-block (`DIRECT_SLAM.monocular.<key>` or a nested `monocular` dict) over the base values. Unknown `mode` values throw. `semi_direct` and `semidirect` select the planar-patch mode. `direct` still maps to `hybrid`. The code default is `klt`. The checked-in camera settings use `hybrid`, except `settings/TUM3.yaml` and `settings/KITTI04-12.yaml`, which use `semi_direct`. A monocular camera also applies `DIRECT_SLAM.monocular.*`, which selects `semi_direct` and a larger seed budget in those settings. Defaults live in `direct_params.h`.
 
-`settings/KITTI00-02.yaml` selects `hybrid` for stereo and `semi_direct` for monocular input. `settings/KITTI04-12.yaml` and `settings/TUM3.yaml` select `semi_direct` (TUM3 is undistorted RGBD). `settings/TUM_VI.yaml` selects `hybrid`. Rectified TUM-VI is an undistorted pinhole. Native TUM-VI keeps the distorted images: Lucas–Kanade finds the right-image pixel, and the photometric warp uses the Kannala–Brandt Jacobian. Do not point any mode at a distorted linear pinhole such as TUM1.
+`settings/KITTI00-02.yaml` selects `hybrid` for stereo and `semi_direct` for monocular input. `settings/KITTI04-12.yaml` and `settings/TUM3.yaml` select `semi_direct` (TUM3 is undistorted RGBD). `settings/TUM_VI.yaml` selects `hybrid`. Rectified TUM-VI is an undistorted pinhole. Native TUM-VI keeps the distorted images: Lucas–Kanade finds the right-image pixel, and the photometric warp uses the Kannala–Brandt Jacobian. A distorted linear pinhole such as TUM1 must be remapped before calling the native frontend; the runner does this automatically for monocular/RGBD input.
 
 Corners come from `detect_corners`. `grid_fast` (the default) splits the image into `grid_cols` by `grid_rows` cells, runs FAST in each cell, and keeps the strongest responses up to a shared quota. Pass a cell list to `detect_grid_fast` to extract only those cells. `gftt` remains the single global Shi-Tomasi detector. Zero pixels in the occupancy mask are skipped, and `border` excludes the image edge. `num_features` is both the detection cap and the live-track target.
 
@@ -147,16 +149,16 @@ From the repository root, with the pyslam environment active:
 ./build_cpp_core.sh
 ```
 
-`main_direct_slam.py` uses `Config`, `dataset_factory`, and `camera_from_config`. The dataset must be stereo or RGBD, unless the resolved mode is `semi_direct`. That mode can come from `DIRECT_SLAM.monocular.mode` in the camera settings or from `--mode`. Monocular runs use Sim(3) loop closing and align ground truth with Sim(3).
+`main_slam_direct.py` uses `Config`, `dataset_factory`, and `camera_from_config`. The dataset must be stereo or RGBD, unless the resolved mode is `semi_direct`. That mode can come from `DIRECT_SLAM.monocular.mode` in the camera settings or from `--mode`. Monocular runs use Sim(3) loop closing and align ground truth with Sim(3).
 
 ```bash
-python main_direct_slam.py -c config.yaml --headless
-python main_direct_slam.py -c config.yaml --headless --max-frames 100
-python main_direct_slam.py -c config.yaml                  # 3D map and tracked feature trails
-python main_direct_slam.py -c config.yaml --headless --mode klt --max-frames 1000
-python main_direct_slam.py -c config.yaml --headless --trajectory-file /tmp/direct-kitti.txt
-python main_direct_slam.py -c config.yaml --headless --no-local-ba  # frontend-only comparison
-python main_direct_slam.py -c config.yaml --headless --no-loop-closing
+python main_slam_direct.py -c config.yaml --headless
+python main_slam_direct.py -c config.yaml --headless --max-frames 100
+python main_slam_direct.py -c config.yaml                  # 3D map and tracked feature trails
+python main_slam_direct.py -c config.yaml --headless --mode klt --max-frames 1000
+python main_slam_direct.py -c config.yaml --headless --trajectory-file /tmp/direct-kitti.txt
+python main_slam_direct.py -c config.yaml --headless --no-local-ba  # frontend-only comparison
+python main_slam_direct.py -c config.yaml --headless --no-loop-closing
 ```
 
 The viewer shows the current camera, keyframes, accumulated landmarks in black, the full accepted estimated trajectory as a blue line, feature trails, and ground truth when configured. With loop closing enabled it also draws covisibility, spanning-tree and loop edges from the descriptor keyframes, using each direct keyframe's camera center. The trajectory line incorporates local BA and loop corrections and is cleared on reset. Pause, step, reset, local BA and quit are supported; the shared viewer's save control is not connected to this frontend. Feature drawing uses `cpp/core/common/feature_trails.h`, the same helper as `Frame::draw_feature_trails` in `main_slam.py`: stable ID colors, filled 4-pixel markers, antialiased trails and the optional radius/track-age palette. Detected corners are drawn at octave 0. Non-headless playback is paced at the dataset frame rate; headless playback runs as fast as possible.

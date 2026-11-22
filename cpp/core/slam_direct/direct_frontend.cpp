@@ -22,6 +22,7 @@
 
 #include "slam_direct/depth_measurement.h"
 #include "slam_direct/features/corner_detection.h"
+#include "slam_direct/image_utils.h"
 
 #include <opencv2/imgproc.hpp>
 
@@ -51,6 +52,19 @@ std::vector<DirectPoint> measured_points(const std::vector<Vec2d> &pixels,
         points.push_back(point);
     }
     return points;
+}
+
+// The average per-frame motion of a pose change that spans `frames` input frames: the rotation
+// angle and the translation are divided by the frame count. One frame returns the change as is.
+Eigen::Isometry3d per_frame_motion(const Eigen::Isometry3d &delta, int frames) {
+    if (frames <= 1) {
+        return delta;
+    }
+    const Eigen::AngleAxisd rotation(delta.linear());
+    Eigen::Isometry3d motion = Eigen::Isometry3d::Identity();
+    motion.linear() = Eigen::AngleAxisd(rotation.angle() / frames, rotation.axis()).toRotationMatrix();
+    motion.translation() = delta.translation() / static_cast<double>(frames);
+    return motion;
 }
 
 } // namespace
@@ -195,7 +209,13 @@ void DirectSlam::refresh_tracking_state_from_map() {
         previous_pose_.matrix() = trajectory.back().Tcw;
         current_pose_ = CameraPose(previous_pose_);
         if (trajectory.size() >= 2) {
-            velocity_.matrix() = trajectory.back().Tcw * trajectory[trajectory.size() - 2].Tcw.inverse();
+            // The last two accepted poses can be several input frames apart (monocular
+            // initialization, or a recovery after lost frames): keep a one-frame prediction.
+            const auto &last = trajectory.back();
+            const auto &before = trajectory[trajectory.size() - 2];
+            Eigen::Isometry3d delta;
+            delta.matrix() = last.Tcw * before.Tcw.inverse();
+            velocity_ = per_frame_motion(delta, last.img_id - before.img_id);
         } else has_velocity_ = false;
     }
     std::set<int64_t> rejected_current;
@@ -316,7 +336,7 @@ std::vector<LivePoint> DirectSlam::points_from_camera(const std::vector<DirectPo
     live.reserve(points.size());
     const Eigen::Isometry3d Twc = Tcw.inverse();
     for (const DirectPoint &point : points) {
-        if (!point.has_depth || !metric_point_ok(*camera_, point.position_c)) {
+        if (!point.has_depth || !metric_point_ok(*camera_, params_, point.position_c)) {
             continue;
         }
         // IDs survive temporal tracking and connect later keyframe observations in BA.
@@ -425,11 +445,7 @@ void DirectSlam::initialize_monocular_map(const cv::Mat &gray, int img_id, doubl
     tracker_->on_keyframe(frame, map_.latest_keyframe()->id, state);
 
     // Constant-velocity seed: the average per-frame motion since the reference.
-    const int frames = std::max(1, img_id - init.ref_img_id);
-    const Eigen::AngleAxisd rotation(T_cur_w.linear());
-    velocity_ = Eigen::Isometry3d::Identity();
-    velocity_.linear() = Eigen::AngleAxisd(rotation.angle() / frames, rotation.axis()).toRotationMatrix();
-    velocity_.translation() = T_cur_w.translation() / static_cast<double>(frames);
+    velocity_ = per_frame_motion(T_cur_w, img_id - init.ref_img_id);
     has_velocity_ = true;
     previous_pose_ = T_cur_w;
     current_pose_ = CameraPose(T_cur_w);
@@ -473,7 +489,8 @@ void DirectSlam::track(const cv::Mat &img, const cv::Mat &img_right, const cv::M
     const Eigen::Isometry3d &T_cur_w = result.T_cur_w;
     consecutive_failures_ = 0;
     set_status_from_inliers(result.inliers);
-    velocity_ = T_cur_w * previous_pose_.inverse();
+    // After lost frames the accepted pose is several input frames past the previous one.
+    velocity_ = per_frame_motion(T_cur_w * previous_pose_.inverse(), img_id - last_img_id_);
     has_velocity_ = true;
 
     std::vector<LivePoint> kept;
@@ -513,6 +530,78 @@ void DirectSlam::track(const cv::Mat &img, const cv::Mat &img_right, const cv::M
     // Register the accepted frame before BA so its reference-relative pose is corrected too.
     map_.add_pose(img_id, stamp, T_cur_w);
     if (new_keyframe && params_.local_ba) bundle_adjustment();
+}
+
+bool DirectSlam::relocalize(const cv::Mat &img, const cv::Mat &img_right, const cv::Mat &depth, int img_id,
+                            double timestamp, const Eigen::Matrix4d &Tcw_matrix, const std::vector<Vec2d> &pixels,
+                            const std::vector<Vec3d> &points_w, const std::vector<int64_t> &landmark_ids) {
+    if (pixels.size() != points_w.size() || pixels.size() != landmark_ids.size()) {
+        throw std::invalid_argument("DirectSlam::relocalize: pixels, points and ids differ in size");
+    }
+    if (map_.keyframes().empty() || !Tcw_matrix.allFinite()) {
+        return false;
+    }
+    const cv::Mat gray = as_gray8(img);
+    const cv::Mat gray_right = as_gray8(img_right);
+    if (gray.cols != camera_->width || gray.rows != camera_->height) {
+        throw std::invalid_argument("DirectSlam: image size does not match camera calibration");
+    }
+    if (camera_->sensor_type == SensorType::STEREO &&
+        (gray_right.empty() || gray_right.size() != gray.size()))
+        throw std::invalid_argument("DirectSlam: stereo requires matching left/right image sizes");
+    if (camera_->sensor_type == SensorType::RGBD &&
+        (depth.empty() || depth.size() != gray.size() ||
+         (depth.type() != CV_16UC1 && depth.type() != CV_32FC1 && depth.type() != CV_64FC1)))
+        throw std::invalid_argument("DirectSlam: RGBD requires a matching uint16/float depth image");
+    Eigen::Isometry3d Tcw;
+    Tcw.matrix() = Tcw_matrix;
+    // Keep matches in front of the camera, inside the image, with distinct landmarks.
+    std::vector<LivePoint> live;
+    std::set<int64_t> used;
+    int64_t next_id = next_point_id_;
+    for (size_t i = 0; i < pixels.size(); ++i) {
+        if (!pixels[i].allFinite() || !inside_border(pixels[i], gray.size(), params_.border)) continue;
+        int64_t id = landmark_ids[i];
+        Vec3d position_w = points_w[i];
+        if (id >= 0) {
+            const auto it = map_.landmarks().find(id);
+            if (it == map_.landmarks().end() || it->second.bad || used.count(id)) continue;
+            position_w = it->second.position_w; // The direct landmark, not its descriptor copy.
+        }
+        if (!position_w.allFinite() || !((Tcw * position_w).z() > kMinTrackingDepth)) continue;
+        if (id < 0) {
+            id = next_id++;
+        }
+        used.insert(id);
+        live.push_back(make_live_point(id, pixels[i], position_w));
+    }
+    if (static_cast<int>(live.size()) <= params_.num_features_tracking_bad) {
+        return false;
+    }
+    // Commit new descriptor landmarks only after the restart has enough support.
+    for (const auto &point : live) {
+        if (point.id >= next_point_id_)
+            map_.landmarks_mutable()[point.id] = {point.position_w, false};
+    }
+    next_point_id_ = next_id;
+    live_points_ = std::move(live);
+    previous_pose_ = Tcw;
+    current_pose_ = CameraPose(Tcw);
+    has_velocity_ = false; // The relocalized pose has no motion history.
+    velocity_ = Eigen::Isometry3d::Identity();
+    consecutive_failures_ = 0;
+    // Stereo and RGBD add measured corners at once; monocular gets new seeds at the keyframe.
+    supplement_live_points(gray, gray_right, depth, Tcw, img_id, timestamp);
+    const TrackingFrame frame{gray, gray_right, depth, img_id};
+    TrackerMapState state = map_state();
+    record_keyframe(gray, gray_right, depth, img_id, timestamp, Tcw);
+    tracker_->on_keyframe(frame, map_.latest_keyframe()->id, state);
+    last_gray_ = gray.clone();
+    last_img_id_ = img_id;
+    map_.add_pose(img_id, timestamp, Tcw);
+    set_status_from_inliers(static_cast<int>(live_points_.size()));
+    if (params_.local_ba) bundle_adjustment();
+    return true;
 }
 
 void DirectSlam::note_tracking_failure(int inliers) {

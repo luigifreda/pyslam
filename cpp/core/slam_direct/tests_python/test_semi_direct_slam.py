@@ -58,6 +58,16 @@ class SemiDirectBindingTest(unittest.TestCase):
                 DirectSlam(camera, {"DIRECT_SLAM": {"mode": mode}})
         DirectSlam(camera, {"DIRECT_SLAM": {"mode": "semi_direct"}})
 
+    def test_monocular_init_median_depth_follows_resolved_seed_range(self):
+        camera = make_camera(cpp_core.SensorType.MONOCULAR)
+        default = DirectSlam(camera, {"DIRECT_SLAM": {"mode": "semi_direct"}})
+        self.assertAlmostEqual(default.monocular_init_median_depth, np.sqrt(0.5 * 80.0))
+        # Flat YAML keys, with the monocular override taking precedence.
+        slam = DirectSlam(camera, {"DIRECT_SLAM.mode": "semi_direct", "DIRECT_SLAM.seed_min_depth": 1.0,
+                                   "DIRECT_SLAM.seed_max_depth": 50.0,
+                                   "DIRECT_SLAM.monocular.seed_max_depth": 16.0})
+        self.assertAlmostEqual(slam.monocular_init_median_depth, 4.0)
+
     def test_monocular_overrides(self):
         # A settings file shared by stereo and monocular runs: the monocular block applies
         # only to a monocular camera, in nested or flat (OpenCV YAML) form.

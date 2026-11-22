@@ -36,7 +36,16 @@ from pyslam.loop_closing.loop_detector_configs import (
     LoopDetectorConfigs,
     loop_detector_config_check,
 )
-from pyslam.slam import CameraPose, EpipolarMatcher, Frame, KeyFrame, Map, MapPoint, TrackingCore
+from pyslam.slam import (
+    CameraPose,
+    EpipolarMatcher,
+    Frame,
+    KeyFrame,
+    Map,
+    MapPoint,
+    ProjectionMatcher,
+    TrackingCore,
+)
 from pyslam.slam.frame import compute_frame_matches
 from pyslam.utilities.geom_triangulation import triangulate_normalized_points
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
@@ -63,6 +72,19 @@ kMaxPendingInitFrames = 100
 # (ORB-SLAM local mapping). Landmark association alone covers too few keypoints for Sim(3)
 # verification, which needs a 3D point on both sides of a match.
 kMonoTriangulationNeighbors = 3
+# Monocular keyframes then fuse points with this many previous keyframes, in both directions
+# (ORB-SLAM local mapping). Without it, a keyframe only holds the points it created itself,
+# so a loop candidate pair shares too few 3D points for the Sim(3) RANSAC to reach its inlier
+# minimum, and the loop is detected but never verified.
+kMonoFuseNeighbors = 10
+# Monocular semi-direct promotes most depth seeds to landmarks some frames after their keyframe
+# (about 2.5x the observations it has when inserted on KITTI). A monocular keyframe is handed to
+# loop closing this many keyframes after insertion, with the observations it has by then ...
+kMonoSubmitDelay = 3
+# ... and re-reads them again this many keyframes after insertion (_refresh_landmark_associations).
+kMonoObservationRefreshDelays = (10,)
+# On a tracking loss, these most recent prepared keyframes are tried first by the relocalizer.
+kLocalRelocalizationKeyframes = 10
 
 
 class DirectLoopGate:
@@ -212,12 +234,16 @@ class DirectLoopClosing:
         # poses local BA moved with one vectorized comparison per frame.
         self._synced_twc = np.empty((0, 4, 4), dtype=np.float64)
         # Monocular only: direct observations captured when each keyframe was added
-        # (ids, pixels, camera-frame points), the shared descriptor point of each direct
+        # (ids, pixels, world points), the shared descriptor point of each direct
         # landmark, and each keyframe's (keypoint index, landmark id) associations.
         self._direct_observations = {}
         self._pending_init_frames = {}  # img_id -> (image, image_right, depth, timestamp)
         self._landmark_points = {}
         self._landmark_matches = {}
+        # Monocular only: (keyframe index, keyframe count at which to re-read its observations),
+        # and keyframes not yet handed to loop closing: (index, image, extraction kwargs).
+        self._observation_refreshes = []
+        self._pending_submissions = []
         # Viewer graph as index pairs into _keyframes. Edges are appended when a
         # keyframe is added; a published correction bumps _graph_revision
         # (on the LoopClosing thread) to force a full rebuild.
@@ -273,7 +299,19 @@ class DirectLoopClosing:
     def note_tracked_frame(self, image, image_right, depth, img_id, timestamp):
         poses, timestamps = self.direct_slam.keyframes()
         with self.map.update_lock:
-            self._sync_poses(poses[: len(self._keyframes)])
+            changed = self._sync_poses(poses[: len(self._keyframes)])
+            if self.sensor_type == SensorType.MONOCULAR:
+                # Deferred snapshots must stay current even when only landmarks changed
+                # (e.g. BA's fixed gauge pose), or a loop correction was just published.
+                pending = {self._keyframe_index[kid] for kid in self._direct_observations}
+                indices = set(changed) | pending
+                ba = getattr(self.direct_slam, "last_ba", lambda: None)()
+                if ba is not None and ba.applied:
+                    # The fixed pose in the BA window can observe moving landmarks too.
+                    # Every optimized landmark has an observer in this window.
+                    indices.update(range(max(0, len(poses) - ba.keyframes), len(self._keyframes)))
+                if indices:
+                    self._sync_landmark_points(sorted(indices))
             added = len(poses) - len(self._keyframes)
             if added == 0:
                 if not self._keyframes:
@@ -284,10 +322,14 @@ class DirectLoopClosing:
                 ref_img_id = int(self.direct_slam.keyframe_img_ids()[0])
                 ref = self._pending_init_frames.get(ref_img_id)
                 if ref is None:
+                    # Never pair another image with the reference pose: its descriptors would get
+                    # 3D points that do not belong to them. A blank image yields no features.
                     Printer.yellow(
-                        f"Direct loop closing: initialization frame {ref_img_id} is no longer cached; "
-                        "using the current image for its descriptors")
-                    ref = (image, image_right, depth, timestamps[0])
+                        f"Direct loop closing: initialization frame {ref_img_id} is not cached; "
+                        "its keyframe gets no descriptors")
+                    blank = np.zeros_like(image)
+                    ref = (blank, None if image_right is None else np.zeros_like(image_right),
+                           None if depth is None else np.zeros_like(depth), timestamps[0])
                 self._pending_init_frames.clear()
                 self._add_keyframe(ref[0], ref[1], ref[2], ref_img_id, ref[3], poses[0])
                 self._add_keyframe(image, image_right, depth, img_id, timestamp, poses[1])
@@ -298,9 +340,17 @@ class DirectLoopClosing:
                 )
             self._pending_init_frames.clear()
             self._add_keyframe(image, image_right, depth, img_id, timestamp, poses[-1])
+            if self.sensor_type == SensorType.MONOCULAR:
+                self._submit_due_keyframes()
+                self._refresh_landmark_associations()
 
     def _remember_init_frame(self, image, image_right, depth, img_id, timestamp):
-        """Caller holds map.update_lock. Bounded cache of frames before the first keyframe."""
+        """Caller holds map.update_lock. Cache the frames that may become the first keyframe.
+
+        The two-view initializer only ever pairs the current frame with its reference frame, and
+        the reference only changes to the frame being processed. So only the reference frame is
+        kept, however long initialization takes. Without that id, a bounded cache is kept.
+        """
         if self.sensor_type != SensorType.MONOCULAR:
             return
         self._pending_init_frames[int(img_id)] = (
@@ -309,6 +359,11 @@ class DirectLoopClosing:
             None if depth is None else np.array(depth, copy=True),
             timestamp,
         )
+        reference = getattr(self.direct_slam, "init_reference_img_id", lambda: -1)()
+        if reference >= 0 and reference in self._pending_init_frames:
+            for frame_id in [f for f in self._pending_init_frames if f != reference]:
+                del self._pending_init_frames[frame_id]
+            return
         while len(self._pending_init_frames) > kMaxPendingInitFrames:
             self._pending_init_frames.pop(next(iter(self._pending_init_frames)))
 
@@ -316,10 +371,11 @@ class DirectLoopClosing:
         """Caller holds map.update_lock. Move keyframes (and their points) that local/manual BA changed."""
         count = len(self._keyframes)
         if len(twc_poses) != count or count == 0:
-            return
+            return []
         twc_all = np.asarray(twc_poses, dtype=np.float64).reshape(count, 4, 4)
         diff = np.abs(twc_all - self._synced_twc).reshape(count, -1).max(axis=1)
-        for index in np.flatnonzero(diff >= kPoseChangeTolerance):
+        changed = np.flatnonzero(diff >= kPoseChangeTolerance)
+        for index in changed:
             keyframe = self._keyframes[index]
             twc = twc_all[index]
             updated = np.linalg.inv(twc)
@@ -340,6 +396,47 @@ class DirectLoopClosing:
                 position = np.asarray(point.pt(), dtype=np.float64).reshape(3)
                 point.update_position(rotation @ position + translation)
                 point.update_normal_and_depth(True)
+        return [int(index) for index in changed]
+
+    def _capture_observations(self, index):
+        """Caller holds map.update_lock, on the tracking thread. The direct observations of
+        keyframe `index` as (ids, pixels, world points): the world positions are the landmarks'
+        current ones, so they stay valid when local BA later moves the keyframe."""
+        ids, pixels, points_c = self.direct_slam.keyframe_observations(index)
+        twc = self._synced_twc[index]
+        points_c = np.asarray(points_c, dtype=np.float64).reshape(-1, 3)
+        return ids, pixels, points_c @ twc[:3, :3].T + twc[:3, 3]
+
+    def _sync_landmark_points(self, indices):
+        """Caller holds map.update_lock, on the tracking thread. Local BA moves the direct
+        landmarks, not only the keyframes: put each descriptor point of a landmark observed by a
+        changed keyframe back onto that landmark, so loop closing and the Sim(3) scale recovery
+        see the same geometry as the direct map."""
+        updated = set()
+        for index in indices:
+            observations = self._capture_observations(index)
+            keyframe = self._keyframes[index]
+            if keyframe.id in self._direct_observations:
+                # Features can arrive after BA. Keep their deferred geometry current too.
+                self._direct_observations[keyframe.id] = observations
+            ids, _pixels, points_w = observations
+            for landmark_id, position in zip(ids, points_w):
+                landmark_id = int(landmark_id)
+                if landmark_id in updated:
+                    continue
+                point = self._landmark_point(landmark_id)
+                if point is None:
+                    continue
+                updated.add(landmark_id)
+                point.update_position(position)
+                point.update_normal_and_depth(True)
+
+    def _landmark_point(self, landmark_id):
+        """The descriptor point of a direct landmark, following fusion replacements, or None."""
+        point = self._landmark_points.get(landmark_id)
+        while point is not None and point.is_bad() and point.get_replacement() is not None:
+            point = point.get_replacement()
+        return None if point is None or point.is_bad() else point
 
     def _add_keyframe(self, image, image_right, depth, img_id, timestamp, twc):
         image = np.ascontiguousarray(image)
@@ -379,19 +476,87 @@ class DirectLoopClosing:
             for neighbor in neighbors:
                 keyframe.add_connection(neighbor, kCovisibilityWeight)
             self._pending_links[keyframe.id] = list(neighbors)
-        if self.sensor_type == SensorType.MONOCULAR:
-            # Captured on the tracking thread: the loop thread must not read the direct map
-            # while tracking runs. Camera-frame points survive later pose updates.
-            self._direct_observations[keyframe.id] = self.direct_slam.keyframe_observations(
-                len(self._keyframes))
-        self._keyframe_index[keyframe.id] = len(self._keyframes)
+        index = len(self._keyframes)
+        self._keyframe_index[keyframe.id] = index
         self._keyframes.append(keyframe)
         self._synced_twc = np.concatenate(
             (self._synced_twc, np.asarray(twc, dtype=np.float64).reshape(1, 4, 4)))
         self._append_graph_edges(keyframe)
-        self.loop_closing.add_keyframe(keyframe, image, feature_extraction=dict(
-            config=self._feature_config, camera=self.camera,
-            image_right=image_right, depth=depth))
+        extraction = dict(config=self._feature_config, camera=self.camera,
+                          image_right=image_right, depth=depth)
+        if self.sensor_type == SensorType.MONOCULAR:
+            # Depth seeds of this keyframe become landmarks over the next frames. Submit it to
+            # loop closing only after kMonoSubmitDelay more keyframes, with the observations
+            # it has by then (see _submit_due_keyframes), and refresh them later still.
+            self._pending_submissions.append((index, image, extraction))
+            self._observation_refreshes.extend(
+                (index, index + 1 + delay) for delay in kMonoObservationRefreshDelays)
+        else:
+            self.loop_closing.add_keyframe(keyframe, image, feature_extraction=extraction)
+
+    def _submit_due_keyframes(self):
+        """Caller holds map.update_lock, on the tracking thread inside the gate. Hand monocular
+        keyframes to loop closing in insertion order once they are kMonoSubmitDelay keyframes
+        old, with their direct observations captured now. The loop thread must not read the
+        direct map while tracking runs, so the observations are captured here."""
+        count = len(self._keyframes)
+        while self._pending_submissions and self._pending_submissions[0][0] + kMonoSubmitDelay < count:
+            index, image, extraction = self._pending_submissions.pop(0)
+            keyframe = self._keyframes[index]
+            self._direct_observations[keyframe.id] = self._capture_observations(index)
+            self.loop_closing.add_keyframe(keyframe, image, feature_extraction=extraction)
+
+    def relocalize(self, image, image_right, depth, img_id, timestamp):
+        """Recover a lost direct tracker with the relocalizer main_slam.py uses.
+
+        Called on the tracking thread inside the gate, after a LOST frame. The current image
+        gets descriptors, loop closing's Relocalizer looks for it among the descriptor keyframes
+        (keyframe database query, descriptor matching, PnP on their map points), and the inlier
+        matches restart DirectSlam at the recovered pose. A match on the descriptor point of a
+        direct landmark re-acquires that landmark; one on a triangulated descriptor point becomes
+        a new landmark. Returns True when DirectSlam restarted.
+        """
+        if self.loop_closing is None or not self._prepared_keyframes:
+            return False
+        frame = Frame(self.camera, image, img_right=None, depth=None, timestamp=timestamp, img_id=int(img_id))
+        # Right after a loss the camera is still close to the latest keyframes, which the keyframe
+        # database may rank low or not hold yet (monocular keyframes are submitted late). Try
+        # them first with the same Relocalizer, then the database query main_slam.py uses.
+        with self.map.update_lock:
+            recent = [kf.id for kf in reversed(self._keyframes)
+                      if kf.id in self._prepared_keyframes and not kf.is_bad()][:kLocalRelocalizationKeyframes]
+        local = SimpleNamespace(candidate_idxs=recent, candidate_scores=None)
+        found = bool(recent) and self.loop_closing.relocalizer.relocalize(
+            frame, local, self.loop_closing.keyframes_map)
+        # The global query waits for the detector process: map.update_lock must not be held.
+        if not found and not self.loop_closing.relocalize(frame, image):
+            return False
+        with self.map.update_lock:
+            landmark_of_point = {}
+            for landmark_id in self._landmark_points:
+                point = self._landmark_point(landmark_id)
+                if point is not None:
+                    landmark_of_point[point.id] = landmark_id
+            points = frame.get_points()
+            outliers = frame.outliers
+            kps = np.asarray(frame.kps, dtype=np.float64).reshape(-1, 2)
+            pixels, points_w, landmark_ids = [], [], []
+            for i, point in enumerate(points):
+                if point is None or point.is_bad() or (outliers is not None and len(outliers) > i and outliers[i]):
+                    continue
+                pixels.append(kps[i])
+                points_w.append(np.asarray(point.pt(), dtype=np.float64).reshape(3))
+                landmark_ids.append(int(landmark_of_point.get(point.id, -1)))
+            tcw = np.asarray(frame.Tcw(), dtype=np.float64)
+        restarted = self.direct_slam.relocalize(
+            image, image_right, depth, int(img_id), float(timestamp), tcw,
+            np.asarray(pixels, dtype=np.float64).reshape(-1, 2),
+            np.asarray(points_w, dtype=np.float64).reshape(-1, 3), landmark_ids)
+        (Printer.green if restarted else Printer.yellow)(
+            f"Direct SLAM: relocalization at frame {img_id}: {len(pixels)} map matches, "
+            f"{sum(i >= 0 for i in landmark_ids)} direct landmarks, "
+            + ("tracking restarted" if restarted else "too few usable matches"))
+        return restarted
 
     def prepare_loop_keyframe(self, keyframe, features):
         """Install worker features before geometry verification, at the latest pose.
@@ -434,6 +599,7 @@ class DirectLoopClosing:
         elif count:
             self._create_monocular_points(keyframe)
             self._triangulate_monocular_points(keyframe)
+            self._fuse_monocular_points(keyframe)
         self._direct_observations.pop(keyframe.id, None)
         self._prepared_keyframes.add(keyframe.id)
         for neighbor in self._pending_links.pop(keyframe.id, ()):
@@ -447,27 +613,40 @@ class DirectLoopClosing:
         observations = self._direct_observations.get(keyframe.id)
         if observations is None:
             return
-        ids, pixels, points_c = observations
+        self._associate_landmarks(keyframe, observations)
+
+    def _associate_landmarks(self, keyframe, observations):
+        """Caller holds map.update_lock. Attach direct landmarks (ids, pixels, world points, see
+        _capture_observations) to the nearest free descriptor keypoints of keyframe. Landmarks it already
+        matched and keypoints that already hold a point are skipped, so a later call with
+        more observations of the same keyframe only adds the new ones."""
+        ids, pixels, points_w = observations
         pixels = np.asarray(pixels, dtype=np.float64).reshape(-1, 2)
-        points_c = np.asarray(points_c, dtype=np.float64).reshape(-1, 3)
-        if len(ids) == 0:
-            return
+        points_w = np.asarray(points_w, dtype=np.float64).reshape(-1, 3)
+        created = self._keyframe_points.setdefault(keyframe.id, [])
+        matches = self._landmark_matches.setdefault(keyframe.id, [])
+        if len(ids) == 0 or keyframe.kps is None or len(keyframe.kps) == 0:
+            return 0
+        matched = {landmark_id for _k, landmark_id in matches}
         kps = np.asarray(keyframe.kps, dtype=np.float64).reshape(-1, 2)
         distances, nearest = cKDTree(kps).query(pixels, distance_upper_bound=kMonoAssociationRadiusPx)
         # Each keypoint keeps its closest landmark.
         best = {}
         for j, (distance, k) in enumerate(zip(distances, nearest)):
-            if np.isfinite(distance) and (k not in best or distance < best[k][0]):
+            if not np.isfinite(distance) or int(ids[j]) in matched:
+                continue
+            if k not in best or distance < best[k][0]:
                 best[k] = (distance, j)
-        twc = np.asarray(keyframe.Twc(), dtype=np.float64)
-        created = []
-        matches = []
+        num_added = 0
         for k, (_distance, j) in best.items():
             k = int(k)
+            if keyframe.get_point_match(k) is not None:
+                continue
             landmark_id = int(ids[j])
-            point = self._landmark_points.get(landmark_id)
-            if point is None or point.is_bad():
-                position = twc[:3, :3] @ points_c[j] + twc[:3, 3]
+            # Fusion may have merged the landmark's point into another one.
+            point = self._landmark_point(landmark_id)
+            if point is None:
+                position = points_w[j]
                 point = MapPoint(position, kMonoPointColor, keyframe, k)
                 self.map.add_point(point)
                 self._landmark_points[landmark_id] = point
@@ -475,8 +654,36 @@ class DirectLoopClosing:
             if point.add_observation(keyframe, k):
                 point.update_info()
                 matches.append((k, landmark_id))
-        self._keyframe_points[keyframe.id] = created
-        self._landmark_matches[keyframe.id] = matches
+                num_added += 1
+        return num_added
+
+    def _refresh_landmark_associations(self):
+        """Caller holds map.update_lock, on the tracking thread inside the gate.
+
+        Monocular semi-direct promotes most depth seeds to landmarks several frames after
+        their keyframe, and then appends them to that keyframe. Observations captured when a
+        keyframe is added hold only about a third of what it ends up with, so its descriptor
+        keypoints get few 3D points. Re-read each keyframe's observations after a few more
+        keyframes and attach the promoted landmarks too.
+        """
+        count = len(self._keyframes)
+        pending = []
+        for index, due in self._observation_refreshes:
+            keyframe = self._keyframes[index] if index < count else None
+            if keyframe is None or keyframe.is_bad():
+                continue
+            if count < due:
+                pending.append((index, due))
+                continue
+            # Snapshot at the due keyframe count, so the result does not depend on when the
+            # loop thread installs the features.
+            observations = self._capture_observations(index)
+            if keyframe.id in self._prepared_keyframes:
+                self._associate_landmarks(keyframe, observations)
+            else:
+                # _install_features() associates the newest snapshot (a superset of the older one).
+                self._direct_observations[keyframe.id] = observations
+        self._observation_refreshes = pending
 
     def _triangulate_monocular_points(self, keyframe):
         """Caller holds map.update_lock. Triangulate epipolar descriptor matches between
@@ -510,6 +717,39 @@ class DirectLoopClosing:
                 points, mask, keyframe, other, idxs_cur, idxs_other, keyframe.img, do_check=True)
             created.extend(added)
 
+    def _fuse_monocular_points(self, keyframe):
+        """Caller holds map.update_lock. Re-observe recent points in keyframe and its points in
+        recent keyframes by projection and descriptor (ORB-SLAM local-mapping fusion).
+
+        Keyframe connections stay the temporal links: update_connections() is not called
+        (see _add_keyframe).
+        """
+        index = self._keyframe_index.get(keyframe.id)
+        if not index:
+            return
+        neighbors = [
+            other for other in self._keyframes[max(0, index - kMonoFuseNeighbors):index]
+            if other.id in self._prepared_keyframes and not other.is_bad()
+        ]
+        if not neighbors:
+            return
+        max_distance = 0.5 * self.feature_tracker.feature_manager.max_descriptor_distance
+        for other in neighbors:
+            ProjectionMatcher.search_and_fuse(
+                keyframe.get_points(), other,
+                max_reproj_distance=Parameters.kMaxReprojectionDistanceFuse,
+                max_descriptor_distance=max_distance)
+        candidates = {
+            point for other in neighbors for point in other.get_points()
+            if point is not None and not point.is_bad()}
+        if candidates:
+            ProjectionMatcher.search_and_fuse(
+                np.array(list(candidates)), keyframe,
+                max_reproj_distance=Parameters.kMaxReprojectionDistanceFuse,
+                max_descriptor_distance=max_distance)
+        for point in keyframe.get_matched_good_points():
+            point.update_info()
+
     def _monocular_scales(self, poses):
         """Per-keyframe scale of a Sim(3) correction, or None when no keyframe was rescaled.
 
@@ -517,7 +757,11 @@ class DirectLoopClosing:
         before the correction. Loop correction and global BA both move descriptor points
         with their keyframe's similarity, so a point seen from a corrected keyframe at
         distance d before is at d / s after. The median ratio over the keyframe's points
-        recovers s; keyframes without support take the nearest estimate.
+        recovers s. Descriptor points of direct landmarks sit on those landmarks (see
+        _sync_landmark_points), so the ratio compares the same 3D point. A changed keyframe
+        without enough support between two supported ones takes the scale interpolated between
+        them; outside every supported span it keeps scale 1: a neighbor's scale is never
+        extrapolated onto it.
         """
         direct_twc, _ = self.direct_slam.keyframes()
         count = len(self._keyframes)
@@ -550,8 +794,9 @@ class DirectLoopClosing:
             return None
         missing = np.flatnonzero(~(np.isfinite(scales) & (scales > 0.0)))
         if len(missing):
-            nearest = valid[np.abs(missing[:, None] - valid[None, :]).argmin(axis=1)]
-            scales[missing] = scales[nearest]
+            inside = (missing > valid[0]) & (missing < valid[-1])
+            scales[missing[inside]] = np.interp(missing[inside], valid, scales[valid])
+            scales[missing[~inside]] = 1.0
         if np.max(np.abs(scales - 1.0)) < 1e-9:
             return None
         return scales.tolist()

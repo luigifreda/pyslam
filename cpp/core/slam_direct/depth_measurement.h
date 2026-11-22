@@ -43,9 +43,10 @@ cv::Mat as_gray8(const cv::Mat &img);
 // Convert the configured sensor units to meters; zero denotes an unusable depth sample.
 double sample_depth(const cv::Mat &depth, const Vec2d &uv, double depth_factor);
 
-// Nonlinear models keep a positive optical-axis depth and apply the metric window to the
-// ray length. An undistorted pinhole keeps the historical check on z.
-bool metric_point_ok(const Camera &camera, const Vec3d &X);
+// Gate for every new landmark: depth in (seed_min_depth, seed_max_depth), the configured range
+// the depth filter and the epipolar search also use. Nonlinear models keep a positive optical-axis
+// depth and apply the window to the ray length. An undistorted pinhole checks z.
+bool metric_point_ok(const Camera &camera, const DirectSlamParams &params, const Vec3d &X);
 
 // Depth images and rectified disparity store camera-frame z. The bearing lies on z = 1
 // for a pinhole, so this matches unproject_point_3d there. Same lift as the photometric
@@ -54,8 +55,9 @@ bool lift_pixel_depth(const Camera &camera, const Vec2d &uv, double z, Vec3d &X)
 
 // Rectified KITTI-style cameras store the baseline in Camera::bf and have no
 // right camera. A calibrated rig uses Camera::triangulate_stereo_point.
-bool triangulate_match(const Camera &camera, const Vec2d &left, const Vec2d &right, double max_error,
-                       Vec3d &X);
+// params.stereo_max_error bounds a calibrated rig's triangulation error.
+bool triangulate_match(const Camera &camera, const DirectSlamParams &params, const Vec2d &left,
+                       const Vec2d &right, Vec3d &X);
 
 // Expected right-image pixel of a left-camera point Xc observed at uv, used to seed stereo LK.
 Vec2d predict_right_pixel(const Camera &camera, const Vec3d &Xc, const Vec2d &uv);

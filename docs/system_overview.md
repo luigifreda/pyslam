@@ -38,7 +38,7 @@ pySLAM contains two SLAM pipelines and a multi-view reconstruction module. They 
 | Part | Entry point | Front-end | Back-end | Maps |
 | ---- | ----------- | --------- | -------- | ---- |
 | [Indirect (feature-based) SLAM](#indirect-feature-based-slam) | [`main_slam.py`](../main_slam.py) | Local features, descriptor or learned matching, local-map tracking | Local mapping thread, loop closing, global BA, volumetric and semantic mapping | Sparse map, optional dense and semantic maps |
-| [Direct and semi-direct SLAM](#direct-and-semi-direct-slam) | [`main_direct_slam.py`](../main_direct_slam.py) | Descriptor-free `klt`, `hybrid` or `semi_direct` tracking in C++ | Synchronous local BA, optional loop closing on descriptor keyframes | Direct landmark map, descriptor map for loop closing |
+| [Direct and semi-direct SLAM](#direct-and-semi-direct-slam) | [`main_slam_direct.py`](../main_slam_direct.py) | Descriptor-free `klt`, `hybrid` or `semi_direct` tracking in C++ | Synchronous local BA, optional loop closing on descriptor keyframes | Direct landmark map, descriptor map for loop closing |
 | [Scene from Views](#scene-from-views) | [`main_scene_from_views.py`](../main_scene_from_views.py) | Learned multi-view models (DUSt3R, MASt3R, VGGT, ...) | Model-specific global alignment | Point clouds, meshes, camera poses |
 
 The diagrams of each part are stored in a matching subfolder of [`images/`](./images/README.md), together with their Mermaid sources.
@@ -185,7 +185,7 @@ This paper provides a presentation of the first version of sparse semantic mappi
 
 ## Direct and Semi-Direct SLAM
 
-[`main_direct_slam.py`](../main_direct_slam.py) runs a separate SLAM pipeline that exists only in C++ ([`cpp/core/slam_direct`](../cpp/core/slam_direct/README.md)) and requires `USE_CPP_CORE`. Tracking and local mapping are descriptor-free: correspondences come from image intensities on raw pixels (grid FAST or GFTT corners, pyramidal Lucas-Kanade, photometric patch alignment). Descriptors are extracted only on separate keyframes, for the optional loop closing. The pipeline shares the configuration, datasets, camera factory, viewers and feature-trail renderer of the indirect pipeline. Dense and semantic mapping are not provided.
+[`main_slam_direct.py`](../main_slam_direct.py) runs a separate SLAM pipeline that exists only in C++ ([`cpp/core/slam_direct`](../cpp/core/slam_direct/README.md)) and requires `USE_CPP_CORE`. Tracking and local mapping are descriptor-free: correspondences come from image intensities on raw pixels (grid FAST or GFTT corners, pyramidal Lucas-Kanade, photometric patch alignment). Descriptors are extracted only on separate keyframes, for the optional loop closing. The pipeline shares the configuration, datasets, camera factory, viewers and feature-trail renderer of the indirect pipeline. Dense and semantic mapping are not provided.
 
 The [Direct SLAM guide](./direct_slam.md) gives the tracking/recovery and BA flowcharts, the depth filter, camera restrictions, parameters and run commands. This section describes the architecture.
 
@@ -250,7 +250,7 @@ This diagram shows the data model of the direct map and the objects that update 
 
 Loop closing reuses the indirect components shown in the [components diagram above](#direct-slam-workflow-and-components): `LoopClosing`, `LoopDetectingProcess` with any [Loop Detector](#loop-detector), `LoopGroupConsistencyChecker`, `LoopGeometryChecker`, `LoopCorrector` and `GlobalBundleAdjustment`. `FeatureTrackerConfig` and `LoopDetectionConfig` select the local and global features, as in `main_slam.py`. An LK tracker is rejected because loop detection needs descriptors.
 
-For each new direct keyframe, the tracking thread registers an empty descriptor keyframe and queues its images. `LoopDetectingProcess` extracts the features and returns them to the `LoopClosing` thread, which creates the descriptor map points from the keyframe's latest direct pose. Monocular keyframes take the 3D positions of nearby direct landmarks and triangulate the remaining matches. After a correction, `DirectSlam.apply_keyframe_poses(poses, scales)` moves every landmark, trajectory pose and seed with its anchor keyframe.
+For each new direct keyframe, the tracking thread registers an empty descriptor keyframe and queues its images. `LoopDetectingProcess` extracts the features and returns them to the `LoopClosing` thread, which creates the descriptor map points from the keyframe's latest direct pose. Monocular keyframes are handed over a few keyframes late, so that the depth seeds promoted since are included; they take the 3D positions of nearby direct landmarks, triangulate the remaining matches, and fuse points with their recent keyframes. After a correction, `DirectSlam.apply_keyframe_poses(poses, scales)` moves every landmark, trajectory pose and seed with its anchor keyframe.
 
 See [Comparison with the Main SLAM Pipeline](./direct_slam.md#comparison-with-the-main-slam-pipeline) for a feature-by-feature comparison of the two SLAM pipelines.
 
@@ -264,7 +264,7 @@ The C++ implementation follows a streamlined design where all core data resides 
 
 A detailed overview of the C++ core architecture, design principles, and implementation details is provided in this [document](../cpp/core/slam/README.md). The C++ camera classes live in [`cpp/core/camera`](../cpp/core/camera/README.md), and the headers shared by `camera`, `slam`, `slam_direct` and `semantics` live in [`cpp/core/common`](../cpp/core/common/README.md); both are compiled into `cpp_core`.
 
-The [direct SLAM pipeline](#direct-and-semi-direct-slam) is compiled into the same `cpp_core` module ([`cpp/core/slam_direct`](../cpp/core/slam_direct/README.md)). Unlike the sparse-SLAM core, it has no Python counterpart, so `main_direct_slam.py` requires `USE_CPP_CORE`.
+The [direct SLAM pipeline](#direct-and-semi-direct-slam) is compiled into the same `cpp_core` module ([`cpp/core/slam_direct`](../cpp/core/slam_direct/README.md)). Unlike the sparse-SLAM core, it has no Python counterpart, so `main_slam_direct.py` requires `USE_CPP_CORE`.
 
 ---
 
@@ -295,4 +295,4 @@ The model parameters, pixel conventions, and factor layout are described in [Cam
 
 New-model mapping uses raw-pixel measurements consistently. RGB-D and calibrated native stereo use model-aware native factors, and serialization preserves camera subclasses and rig extrinsics. Pinhole observations retain their native optimizer paths. See [TUM-VI](./tum-vi.md) for native and rectified modes, and [Camera models](../cpp/modules/camera_models/README.md#tests) for the regression suite.
 
-The direct SLAM pipeline uses the same camera classes. All its modes accept an undistorted pinhole or a raw-pixel camera and track in the distorted pixels; see [Direct SLAM](./direct_slam.md#quick-start) for the supported sensors.
+The direct SLAM pipeline uses the same camera classes. All its modes accept an undistorted pinhole or a raw-pixel camera and track in the distorted pixels; for monocular or RGBD input, the runner undistorts the images of a distorted pinhole; see [Direct SLAM](./direct_slam.md#quick-start) for the supported sensors.

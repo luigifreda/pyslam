@@ -21,6 +21,7 @@
 
 #include "common/dictionary.h"
 
+#include <cmath>
 #include <string>
 
 namespace pyslam {
@@ -135,6 +136,9 @@ struct DirectSlamParams {
 
     // With monocular true, keys of a "monocular" sub-block (nested dict or flat
     // "monocular.<key>") override the base values. Stereo/RGBD ignore that block.
+    // Median scene depth the monocular two-view initialization gives the map (its scale).
+    double monocular_init_median_depth() const { return std::sqrt(seed_min_depth * seed_max_depth); }
+
     static DirectSlamParams from_config(const ConfigDict &config, bool monocular = false);
     std::string mode_name() const;
 };

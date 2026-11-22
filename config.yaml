@@ -106,7 +106,7 @@ TUM_VI_DATASET:
   name: dataset-room1_512_16
   # native: original KB4 images and calibrated two-camera triangulation.
   # rectified: cached fisheye remapping followed by existing pinhole stereo.
-  # main_direct_slam.py tracks native and rectified stereo. Native images are not remapped.
+  # main_slam_direct.py tracks native and rectified stereo. Native images are not remapped.
   stereo_mode: native
   clahe: true  # PLVS2 contrast enhancement before optional rectification
   settings: settings/TUM_VI.yaml

@@ -66,7 +66,9 @@ Accumulated accumulate(const Camera &camera, double scale, const DirectSlamParam
         }
         const double u = uv.x();
         const double v = uv.y();
-        if (u < half || u > img_cur.cols - half - 1 || v < half || v > img_cur.rows - half - 1) {
+        // The central-difference gradient reads one pixel beyond the patch on every side.
+        const int margin = half + 1;
+        if (u < margin || u > img_cur.cols - margin - 1 || v < margin || v > img_cur.rows - margin - 1) {
             continue;
         }
 

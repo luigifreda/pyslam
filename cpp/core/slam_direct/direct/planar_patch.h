@@ -21,6 +21,7 @@
 
 #include "camera/camera.h"
 #include "slam_direct/direct_params.h"
+#include "slam_direct/image_utils.h"
 
 #include <Eigen/Geometry>
 #include <opencv2/core.hpp>
@@ -56,6 +57,19 @@ PlanarPoseResult align_planar_patch_pose(const Camera &camera, const DirectSlamP
 
 PatchOffsetResult align_planar_patch_offsets(const Camera &camera, const DirectSlamParams &params,
                                              const cv::Mat &img_ref, const cv::Mat &img_cur,
+                                             const std::vector<Vec2d> &pixels_ref,
+                                             const std::vector<double> &depth_ref,
+                                             const Eigen::Isometry3d &T_cur_ref);
+
+// Same alignments on prebuilt pyramids (build_pyramid), so a caller that runs both on the same
+// two images builds each pyramid once.
+PlanarPoseResult align_planar_patch_pose(const Camera &camera, const DirectSlamParams &params,
+                                         const ImagePyramid &pyramid_ref, const ImagePyramid &pyramid_cur,
+                                         const std::vector<Vec2d> &pixels_ref,
+                                         const std::vector<double> &depth_ref,
+                                         const Eigen::Isometry3d &T_cur_ref_init);
+PatchOffsetResult align_planar_patch_offsets(const Camera &camera, const DirectSlamParams &params,
+                                             const ImagePyramid &pyramid_ref, const ImagePyramid &pyramid_cur,
                                              const std::vector<Vec2d> &pixels_ref,
                                              const std::vector<double> &depth_ref,
                                              const Eigen::Isometry3d &T_cur_ref);

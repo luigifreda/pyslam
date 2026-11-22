@@ -60,7 +60,7 @@ DepthMapFactor: 1.0
 FeatureTrackerConfig.nFeatures: 1200
 
 #--------------------------------------------------------------------------------------------
-# Direct SLAM frontend (main_direct_slam.py). Undistorted pinhole only.
+# Direct SLAM frontend (main_slam_direct.py). Undistorted pinhole only.
 # mode: klt (LK + reprojection), hybrid (klt + photometric refinement), or semi_direct (planar patches and inverse-depth seeds). direct aliases hybrid.
 #--------------------------------------------------------------------------------------------
 # Tracking mode: klt uses LK + geometry; hybrid adds photometric refinement; semi_direct is the only monocular mode.

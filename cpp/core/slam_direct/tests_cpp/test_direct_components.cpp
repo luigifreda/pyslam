@@ -441,6 +441,28 @@ void test_keyframe_images_follow_tracker() {
 
 } // namespace
 
+// New landmarks are accepted inside the configured seed depth range, not a fixed 0.5-80 m window
+// (review finding 3).
+void test_metric_point_uses_configured_depth_range() {
+    const PinholeCamera camera = make_camera(160, 120, 100.0, 100.0, 80.0, 60.0);
+    DirectSlamParams params; // Default range (0.5, 80) m.
+    require(metric_point_ok(camera, params, Vec3d(0.0, 0.0, 10.0)), "10 m rejected by the default range");
+    require(!metric_point_ok(camera, params, Vec3d(0.0, 0.0, 0.3)), "0.3 m accepted by the default range");
+    require(!metric_point_ok(camera, params, Vec3d(0.0, 0.0, 120.0)), "120 m accepted by the default range");
+    DirectSlamParams near_far;
+    near_far.seed_min_depth = 0.1;
+    near_far.seed_max_depth = 200.0;
+    require(metric_point_ok(camera, near_far, Vec3d(0.0, 0.0, 0.3)), "0.3 m rejected by a 0.1-200 m range");
+    require(metric_point_ok(camera, near_far, Vec3d(0.0, 0.0, 120.0)), "120 m rejected by a 0.1-200 m range");
+    require(!metric_point_ok(camera, near_far, Vec3d(0.0, 0.0, 0.05)), "0.05 m accepted by a 0.1-200 m range");
+    DirectSlamParams narrow;
+    narrow.seed_min_depth = 2.0;
+    narrow.seed_max_depth = 8.0;
+    require(!metric_point_ok(camera, narrow, Vec3d(0.0, 0.0, 10.0)), "10 m accepted by a 2-8 m range");
+    require(!metric_point_ok(camera, narrow, Vec3d(0.0, 0.0, 1.0)), "1 m accepted by a 2-8 m range");
+    require(metric_point_ok(camera, narrow, Vec3d(0.0, 0.0, 4.0)), "4 m rejected by a 2-8 m range");
+}
+
 int main() {
     try {
         test_require_gray();
@@ -457,6 +479,7 @@ int main() {
         test_tracking_result_for_points();
         test_hybrid_refreshes_live_depth_without_ba();
         test_keyframe_images_follow_tracker();
+        test_metric_point_uses_configured_depth_range();
     } catch (const std::exception &error) {
         std::cerr << "test_direct_components failed: " << error.what() << std::endl;
         return 1;

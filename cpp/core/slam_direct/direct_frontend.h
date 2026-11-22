@@ -50,6 +50,15 @@ class DirectSlam {
     void track(const cv::Mat &img, const cv::Mat &img_right, const cv::Mat &depth, int img_id,
                std::optional<double> timestamp);
     void reset();
+    // Restart tracking after a loss at a pose found by relocalization (pyslam's Relocalizer on
+    // the loop-closing keyframes). pixels[i] in this image observes points_w[i]; landmark_ids[i]
+    // is the direct landmark it belongs to, or -1 to create a new landmark there. The matches
+    // become live tracks and this frame becomes a keyframe, so tracking has a fresh reference.
+    // Returns false (state unchanged) when fewer than num_features_tracking_bad + 1 usable
+    // points remain, or when the map is not initialized.
+    bool relocalize(const cv::Mat &img, const cv::Mat &img_right, const cv::Mat &depth, int img_id,
+                    double timestamp, const Eigen::Matrix4d &Tcw, const std::vector<Vec2d> &pixels,
+                    const std::vector<Vec3d> &points_w, const std::vector<int64_t> &landmark_ids);
     // A manual solve is allowed even when automatic local_ba is disabled.
     DirectBAResult bundle_adjustment();
     // Replace archived keyframe poses and carry landmarks and the trajectory with them.
@@ -64,9 +73,17 @@ class DirectSlam {
 
     DirectTrackingStatus status() const { return status_; }
     std::string status_name() const;
+    // Monocular only: input image id of the two-view initializer's reference frame while the
+    // map is not initialized yet, otherwise -1.
+    int init_reference_img_id() const {
+        return mono_init_ && map_.keyframes().empty() ? mono_init_->reference_img_id() : -1;
+    }
     const DirectSlamParams &params() const { return params_; }
     const CameraPose &pose() const { return current_pose_; }
     int last_inliers() const { return last_inliers_; }
+    // Constant-velocity model: the per-frame motion T_current_previous used to predict the next pose.
+    bool has_velocity() const { return has_velocity_; }
+    const Eigen::Isometry3d &velocity() const { return velocity_; }
     const DirectMap &map() const { return map_; }
     const std::vector<LivePoint> &live_points() const { return live_points_; }
 

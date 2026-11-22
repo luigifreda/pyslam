@@ -48,7 +48,7 @@ The loader derives the pinhole intrinsics and `bf` from the rectified projection
 
 `stereo_mode: native` keeps the original fisheye images. It constructs two KB4 cameras with their individual intrinsics and distortion, plus the calibrated `T_right_left` transform. KB4 is the four-distortion-coefficient model called `KannalaBrandt8` by PLVS2/ORB-SLAM3; the other four parameters are the intrinsics.
 
-`main_direct_slam.py` tracks these raw images in `klt` and `hybrid` mode. Lucas–Kanade supplies the right-image pixel. The photometric warp uses the KB4 projection Jacobian and does not remap the frames. `settings/TUM_VI.yaml` selects `mode: hybrid`.
+`main_slam_direct.py` tracks these raw images in `klt` and `hybrid` mode. Lucas–Kanade supplies the right-image pixel. The photometric warp uses the KB4 projection Jacobian and does not remap the frames. `settings/TUM_VI.yaml` selects `mode: hybrid`.
 
 Stereo matching does not assume rectified rows. For each left keypoint, `search_stereo_rig` unprojects the left ray and keeps right keypoints whose ray lies on its epipolar plane, between the image of the point at infinity and the right camera center (positive depth on both rays). The band is the 1-DoF chi-squared bound of the right keypoint's octave, measured in pixels with the right camera's projection Jacobian. Candidates must be at most one octave apart, the best descriptor must pass a strict ratio test, and matches are one-to-one. Each accepted pair is triangulated from both rays and must reproject within the 2-DoF chi-squared bound in both images; its forward depth feeds the existing stereo initialization and backprojection paths. See [Epipolar geometry on raw pixels](../cpp/modules/camera_models/README.md#epipolar-geometry-on-raw-pixels).
 

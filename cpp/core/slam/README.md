@@ -27,7 +27,7 @@ While this may be self-evident, it is important to keep in mind that when `USE_C
 - The Python implementation of the sparse SLAM core is effectively bypassed, and any modifications to it will have no effect at runtime.
 - All functional changes to the sparse SLAM C++ codebase must be rebuilt using `./build_cpp_core.sh` (as explained above) in order to take effect.
 
-The adjacent [`slam_direct`](../slam_direct/README.md) sources provide a separate direct-SLAM frontend (KLT/hybrid tracking) and local BA backend through the same `cpp_core` module. Its entry point, `main_direct_slam.py`, requires the C++ core and has no Python-core fallback. See the [direct-SLAM guide](../../../docs/direct_slam.md) for its architecture and usage.
+The adjacent [`slam_direct`](../slam_direct/README.md) sources provide a separate direct-SLAM frontend (KLT/hybrid tracking) and local BA backend through the same `cpp_core` module. Its entry point, `main_slam_direct.py`, requires the C++ core and has no Python-core fallback. See the [direct-SLAM guide](../../../docs/direct_slam.md) for its architecture and usage.
 
 ### macOS, conda Python, and local OpenCV
 

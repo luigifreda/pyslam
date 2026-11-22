@@ -297,7 +297,7 @@ camera pose estimation.
   SLAM pipeline and includes all the basic and advanced blocks which are
   necessary to develop a real visual SLAM pipeline.
 \item
-  \texttt{main\_direct\_slam.py} runs the C++ direct-SLAM pipeline
+  \texttt{main\_slam\_direct.py} runs the C++ direct-SLAM pipeline
   (Sect.~\ref{direct-slam}): KLT, hybrid, or semi-direct tracking, local
   bundle adjustment, and the same loop closing thread as
   \texttt{main\_slam.py}, with Sim(3) corrections for monocular input.
@@ -549,7 +549,7 @@ A more in-depth presentation of the semantic mapping module is provided in~\cite
 \label{Fig:DirectSLAMComponents}
 \end{figure}
 
-\texttt{main\_direct\_slam.py} runs a second visual SLAM pipeline, which exists only in C++ (\texttt{cpp/core/slam\_direct}) and is compiled into the same \texttt{cpp\_core} module. Tracking and local mapping are descriptor-free: their correspondences come from image intensities on raw pixels (grid FAST or GFTT corners, pyramidal Lucas--Kanade, photometric patch alignment), and descriptors are extracted only on separate keyframes for the optional loop closing. The pipeline reuses the configuration, datasets, camera factory, viewers, and feature-trail renderer of the indirect pipeline. It does not provide dense or semantic mapping.
+\texttt{main\_slam\_direct.py} runs a second visual SLAM pipeline, which exists only in C++ (\texttt{cpp/core/slam\_direct}) and is compiled into the same \texttt{cpp\_core} module. Tracking and local mapping are descriptor-free: their correspondences come from image intensities on raw pixels (grid FAST or GFTT corners, pyramidal Lucas--Kanade, photometric patch alignment), and descriptors are extracted only on separate keyframes for the optional loop closing. The pipeline reuses the configuration, datasets, camera factory, viewers, and feature-trail renderer of the indirect pipeline. It does not provide dense or semantic mapping.
 
 \subsubsection{Workflow and Components}
 
@@ -1563,14 +1563,14 @@ opened windows and pressing the key `Q' or closing the 3D pangolin GUI.
 \hypertarget{direct-slam-usage}{%
 \subsection{Direct SLAM}\label{direct-slam-usage}}
 
-To run the direct-SLAM pipeline of Sect.~\ref{direct-slam}, select a stereo or RGB-D dataset in \texttt{config.yaml} (or a monocular one with \texttt{semi\_direct}), build \texttt{cpp\_core} with \texttt{./build\_cpp\_core.sh}, and run \texttt{main\_direct\_slam.py}:\\
+To run the direct-SLAM pipeline of Sect.~\ref{direct-slam}, select a stereo or RGB-D dataset in \texttt{config.yaml} (or a monocular one with \texttt{semi\_direct}), build \texttt{cpp\_core} with \texttt{./build\_cpp\_core.sh}, and run \texttt{main\_slam\_direct.py}:\\
 
 \begin{scriptsize}
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{$ }\ExtensionTok{./main_direct_slam.py} \AttributeTok{-c}\NormalTok{ config.yaml}
-\NormalTok{$ }\ExtensionTok{./main_direct_slam.py} \AttributeTok{-c}\NormalTok{ config.yaml }\AttributeTok{--headless --max-frames}\NormalTok{ 100}
-\NormalTok{$ }\ExtensionTok{./main_direct_slam.py} \AttributeTok{-c}\NormalTok{ config.yaml }\AttributeTok{--mode}\NormalTok{ semi_direct}
+\NormalTok{$ }\ExtensionTok{./main_slam_direct.py} \AttributeTok{-c}\NormalTok{ config.yaml}
+\NormalTok{$ }\ExtensionTok{./main_slam_direct.py} \AttributeTok{-c}\NormalTok{ config.yaml }\AttributeTok{--headless --max-frames}\NormalTok{ 100}
+\NormalTok{$ }\ExtensionTok{./main_slam_direct.py} \AttributeTok{-c}\NormalTok{ config.yaml }\AttributeTok{--mode}\NormalTok{ semi_direct}
 \end{Highlighting}
 \end{Shaded}
 \end{scriptsize}

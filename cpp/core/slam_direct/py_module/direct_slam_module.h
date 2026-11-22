@@ -149,6 +149,29 @@ inline void bind_direct_slam(py::module &m) {
             }
             return py::make_tuple(ids, uv, xc);
         }, py::arg("index"))
+        .def("relocalize", [](pyslam::DirectSlam &self, py::object img, py::object img_right, py::object depth,
+                              int img_id, double timestamp, const Eigen::Matrix4d &Tcw,
+                              const Eigen::MatrixXd &pixels, const Eigen::MatrixXd &points_w,
+                              const std::vector<int64_t> &landmark_ids) {
+                 if (pixels.rows() != points_w.rows() || (pixels.rows() > 0 && (pixels.cols() != 2 || points_w.cols() != 3)))
+                     throw std::invalid_argument("relocalize: pixels must be Nx2 and points_w Nx3");
+                 std::vector<pyslam::Vec2d> uv(static_cast<size_t>(pixels.rows()));
+                 std::vector<pyslam::Vec3d> xw(static_cast<size_t>(points_w.rows()));
+                 for (Eigen::Index i = 0; i < pixels.rows(); ++i) {
+                     uv[static_cast<size_t>(i)] = pixels.row(i).transpose();
+                     xw[static_cast<size_t>(i)] = points_w.row(i).transpose();
+                 }
+                 const cv::Mat image = direct_mat_from_object(img);
+                 const cv::Mat image_right = direct_mat_from_object(img_right);
+                 const cv::Mat depth_image = direct_mat_from_object(depth);
+                 py::gil_scoped_release release; // Local BA runs natively.
+                 return self.relocalize(image, image_right, depth_image, img_id, timestamp, Tcw, uv, xw, landmark_ids);
+             },
+             py::arg("img"), py::arg("img_right"), py::arg("depth"), py::arg("img_id"), py::arg("timestamp"),
+             py::arg("Tcw"), py::arg("pixels"), py::arg("points_w"), py::arg("landmark_ids"),
+             "Restart tracking after a loss at a relocalized pose (see DirectSlam::relocalize)")
+        .def("init_reference_img_id", &pyslam::DirectSlam::init_reference_img_id,
+             "Monocular: image id of the initializer reference frame before the map exists, else -1")
         .def("last_ba", &pyslam::DirectSlam::last_ba)
         .def("draw_feature_trails", [](const pyslam::DirectSlam &self, py::object image,
                                        bool with_level_radius, int trail_max_length) {
@@ -213,5 +236,9 @@ inline void bind_direct_slam(py::module &m) {
             for (const auto &kf : self.map().keyframes()) ids.push_back(kf.img_id);
             return ids;
         })
-        .def_property_readonly("mode", [](const pyslam::DirectSlam &self) { return self.params().mode; });
+        .def_property_readonly("mode", [](const pyslam::DirectSlam &self) { return self.params().mode; })
+        .def_property_readonly(
+            "monocular_init_median_depth",
+            [](const pyslam::DirectSlam &self) { return self.params().monocular_init_median_depth(); },
+            "Median scene depth a monocular map is initialized with, sqrt(seed_min_depth * seed_max_depth)");
 }

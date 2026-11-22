@@ -81,22 +81,23 @@ double sample_depth(const cv::Mat &depth, const Vec2d &uv, double depth_factor) 
     return raw * factor;
 }
 
-bool metric_point_ok(const Camera &camera, const Vec3d &X) {
+bool metric_point_ok(const Camera &camera, const DirectSlamParams &params, const Vec3d &X) {
     if (!X.allFinite() || !(X.z() > 0.0)) {
         return false;
     }
     const double metric = camera.projects_raw_keypoints() ? X.norm() : X.z();
-    return metric > 0.5 && metric < 80.0;
+    return metric > params.seed_min_depth && metric < params.seed_max_depth;
 }
 
 bool lift_pixel_depth(const Camera &camera, const Vec2d &uv, double z, Vec3d &X) {
     return lift_reference_point(camera, uv, z, X);
 }
 
-bool triangulate_match(const Camera &camera, const Vec2d &left, const Vec2d &right, double max_error,
-                       Vec3d &X) {
+bool triangulate_match(const Camera &camera, const DirectSlamParams &params, const Vec2d &left,
+                       const Vec2d &right, Vec3d &X) {
     if (camera.right_camera) {
-        return camera.triangulate_stereo_point(left, right, max_error, X) && metric_point_ok(camera, X);
+        return camera.triangulate_stereo_point(left, right, params.stereo_max_error, X) &&
+               metric_point_ok(camera, params, X);
     }
     if (!(camera.bf > 0.0) || std::abs(left.y() - right.y()) > 2.0) {
         return false;
@@ -109,7 +110,7 @@ bool triangulate_match(const Camera &camera, const Vec2d &left, const Vec2d &rig
     if (!(depth > kMinTrackingDepth)) {
         return false;
     }
-    return lift_pixel_depth(camera, left, depth, X) && metric_point_ok(camera, X);
+    return lift_pixel_depth(camera, left, depth, X) && metric_point_ok(camera, params, X);
 }
 
 Vec2d predict_right_pixel(const Camera &camera, const Vec3d &Xc, const Vec2d &uv) {
@@ -129,7 +130,8 @@ std::vector<PixelMeasurement> measure_pixels(const Camera &camera, const DirectS
         for (size_t i = 0; i < pixels.size(); ++i) {
             PixelMeasurement &m = measured[i];
             m.sensor_depth = sample_depth(depth, pixels[i], camera.depth_factor);
-            m.ok = lift_pixel_depth(camera, pixels[i], m.sensor_depth, m.X) && metric_point_ok(camera, m.X);
+            m.ok = lift_pixel_depth(camera, pixels[i], m.sensor_depth, m.X) &&
+                   metric_point_ok(camera, params, m.X);
         }
         return measured;
     }
@@ -144,7 +146,7 @@ std::vector<PixelMeasurement> measure_pixels(const Camera &camera, const DirectS
             continue;
         }
         PixelMeasurement &m = measured[i];
-        if (triangulate_match(camera, pixels[i], tracked.points_cur[i], params.stereo_max_error, m.X)) {
+        if (triangulate_match(camera, params, pixels[i], tracked.points_cur[i], m.X)) {
             m.ok = true;
             m.uv_right = tracked.points_cur[i];
             m.has_right = true;

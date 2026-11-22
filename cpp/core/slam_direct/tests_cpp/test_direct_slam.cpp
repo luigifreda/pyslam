@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -625,6 +626,98 @@ void test_stereo_frontend_loss_and_reset() {
     require(slam.map().keyframes().empty() && slam.map().trajectory().empty() && slam.live_points().empty(),
             "reset left stale map data");
     require(slam.status() == DirectTrackingStatus::Init, "reset did not restore INIT status");
+}
+
+// After a loss, relocalization restarts tracking at the recovered pose from 2D-3D matches:
+// known landmarks are re-acquired, unknown points become new landmarks, the frame becomes a
+// keyframe, and the next frame tracks from there. Too few matches leave the state untouched.
+void test_relocalize_restarts_tracking_after_loss() {
+    auto camera = std::make_shared<PinholeCamera>(make_camera(320, 240, 200, 200, 160, 120));
+    camera->sensor_type = SensorType::STEREO;
+    camera->bf = 40.0;
+    ConfigDict config;
+    config["num_features"] = 250;
+    config["num_features_tracking"] = 30;
+    config["num_features_tracking_bad"] = 10;
+    config["num_features_needed_for_keyframe"] = 240;
+    config["lk_patch_size"] = 21;
+    DirectSlam slam(camera, config);
+    cv::Mat reference(240, 320, CV_8U);
+    cv::RNG rng(42);
+    rng.fill(reference, cv::RNG::UNIFORM, 0, 255);
+    cv::GaussianBlur(reference, reference, cv::Size(5, 5), 0.8);
+    auto shifted = [&](int dx) {
+        cv::Mat image;
+        cv::Mat affine = (cv::Mat_<double>(2, 3) << 1, 0, dx, 0, 1, 0);
+        cv::warpAffine(reference, image, affine, reference.size());
+        return image;
+    };
+    require(!slam.relocalize(reference, shifted(-10), cv::Mat(), 0, 0.0, Eigen::Matrix4d::Identity(), {}, {}, {}),
+            "relocalization accepted an uninitialized map");
+    slam.track(reference, shifted(-10), cv::Mat(), 0, 0.0);
+    require(slam.status() == DirectTrackingStatus::Good, "stereo initialization failed");
+    const std::vector<LivePoint> landmarks = slam.live_points();
+    cv::Mat blank(reference.size(), CV_8U, cv::Scalar(0));
+    for (int i = 1; i < 4; ++i) slam.track(blank, blank, cv::Mat(), i, i * 0.1);
+    require(slam.status() == DirectTrackingStatus::Lost, "blank images did not lose tracking");
+
+    // The relocalized pose: the scene shifted by 6 px, i.e. tcw.x = 0.12 m at 4 m depth.
+    Eigen::Isometry3d Tcw = Eigen::Isometry3d::Identity();
+    Tcw.translation().x() = 0.12;
+    std::vector<Vec2d> pixels;
+    std::vector<Vec3d> points_w;
+    std::vector<int64_t> ids;
+    for (size_t i = 0; i < landmarks.size(); ++i) {
+        const Vec2d uv = camera->project_point(Tcw * landmarks[i].position_w).first;
+        pixels.push_back(uv);
+        points_w.push_back(landmarks[i].position_w);
+        // Every fifth match is a descriptor point unknown to the direct map.
+        ids.push_back(i % 5 == 0 ? -1 : landmarks[i].id);
+    }
+    const size_t keyframes = slam.map().keyframes().size();
+    const size_t poses = slam.map().trajectory().size();
+    const size_t known = slam.map().landmarks().size();
+    const std::vector<Vec2d> few_pixels(pixels.begin(), pixels.begin() + 5);
+    const std::vector<Vec3d> few_points(points_w.begin(), points_w.begin() + 5);
+    const std::vector<int64_t> few_ids(ids.begin(), ids.begin() + 5);
+    require(!slam.relocalize(shifted(6), shifted(-4), cv::Mat(), 4, 0.4, Tcw.matrix(), few_pixels, few_points,
+                             few_ids),
+            "relocalization accepted too few matches");
+    require(slam.status() == DirectTrackingStatus::Lost && slam.map().keyframes().size() == keyframes,
+            "a refused relocalization changed the tracker state");
+    require(slam.map().landmarks().size() == known && slam.map().trajectory().size() == poses,
+            "a refused relocalization inserted descriptor landmarks or trajectory poses");
+    const auto expect_invalid_sensor_input = [&](const cv::Mat &right) {
+        bool rejected = false;
+        try {
+            slam.relocalize(shifted(6), right, cv::Mat(), 4, 0.4, Tcw.matrix(), pixels, points_w, ids);
+        } catch (const std::invalid_argument &) {
+            rejected = true;
+        }
+        require(rejected, "relocalization accepted invalid stereo input");
+        require(slam.map().landmarks().size() == known && slam.map().keyframes().size() == keyframes &&
+                    slam.map().trajectory().size() == poses && slam.status() == DirectTrackingStatus::Lost,
+                "invalid relocalization input changed the map or tracker state");
+    };
+    expect_invalid_sensor_input(cv::Mat());
+    expect_invalid_sensor_input(cv::Mat(10, 10, CV_8U, cv::Scalar(0)));
+
+    require(slam.relocalize(shifted(6), shifted(-4), cv::Mat(), 4, 0.4, Tcw.matrix(), pixels, points_w, ids),
+            "relocalization with enough matches failed");
+    require(slam.status() != DirectTrackingStatus::Lost, "relocalization did not restart tracking");
+    require(slam.map().keyframes().size() == keyframes + 1 && slam.map().keyframes().back().img_id == 4,
+            "the relocalized frame did not become a keyframe");
+    require(slam.map().trajectory().size() == poses + 1, "the relocalized pose was not recorded");
+    // Local BA then refines the new keyframe; with consistent matches it stays at the given pose.
+    std::cout << "relocalized pose offset " << (slam.pose().Tcw() - Tcw.matrix()).norm() << std::endl;
+    require((slam.pose().Tcw() - Tcw.matrix()).norm() < 1e-2, "relocalization did not adopt the given pose");
+    require(slam.map().landmarks().size() > known, "unknown descriptor points did not become landmarks");
+    require(!slam.has_velocity(), "a relocalized pose kept a stale motion model");
+    slam.track(shifted(9), shifted(-1), cv::Mat(), 5, 0.5);
+    std::cout << "after relocalization status " << slam.status_name() << " tcw.x " << slam.pose().tcw().x()
+              << std::endl;
+    require(slam.status() != DirectTrackingStatus::Lost, "tracking failed right after relocalization");
+    require(std::abs(slam.pose().tcw().x() - 0.18) < 0.03, "tracking after relocalization has the wrong motion");
 }
 
 // Verify sensor-unit conversion and rejection of zero/NaN depth before landmark creation.
@@ -1234,7 +1327,9 @@ void test_planar_patch_pose_and_feature_shift() {
     std::cout << "planar pose error " << planar_error << " window error " << window_error << " inliers "
               << planar.inliers << std::endl;
     require(planar_error < 0.05, "planar patch did not recover the rotated pose");
-    require(window_error > planar_error * 2.0, "flat 2D window matched the planar patch on a rotation");
+    // The planar patch models the rotation; the flat 2D window does not. (A 2x margin used to pass
+    // partly because the window aligner read clamped gradients at the image border.)
+    require(window_error > planar_error, "flat 2D window matched the planar patch on a rotation");
 
     cv::Mat shifted;
     cv::Mat affine = (cv::Mat_<double>(2, 3) << 1, 0, 1.5, 0, 1, -0.75);
@@ -1330,6 +1425,38 @@ void test_inverse_depth_filter() {
             "a matched seed was not updated");
     require(std::abs(seed.belief.mu - 1.0 / truth) < std::abs(before.mu - 1.0 / truth),
             "the seed did not move toward the true inverse depth");
+
+    // Forward motion that puts the near depth bound 1 mm in front of the current camera.
+    // That end projects millions of pixels away; the search must only sample the visible part.
+    Eigen::Isometry3d forward = Eigen::Isometry3d::Identity();
+    forward.translation() = Vec3d(0.0, 0.0, -(params.seed_min_depth - 1e-3));
+    const cv::Mat approached = render_plane(camera, reference, truth, forward);
+    const Vec2d off_axis(100.0, 70.0);
+    const InverseDepthBelief prior = make_inverse_depth_prior(params.seed_min_depth, params.seed_max_depth);
+    const auto start = std::chrono::steady_clock::now();
+    const EpipolarMatch forward_match = match_seed_on_epipolar_line(camera, params, reference, approached, off_axis,
+                                                                    prior.mu, prior.sigma2, forward);
+    const double forward_seconds =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+    std::cout << "forward epipolar depth " << forward_match.depth << " truth " << truth << " in "
+              << forward_seconds * 1e3 << " ms" << std::endl;
+    require(forward_match.matched && std::abs(forward_match.depth - truth) < 0.15,
+            "epipolar search missed the plane under forward motion");
+    require(forward_seconds < 0.5, "epipolar search sampled the off-image part of the segment");
+
+    // A converging seed has a segment only a few samples long. With no sample at least two
+    // samples from the best one there is no competing valley: a best score under the gate is a
+    // match (review finding 4). Before, such a segment could never match.
+    // Pixel speed along the segment: fx * baseline = 140 * 0.25 = 35 px per unit inverse depth, so
+    // a +-3 sigma segment is 210 * sigma px long: about 1.3 px and 1.9 px here (2-3 samples).
+    for (const double sigma2 : {4e-5, 8e-5}) {
+        const EpipolarMatch short_match = match_seed_on_epipolar_line(camera, params, reference, current, seed.pixel,
+                                                                      1.0 / truth, sigma2, motion);
+        std::cout << "short epipolar segment sigma2 " << sigma2 << " matched " << short_match.matched << " depth "
+                  << short_match.depth << std::endl;
+        require(short_match.searched && short_match.matched && std::abs(short_match.depth - truth) < 0.3,
+                "a short epipolar segment with a single valley did not match");
+    }
 }
 
 void test_semi_direct_stereo_and_monocular() {
@@ -1422,6 +1549,20 @@ void test_semi_direct_stereo_and_monocular() {
             "monocular semi-direct did not leave INIT after two-view initialization");
     require(mono_slam.map().keyframes().size() == 2, "monocular initialization did not store two keyframes");
     require(mono_slam.last_ba().applied, "monocular local BA did not apply the inverse-depth prior");
+    // The motion prior predicts one input frame, also after local BA refreshed the tracking state:
+    // the two keyframes are several frames apart (review finding 1).
+    const auto &init_poses = mono_slam.map().trajectory();
+    require(init_poses.size() == 2 && init_poses[1].img_id - init_poses[0].img_id > 1,
+            "monocular initialization did not span several frames");
+    const int init_frames = init_poses[1].img_id - init_poses[0].img_id;
+    Eigen::Isometry3d init_motion;
+    init_motion.matrix() = init_poses[1].Tcw * init_poses[0].Tcw.inverse();
+    require(mono_slam.has_velocity(), "monocular initialization left no motion prior");
+    const double per_frame = init_motion.translation().norm() / init_frames;
+    std::cout << "mono init frames " << init_frames << " velocity " << mono_slam.velocity().translation().norm()
+              << " per-frame motion " << per_frame << std::endl;
+    require(std::abs(mono_slam.velocity().translation().norm() - per_frame) < 1e-9 * (1.0 + per_frame),
+            "local BA replaced the one-frame motion prior with the whole initialization motion");
 }
 
 // Verbatim transcription of rpg_svo DepthFilter::updateSeed (Forster et al. 2014),
@@ -1747,6 +1888,7 @@ int main(int argc, char **argv) {
         test_pose_with_outliers_and_bad_prediction();
         test_kannala_brandt_klt();
         test_stereo_frontend_loss_and_reset();
+        test_relocalize_restarts_tracking_after_loss();
         test_direct_alignment_recovers_translation();
         test_photometric_jacobian_matches_pinhole_and_finite_difference();
         test_lift_reference_point_and_warp_rejections();

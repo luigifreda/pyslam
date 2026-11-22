@@ -85,12 +85,17 @@ TrackingResult SemiDirectPoseTracker::track(const TrackingInput &input) {
         return result;
     }
 
+    // Both alignments run on the same two images: build each pyramid once.
+    require_gray(reference->gray, "planar patch reference");
+    require_gray(input.frame.gray, "planar patch current");
+    const ImagePyramid pyramid_ref = build_pyramid(reference->gray, params_);
+    const ImagePyramid pyramid_cur = build_pyramid(input.frame.gray, params_);
     const PlanarPoseResult aligned =
-        align_planar_patch_pose(*camera_, params_, reference->gray, input.frame.gray, pixels, depths, T_init);
+        align_planar_patch_pose(*camera_, params_, pyramid_ref, pyramid_cur, pixels, depths, T_init);
     const Eigen::Isometry3d T_cur_ref =
         aligned.inliers > params_.num_features_tracking_bad ? aligned.T_cur_ref : T_init;
     const PatchOffsetResult offsets =
-        align_planar_patch_offsets(*camera_, params_, reference->gray, input.frame.gray, pixels, depths, T_cur_ref);
+        align_planar_patch_offsets(*camera_, params_, pyramid_ref, pyramid_cur, pixels, depths, T_cur_ref);
     std::vector<PoseObservation> observations;
     std::vector<size_t> slots;
     for (size_t i = 0; i < pixels.size(); ++i) {
@@ -286,7 +291,7 @@ int SemiDirectPoseTracker::promote_depth_seeds(const Eigen::Isometry3d &T_cur_w,
         }
         const double depth = 1.0 / seed.belief.mu;
         Vec3d X_ref = Vec3d::Zero();
-        if (!lift_pixel_depth(*camera_, seed.pixel, depth, X_ref) || !metric_point_ok(*camera_, X_ref)) {
+        if (!lift_pixel_depth(*camera_, seed.pixel, depth, X_ref) || !metric_point_ok(*camera_, params_, X_ref)) {
             remaining.push_back(seed);
             continue;
         }

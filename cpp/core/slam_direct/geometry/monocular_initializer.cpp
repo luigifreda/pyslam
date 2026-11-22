@@ -205,7 +205,7 @@ bool MonocularInitializer::try_two_view() {
     }
     const double median_depth = median_of(depths);
     if (!(median_depth > 0.0)) return false;
-    const double scale = std::sqrt(params_.seed_min_depth * params_.seed_max_depth) / median_depth;
+    const double scale = params_.monocular_init_median_depth() / median_depth;
 
     MonocularInitResult result;
     result.ref_img_id = ref_img_id_;
@@ -216,7 +216,7 @@ bool MonocularInitializer::try_two_view() {
     const double px_error_angle = 2.0 * std::atan(1.0 / (2.0 * camera_->fx));
     for (size_t k = 0; k < accepted.size(); ++k) {
         const Vec3d X = scale * points[k];
-        if (!metric_point_ok(*camera_, X)) continue;
+        if (!metric_point_ok(*camera_, params_, X)) continue;
         const LivePoint &track = tracks_[accepted[k]];
         // Inverse-depth variance of a one-pixel error, as the depth filter measures it.
         double sigma2 = 0.0;

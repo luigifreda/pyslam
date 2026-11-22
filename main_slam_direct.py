@@ -21,6 +21,8 @@
 import argparse
 import time
 
+import cv2
+
 import numpy as np
 
 from pyslam.config import Config
@@ -30,6 +32,9 @@ from pyslam.config_parameters import Parameters
 from pyslam.slam import USE_CPP, camera_from_config
 from pyslam.utilities.logging import Printer
 from pyslam.viz.direct_slam_display import DirectSlamDisplay
+
+# A session lost with at most this many keyframes is reset, as main_slam.py does.
+kMaxKeyframesForResetOnLoss = 5
 
 
 def main():
@@ -49,7 +54,7 @@ def main():
     if args.max_frames < 0:
         parser.error("max-frames must be nonnegative")
     if not USE_CPP:
-        raise SystemExit("main_direct_slam.py requires the C++ core (Parameters.USE_CPP_CORE)")
+        raise SystemExit("main_slam_direct.py requires the C++ core (Parameters.USE_CPP_CORE)")
 
     from pyslam.slam.cpp import DirectSlam
 
@@ -96,6 +101,7 @@ def main():
                 "Direct SLAM on TUM-VI needs sensor_type: stereo. "
                 "Native and rectified images are both tracked; native images stay distorted."
             )
+    undistorter = ImageUndistorter.for_camera(camera, dataset.sensor_type)
     if args.no_local_ba:
         settings["DIRECT_SLAM.local_ba"] = False
         if "DIRECT_SLAM" in settings:
@@ -124,7 +130,7 @@ def main():
     timer = time.perf_counter()
     try:
         if not args.headless:
-            display = DirectSlamDisplay(dataset.scale_viewer_3d)
+            display = DirectSlamDisplay(viewer_scale(dataset, slam))
             if has_groundtruth:
                 positions, _, timestamps = groundtruth.getFull6dTrajectory()
                 display.viewer.set_gt_trajectory(
@@ -133,10 +139,13 @@ def main():
         img_id = 0
         image = None
         timestamp = None
+        last_frame = None  # (image, img_id, timestamp) of the last tracked frame, for redraws.
+        user_quit = False
         while dataset.is_ok:
             frame_start = time.perf_counter()
             if display:
-                if display.viewer.is_closed() or display.images.get_key() == "q":
+                if display_quit_requested(display):
+                    user_quit = True
                     break
                 if display.viewer.reset():
                     if loop_closing:
@@ -172,12 +181,17 @@ def main():
                 break
             right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
             depth = dataset.getDepth(img_id)
+            if undistorter:
+                image, depth = undistorter.image(image), undistorter.depth(depth)
             timestamp = dataset.getTimestamp()
             # Native tracking includes any keyframe-triggered BA before returning its pose.
             if loop_closing and not loop_closing.acquire_tracking():
                 break
             try:
                 slam.track(image, right, depth, img_id, timestamp)
+                if loop_closing and slam.status_name() == "LOST":
+                    # As in main_slam.py: relocalize on the loop-closing keyframes.
+                    loop_closing.relocalize(image, right, depth, img_id, timestamp)
                 if loop_closing:
                     loop_closing.note_tracked_frame(image, right, depth, img_id, timestamp)
                 snapshot = (display.capture(slam, image, img_id, timestamp, loop_closing)
@@ -190,13 +204,36 @@ def main():
                 if loop_closing:
                     loop_closing.finish_tracking()
             print(f"{status}Ow [{position[0]:8.3f} {position[1]:8.3f} {position[2]:8.3f}]")
+            if slam.status_name() == "LOST" and slam.num_keyframes() <= kMaxKeyframesForResetOnLoss:
+                # As in main_slam.py: a session lost this early is restarted (re-initialized).
+                Printer.yellow(f"Direct SLAM: lost with {slam.num_keyframes()} keyframes, resetting")
+                if loop_closing:
+                    if not loop_closing.reset():
+                        break
+                else:
+                    slam.reset()
             if display:
                 display.draw(snapshot, img_id)
+            last_frame = (image, img_id, timestamp)
             img_id += 1
             processed += 1
             # Pace interactive playback; headless benchmarks run without dataset-rate sleeps.
             if display and dataset.fps:
                 time.sleep(max(0.0, 1.0 / dataset.fps - (time.perf_counter() - frame_start)))
+        elapsed = time.perf_counter() - timer
+        if display and not user_quit:
+            # As in main_slam.py, keep the viewers open after the last frame.
+            Printer.green("Done. Close the 3D viewer (or press ESC in it), or press 'q' in the image window, to exit.")
+            wait_for_viewer_close(display, slam, loop_closing, last_frame)
+    except KeyboardInterrupt:
+        # Ctrl+C also reaches the viewer and loop-detection processes, so an orderly quit()
+        # can wait forever on their queues. Save what was asked for, then exit as main_slam.py does.
+        from pyslam.utilities.system import force_kill_all_and_exit
+
+        Printer.yellow("\nCTRL+C detected. Shutting down ...\n")
+        if args.trajectory_file:
+            save_trajectory(slam, args.trajectory_file)
+        force_kill_all_and_exit(verbose=False)
     finally:
         if loop_closing:
             loop_closing.quit()
@@ -204,13 +241,100 @@ def main():
             display.quit()
         dataset.close()
         if args.trajectory_file:
-            # Export the final corrected trajectory, not poses cached before later BA updates.
-            # Only accepted frames are stored; reset starts a new trajectory/world frame.
-            poses = [np.linalg.inv(Tcw)[:3].reshape(12) for Tcw in slam.trajectory()]
-            np.savetxt(args.trajectory_file, np.asarray(poses).reshape(-1, 12))
-    elapsed = time.perf_counter() - timer
+            save_trajectory(slam, args.trajectory_file)
+    # quit() joins loop closing and its final correction. Evaluate the same settled map
+    # that was exported above, without racing a pose update or counting viewer wait time.
+    report(slam, processed, elapsed, groundtruth if has_groundtruth else None, eval_ate_correct_scale)
+
+
+class ImageUndistorter:
+    """Undistort monocular/RGBD input for a distorted pinhole camera.
+
+    Direct tracking works on raw pixels and only models distortion for raw-pixel cameras
+    (e.g. Kannala-Brandt); main_slam.py instead undistorts keypoints. The images are remapped
+    once per frame to the same intrinsics, and the camera is switched to zero distortion, so
+    DirectSlam and loop closing both see an undistorted pinhole.
+    """
+
+    def __init__(self, camera):
+        size = (int(camera.width), int(camera.height))
+        K = np.asarray(camera.K, dtype=np.float64)
+        D = np.asarray(camera.D, dtype=np.float64)
+        self.map1, self.map2 = cv2.initUndistortRectifyMap(K, D, None, K, size, cv2.CV_32FC1)
+        camera.D = np.zeros_like(D)
+        camera.is_distorted = False
+        camera.u_min, camera.u_max = 0.0, float(camera.width)
+        camera.v_min, camera.v_max = 0.0, float(camera.height)
+
+    @staticmethod
+    def for_camera(camera, sensor_type):
+        """An undistorter when the camera needs one, else None."""
+        if not camera.is_distorted or camera.projects_raw_keypoints():
+            return None
+        if sensor_type == SensorType.STEREO:
+            raise SystemExit("Direct SLAM: a distorted stereo pinhole needs rectified images")
+        Printer.yellow("Direct SLAM: undistorting the input images (distorted pinhole camera)")
+        return ImageUndistorter(camera)
+
+    def image(self, image):
+        return cv2.remap(image, self.map1, self.map2, cv2.INTER_LINEAR)
+
+    def depth(self, depth):
+        # Nearest neighbor: interpolating would blend depths across object boundaries.
+        return None if depth is None else cv2.remap(depth, self.map1, self.map2, cv2.INTER_NEAREST)
+
+
+def viewer_scale(dataset, slam):
+    """3D viewer scale (camera size, grid and initial viewpoint distance).
+
+    Datasets tune scale_viewer_3d for main_slam.py. Its monocular initializer puts the median
+    scene depth at Parameters.kInitializerDesiredMedianDepth, while the direct one puts it at
+    sqrt(seed_min_depth * seed_max_depth) (6.3 by default), so a monocular direct map is drawn
+    with the scale grown by the same ratio. Stereo and RGBD maps are metric in both pipelines.
+    """
+    scale = dataset.scale_viewer_3d
+    if dataset.sensor_type == SensorType.MONOCULAR:
+        scale *= slam.monocular_init_median_depth / Parameters.kInitializerDesiredMedianDepth
+    return scale
+
+
+def save_trajectory(slam, path):
+    # Export the final corrected trajectory, not poses cached before later BA updates.
+    # Only accepted frames are stored; reset starts a new trajectory/world frame.
+    poses = [np.linalg.inv(Tcw)[:3].reshape(12) for Tcw in slam.trajectory()]
+    np.savetxt(path, np.asarray(poses).reshape(-1, 12))
+
+
+def report(slam, processed, elapsed, groundtruth, correct_scale):
     print(f"processed {processed} frames in {elapsed:.2f}s, keyframes {slam.num_keyframes()}")
-    evaluate_final_ate(slam, groundtruth if has_groundtruth else None, eval_ate_correct_scale)
+    evaluate_final_ate(slam, groundtruth, correct_scale)
+
+
+def display_quit_requested(display):
+    """True when the 3D viewer was closed (window or ESC) or 'q' was pressed in the image window."""
+    return display.viewer.is_closed() or display.images.get_key() == "q"
+
+
+def wait_for_viewer_close(display, slam, loop_closing, last_frame, period=0.05, redraw_every=0.5):
+    """Keep the viewers alive after the last frame until the user closes them.
+
+    The map is redrawn periodically, so a loop correction or global BA that lands after
+    the last frame is still shown. Snapshots are captured inside the tracking gate.
+    """
+    last_redraw = time.perf_counter()
+    while not display_quit_requested(display):
+        if last_frame is not None and time.perf_counter() - last_redraw >= redraw_every:
+            image, img_id, timestamp = last_frame
+            if loop_closing and not loop_closing.acquire_tracking():
+                break
+            try:
+                snapshot = display.capture(slam, image, img_id, timestamp, loop_closing)
+            finally:
+                if loop_closing:
+                    loop_closing.finish_tracking()
+            display.draw(snapshot, img_id, refresh_fps=False)
+            last_redraw = time.perf_counter()
+        time.sleep(period)
 
 
 def evaluate_final_ate(slam, groundtruth, correct_scale):

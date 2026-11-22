@@ -63,6 +63,8 @@ class MonocularInitializer {
     // Current reference-to-frame tracks, for drawing; uv_ref is on the reference frame.
     const std::vector<LivePoint> &tracks() const { return tracks_; }
     int num_tracks() const { return static_cast<int>(tracks_.size()); }
+    // Input image id of the current reference frame, or -1 before the first frame.
+    int reference_img_id() const { return ref_img_id_; }
 
   private:
     void set_reference(const cv::Mat &gray, int img_id, double timestamp);
