@@ -24,6 +24,7 @@ import numpy as np
 import cv2
 
 from collections import Counter
+from functools import lru_cache
 
 from pyslam.config_parameters import Parameters
 
@@ -49,44 +50,68 @@ from pyslam.utilities.descriptor_distances import (
 from pyslam.utilities.pyramid import Pyramid, PyramidType
 from pyslam_utils import filter_cv2_keypoints_by_mask
 
-from .feature_manager_adaptors import BlockAdaptor, PyramidAdaptor
+from .feature_manager_adaptors import BlockAdaptor, PyramidAdaptor, PersistentThreadAdaptor
 from .feature_root_sift import RootSIFTFeature2D
 from .feature_shitomasi import ShiTomasiDetector
 
 
-# import and check
-SuperPointFeature2D = import_from("pyslam.local_features.feature_superpoint", "SuperPointFeature2D")
-XfeatFeature2D = import_from("pyslam.local_features.feature_xfeat", "XFeat2D")
-TfeatFeature2D = import_from("pyslam.local_features.feature_tfeat", "TfeatFeature2D")
-Orbslam2Feature2D = import_from("pyslam.local_features.feature_orbslam2", "Orbslam2Feature2D")
-HardnetFeature2D = import_from("pyslam.local_features.feature_hardnet", "HardnetFeature2D")
-GeodescFeature2D = import_from("pyslam.local_features.feature_geodesc", "GeodescFeature2D")
-SosnetFeature2D = import_from("pyslam.local_features.feature_sosnet", "SosnetFeature2D")
-if False:
-    L2NetKerasFeature2D = import_from(
-        "pyslam.local_features.feature_l2net_keras", "L2NetKerasFeature2D"
-    )  # not used at present time
-L2NetFeature2D = import_from("pyslam.local_features.feature_l2net", "L2NetFeature2D")
-LogpolarFeature2D = import_from("pyslam.local_features.feature_logpolar", "LogpolarFeature2D")
-D2NetFeature2D = import_from("pyslam.local_features.feature_d2net", "D2NetFeature2D")
-DelfFeature2D = import_from("pyslam.local_features.feature_delf", "DelfFeature2D")
-ContextDescFeature2D = import_from(
-    "pyslam.local_features.feature_contextdesc", "ContextDescFeature2D"
-)
-LfNetFeature2D = import_from("pyslam.local_features.feature_lfnet", "LfNetFeature2D")
-R2d2Feature2D = import_from("pyslam.local_features.feature_r2d2", "R2d2Feature2D")
-KeyNetDescFeature2D = import_from("pyslam.local_features.feature_keynet", "KeyNetDescFeature2D")
-DiskFeature2D = import_from("pyslam.local_features.feature_disk", "DiskFeature2D")
-AlikedFeature2D = import_from("pyslam.local_features.feature_aliked", "AlikedFeature2D")
-LightGlueSIFTFeature2D = import_from(
-    "pyslam.local_features.feature_lightglue_sift", "LightGlueSIFTFeature2D"
-)
-KeyNetAffNetHardNetFeature2D = import_from(
-    "pyslam.local_features.feature_keynet_affnet_hardnet", "KeyNetAffNetHardNetFeature2D"
-)
+# Learned/vendor wrappers are imported lazily, on first construction. Importing this
+# module no longer imports TensorFlow/torch/kornia or adds vendor paths to sys.path for
+# unused features. import_from keeps its original warning-and-None behavior on failure.
+_LAZY_WRAPPERS = {
+    "SuperPointFeature2D": ("pyslam.local_features.feature_superpoint", "SuperPointFeature2D"),
+    "XfeatFeature2D": ("pyslam.local_features.feature_xfeat", "XFeat2D"),
+    "TfeatFeature2D": ("pyslam.local_features.feature_tfeat", "TfeatFeature2D"),
+    "Orbslam2Feature2D": ("pyslam.local_features.feature_orbslam2", "Orbslam2Feature2D"),
+    "HardnetFeature2D": ("pyslam.local_features.feature_hardnet", "HardnetFeature2D"),
+    "GeodescFeature2D": ("pyslam.local_features.feature_geodesc", "GeodescFeature2D"),
+    "SosnetFeature2D": ("pyslam.local_features.feature_sosnet", "SosnetFeature2D"),
+    "L2NetFeature2D": ("pyslam.local_features.feature_l2net", "L2NetFeature2D"),
+    "LogpolarFeature2D": ("pyslam.local_features.feature_logpolar", "LogpolarFeature2D"),
+    "D2NetFeature2D": ("pyslam.local_features.feature_d2net", "D2NetFeature2D"),
+    "DelfFeature2D": ("pyslam.local_features.feature_delf", "DelfFeature2D"),
+    "ContextDescFeature2D": ("pyslam.local_features.feature_contextdesc", "ContextDescFeature2D"),
+    "LfNetFeature2D": ("pyslam.local_features.feature_lfnet", "LfNetFeature2D"),
+    "R2d2Feature2D": ("pyslam.local_features.feature_r2d2", "R2d2Feature2D"),
+    "KeyNetDescFeature2D": ("pyslam.local_features.feature_keynet", "KeyNetDescFeature2D"),
+    "DiskFeature2D": ("pyslam.local_features.feature_disk", "DiskFeature2D"),
+    "AlikedFeature2D": ("pyslam.local_features.feature_aliked", "AlikedFeature2D"),
+    "LightGlueSIFTFeature2D": ("pyslam.local_features.feature_lightglue_sift", "LightGlueSIFTFeature2D"),
+    "KeyNetAffNetHardNetFeature2D": ("pyslam.local_features.feature_keynet_affnet_hardnet", "KeyNetAffNetHardNetFeature2D"),
+    "DeDoDeFeature2D": ("pyslam.local_features.feature_dedode", "DeDoDeFeature2D"),
+    "RddFeature2D": ("pyslam.local_features.feature_rdd", "RddFeature2D"),
+    # "L2NetKerasFeature2D": ("pyslam.local_features.feature_l2net_keras", "L2NetKerasFeature2D"),  # not used at present time
+}
+
+
+@lru_cache(maxsize=None)
+def _wrapper(name):
+    module, symbol = _LAZY_WRAPPERS[name]
+    return import_from(module, symbol)
+
+
+def __getattr__(name):
+    # Backward compatibility for `feature_manager.SuperPointFeature2D`-style access.
+    if name in _LAZY_WRAPPERS:
+        return _wrapper(name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 # Mast3rFeature2D = import_from('pyslam.local_features.feature_mast3r', 'Mast3rFeature2D')
 
 kVerbose = True
+
+# torch-based learned detectors (TensorFlow, OpenCV and C++ extractors are not wrapped)
+kPersistentThreadDetectorTypes = (
+    FeatureDetectorTypes.SUPERPOINT,
+    FeatureDetectorTypes.XFEAT,
+    FeatureDetectorTypes.D2NET,
+    FeatureDetectorTypes.R2D2,
+    FeatureDetectorTypes.DISK,
+    FeatureDetectorTypes.ALIKED,
+    FeatureDetectorTypes.LIGHTGLUESIFT,
+    FeatureDetectorTypes.KEYNETAFFNETHARDNET,
+)
 
 kNumFeatureDefault = Parameters.kNumFeatures
 
@@ -365,7 +390,7 @@ class FeatureManager:
         elif self.detector_type == FeatureDetectorTypes.ORB2:
             orb2_num_levels = self.num_levels
             deterministic = kwargs.get("deterministic", False)
-            self._feature_detector = Orbslam2Feature2D(
+            self._feature_detector = _wrapper("Orbslam2Feature2D")(
                 self.num_features, self.scale_factor, orb2_num_levels, deterministic
             )
             self.keypoint_filter_type = (
@@ -397,7 +422,7 @@ class FeatureManager:
             #
         elif self.detector_type == FeatureDetectorTypes.SUPERPOINT:
             self.oriented_features = False
-            self._feature_detector = SuperPointFeature2D()
+            self._feature_detector = _wrapper("SuperPointFeature2D")()
             if self.descriptor_type != FeatureDescriptorTypes.NONE:
                 self.use_pyramid_adaptor = self.num_levels > 1
                 self.need_nms = self.num_levels > 1
@@ -410,7 +435,7 @@ class FeatureManager:
             #
         elif self.detector_type == FeatureDetectorTypes.XFEAT:
             self.oriented_features = False
-            self._feature_detector = XfeatFeature2D(self.num_features)
+            self._feature_detector = _wrapper("XfeatFeature2D")(self.num_features)
             if self.descriptor_type != FeatureDescriptorTypes.NONE:
                 self.use_pyramid_adaptor = self.num_levels > 1
                 self.need_nms = self.num_levels > 1
@@ -540,14 +565,14 @@ class FeatureManager:
             self.need_color_image = True
             self.num_levels = 1  # force unless you have 12GB of VRAM
             multiscale = self.num_levels > 1
-            self._feature_detector = D2NetFeature2D(multiscale=multiscale)
+            self._feature_detector = _wrapper("D2NetFeature2D")(multiscale=multiscale)
             self.keypoint_filter_type = KeyPointFilterTypes.NONE
             #
             #
         elif self.detector_type == FeatureDetectorTypes.DELF:
             self.need_color_image = True
             # self.num_levels = 1 # force              #scales are computed internally
-            self._feature_detector = DelfFeature2D(
+            self._feature_detector = _wrapper("DelfFeature2D")(
                 num_features=self.num_features, score_threshold=20
             )
             self.scale_factor = self._feature_detector.scale_factor
@@ -558,28 +583,28 @@ class FeatureManager:
             self.set_sift_parameters()
             self.need_color_image = True
             # self.num_levels = 1 # force              # computed internally by SIFT method
-            self._feature_detector = ContextDescFeature2D(num_features=self.num_features)
+            self._feature_detector = _wrapper("ContextDescFeature2D")(num_features=self.num_features)
             # self.keypoint_filter_type = KeyPointFilterTypes.NONE
             #
             #
         elif self.detector_type == FeatureDetectorTypes.LFNET:
             self.need_color_image = True
             # self.num_levels = 1 # force
-            self._feature_detector = LfNetFeature2D(num_features=self.num_features)
+            self._feature_detector = _wrapper("LfNetFeature2D")(num_features=self.num_features)
             # self.keypoint_filter_type = KeyPointFilterTypes.NONE
             #
             #
         elif self.detector_type == FeatureDetectorTypes.R2D2:
             self.need_color_image = True
             # self.num_levels = - # internally recomputed
-            self._feature_detector = R2d2Feature2D(num_features=self.num_features)
+            self._feature_detector = _wrapper("R2d2Feature2D")(num_features=self.num_features)
             self.scale_factor = self._feature_detector.scale_f
             self.keypoint_filter_type = KeyPointFilterTypes.NONE
             #
             #
         elif self.detector_type == FeatureDetectorTypes.KEYNET:
             # self.num_levels = - # internally recomputed
-            self._feature_detector = KeyNetDescFeature2D(num_features=self.num_features)
+            self._feature_detector = _wrapper("KeyNetDescFeature2D")(num_features=self.num_features)
             self.num_features = self._feature_detector.num_features
             self.num_levels = self._feature_detector.num_levels
             self.scale_factor = self._feature_detector.scale_factor
@@ -589,27 +614,41 @@ class FeatureManager:
         elif self.detector_type == FeatureDetectorTypes.DISK:
             self.num_levels = 1  # force
             self.need_color_image = True
-            self._feature_detector = DiskFeature2D(num_features=self.num_features)
+            self._feature_detector = _wrapper("DiskFeature2D")(num_features=self.num_features)
             self.keypoint_filter_type = KeyPointFilterTypes.NONE
             #
             #
         elif self.detector_type == FeatureDetectorTypes.ALIKED:
             self.num_levels = 1  # force
             self.need_color_image = True
-            self._feature_detector = AlikedFeature2D(num_features=self.num_features)
+            self._feature_detector = _wrapper("AlikedFeature2D")(num_features=self.num_features)
             self.keypoint_filter_type = KeyPointFilterTypes.NONE
             #
             #
         elif self.detector_type == FeatureDetectorTypes.LIGHTGLUESIFT:
             self.num_levels = 1  # force
             self.need_color_image = True
-            self._feature_detector = LightGlueSIFTFeature2D(num_features=self.num_features)
+            self._feature_detector = _wrapper("LightGlueSIFTFeature2D")(num_features=self.num_features)
             self.keypoint_filter_type = KeyPointFilterTypes.NONE
             #
             #
         elif self.detector_type == FeatureDetectorTypes.KEYNETAFFNETHARDNET:
             # self.num_levels = - # internally recomputed
-            self._feature_detector = KeyNetAffNetHardNetFeature2D(num_features=self.num_features)
+            self._feature_detector = _wrapper("KeyNetAffNetHardNetFeature2D")(num_features=self.num_features)
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE
+            #
+            #
+        elif self.detector_type == FeatureDetectorTypes.DEDODE:
+            self.num_levels = 1  # force
+            self.need_color_image = True
+            self._feature_detector = _wrapper("DeDoDeFeature2D")(num_features=self.num_features)
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE
+            #
+            #
+        elif self.detector_type == FeatureDetectorTypes.RDD:
+            self.num_levels = 1  # force
+            self.need_color_image = True
+            self._feature_detector = _wrapper("RddFeature2D")(num_features=self.num_features)
             self.keypoint_filter_type = KeyPointFilterTypes.NONE
             #
             #
@@ -618,6 +657,17 @@ class FeatureManager:
             self.keypoint_filter_type = KeyPointFilterTypes.NONE
         else:
             raise ValueError("Unknown feature detector %s" % self.detector_type)
+
+        # Torch-based learned detectors run on their own long-lived thread (descriptors that
+        # reuse the detector object below inherit it). DEDODE already does this internally.
+        if (
+            Parameters.kFeatureExtractionPersistentThread
+            and self.detector_type in kPersistentThreadDetectorTypes
+            and self._feature_detector is not None
+        ):
+            self._feature_detector = PersistentThreadAdaptor(
+                self._feature_detector, name=self.detector_type.name.lower()
+            )
 
         if self.need_nms:
             self.keypoint_filter_type = self.keypoint_nms_filter_type
@@ -718,7 +768,7 @@ class FeatureManager:
                 #
                 #
             elif self.descriptor_type == FeatureDescriptorTypes.TFEAT:
-                self._feature_descriptor = TfeatFeature2D()
+                self._feature_descriptor = _wrapper("TfeatFeature2D")()
                 #
                 #
             elif self.descriptor_type == FeatureDescriptorTypes.BOOST_DESC:
@@ -768,24 +818,24 @@ class FeatureManager:
                 #
                 #
             elif self.descriptor_type == FeatureDescriptorTypes.HARDNET:
-                self._feature_descriptor = HardnetFeature2D(do_cuda=True)
+                self._feature_descriptor = _wrapper("HardnetFeature2D")(do_cuda=True)
                 #
                 #
             elif self.descriptor_type == FeatureDescriptorTypes.GEODESC:
-                self._feature_descriptor = GeodescFeature2D()
+                self._feature_descriptor = _wrapper("GeodescFeature2D")()
                 #
                 #
             elif self.descriptor_type == FeatureDescriptorTypes.SOSNET:
-                self._feature_descriptor = SosnetFeature2D()
+                self._feature_descriptor = _wrapper("SosnetFeature2D")()
                 #
                 #
             elif self.descriptor_type == FeatureDescriptorTypes.L2NET:
                 # self._feature_descriptor = L2NetKerasFeature2D()    # keras-tf version
-                self._feature_descriptor = L2NetFeature2D()
+                self._feature_descriptor = _wrapper("L2NetFeature2D")()
                 #
                 #
             elif self.descriptor_type == FeatureDescriptorTypes.LOGPOLAR:
-                self._feature_descriptor = LogpolarFeature2D()
+                self._feature_descriptor = _wrapper("LogpolarFeature2D")()
                 #
                 #
             elif self.descriptor_type == FeatureDescriptorTypes.D2NET:
@@ -886,6 +936,24 @@ class FeatureManager:
                         "You cannot use KEYNETAFFNETHARDNET descriptor without KEYNETAFFNETHARDNET detector!\nPlease, select KEYNETAFFNETHARDNET as both descriptor and detector!"
                     )
                 self._feature_descriptor = self._feature_detector  # reuse the same detector object
+                #
+                #
+            elif self.descriptor_type == FeatureDescriptorTypes.RDD:
+                self.oriented_features = False
+                if self.detector_type != FeatureDetectorTypes.RDD:
+                    raise ValueError(
+                        "You cannot use RDD internal descriptor without RDD detector!\nPlease, select RDD as both descriptor and detector!"
+                    )
+                self._feature_descriptor = self._feature_detector  # reuse detector object
+                #
+                #
+            elif self.descriptor_type == FeatureDescriptorTypes.DEDODE:
+                self.oriented_features = False
+                if self.detector_type != FeatureDetectorTypes.DEDODE:
+                    raise ValueError(
+                        "You cannot use DEDODE internal descriptor without DEDODE detector!\nPlease, select DEDODE as both descriptor and detector!"
+                    )
+                self._feature_descriptor = self._feature_detector  # reuse detector object
                 #
                 #
             # elif self.descriptor_type == FeatureDescriptorTypes.MAST3R:

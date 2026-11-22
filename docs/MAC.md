@@ -1,6 +1,8 @@
 
 # Install pyslam under macOS 
 
+After the standard installation, `./scripts/install_visual_model.sh` (or `python -m pyslam.visual_models install`) prefetches the models integrated through pinned sources (DeDoDe, RDD, RoMa, tiny-RoMa, SALAD, BoQ, MegaLoc, LoFTR weights) and verifies their checksums. It installs no packages and does not change any pin. See [visual_features.md](./visual_features.md#installing-models). The Linux validation results do not certify macOS (no macOS smoke run yet).
+
 <!-- TOC -->
 
 - [Install pyslam under macOS](#install-pyslam-under-macos)

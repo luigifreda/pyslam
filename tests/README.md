@@ -23,6 +23,7 @@ There are two pytest passes because `pyslam.slam` binds its classes to one core 
 
 | Folder | Scope |
 |--------|-------|
+| `local_features/` | Visual-model enum/FeatureInfo and installer contracts, registry/lazy factories, verified weights, benchmark/output gates and generated documentation. CPU/no-network tests. |
 | `slam/` | Core-agnostic front end and back end: tracking, motion model, two-view initialization, adaptive thresholds, local BA interrupted by its abort flag. Runs in both passes. |
 | `python_core/` | Python-core-only back end: local-mapping culling, essential-graph optimization (g2o, GTSAM), and local BA aborted just before g2o's first iteration (only the Python core can raise the flag at that exact point; the timed aborts in `slam/` cover both cores). |
 | `camera/` | Camera models, local-map limits, triangulation, trajectory evaluation (C++ core). |
@@ -43,6 +44,16 @@ python -m pytest tests/slam/test_tracking_pipeline.py -v
 PYSLAM_USE_CPP=false python -m pytest tests/slam/test_tracking_pipeline.py -v
 python cpp/core/slam/tests_py/test_slam_cpp_search_keyframe_by_projection.py
 ```
+
+The Map binding script checks functional equivalence and reports paired timings of Map operations, excluding object construction and feature extraction. A C++/Python speed ratio is informational by default: crossing the binding can cost more than a small Python operation. Use `--require-cpp-speedup` to request that strict comparison. To detect regressions, save a baseline and compare each backend against itself on the same idle machine and workload (3% tolerance):
+
+```bash
+python cpp/core/slam/tests_py/test_slam_cpp_map.py --benchmark-output /tmp/map-before.json
+python cpp/core/slam/tests_py/test_slam_cpp_map.py --baseline /tmp/map-before.json --benchmark-output /tmp/map-after.json
+python benchmarking/compare_map_benchmarks.py /tmp/map-before.json /tmp/map-after.json
+```
+
+Failed timing samples and missing or incompatible baseline cases fail the check. The baseline format changed with the isolated workload; old timings that included random image generation and ORB extraction cannot be compared with it.
 
 ## Adding a test
 

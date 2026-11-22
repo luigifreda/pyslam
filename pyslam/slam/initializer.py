@@ -105,6 +105,14 @@ class Initializer(object):
     def reset(self):
         self.frames.clear()
         self.f_ref = None
+        self.num_failures = 0
+        self.num_min_triangulated_points = (
+            Parameters.kInitializerNumMinTriangulatedPoints
+            if self.is_monocular
+            else Parameters.kInitializerNumMinTriangulatedPointsStereo
+        )
+        self.check_min_frame_distance = Parameters.kInitializerUseMinFrameDistanceCheck
+        self.check_cell_coverage = Parameters.kInitializerUseCellCoverageCheck
 
     # fit essential matrix E with RANSAC such that:  p2.T * E * p1 = 0  where  E = [t21]x * R21
     # out: Trc  homogeneous transformation matrix with respect to 'ref' frame,  pr_= Trc * pc_
@@ -146,6 +154,16 @@ class Initializer(object):
     def check_num_failures(self):
         if self.num_failures > kNumOfFailuresAfterWichNumMinTriangulatedPointsIsReduced:
             factor = 2.0 / 3.0
+            if self.sensor_type == SensorType.STEREO:
+                # Repetitive/close scenes can have many temporal matches but few reliable
+                # stereo depths. A one-off reduction to 2/3 of 100 still stalls forever.
+                # Keep the initial target, then relax in bounded stages; pose estimation,
+                # BA improvement and the post-BA point-count checks still have to pass.
+                base = Parameters.kInitializerNumMinTriangulatedPointsStereo
+                floor = min(base, 2 * Parameters.kInitializerNumMinNumPointsForPnPWithDepth)
+                stage = self.num_failures // kNumOfFailuresAfterWichNumMinTriangulatedPointsIsReduced
+                self.num_min_triangulated_points = max(floor, base * factor ** stage)
+                return
             self.num_min_triangulated_points = (
                 factor * Parameters.kInitializerNumMinTriangulatedPoints
                 if self.is_monocular
@@ -261,6 +279,7 @@ class Initializer(object):
             print(
                 f"Initializer: # keypoint matches: idxs_cur: {len(idxs_cur)}, idxs_ref: {len(idxs_ref)}"
             )
+            self.num_failures += 1
             return out, is_ok
         if FeatureTrackerShared.oriented_features and len(idxs_cur) > 0 and len(idxs_ref) > 0:
             valid_match_idxs = RotationHistogram.filter_matches_with_histogram_orientation(
@@ -348,6 +367,7 @@ class Initializer(object):
 
             num_valid_pts3d = np.sum(mask_pts3d)
             if num_valid_pts3d < Parameters.kInitializerNumMinNumPointsForPnPWithDepth:
+                self.num_failures += 1
                 return out, is_ok
 
             print(f"Initializer: pts3d: {pts3d.shape}, mask_pts3d: {mask_pts3d.shape}")
@@ -400,8 +420,19 @@ class Initializer(object):
             reproj_error_before = map.compute_mean_reproj_error()
             print(f"Initializer: reprojection error before: {reproj_error_before}")
 
-            reproj_error_after, _ = map.optimize(verbose=False, rounds=20, use_robust_kernel=True)
-            print(f"Initializer: init optimization error^2: {reproj_error_after}")
+            optimized_chi2, _ = map.optimize(verbose=False, rounds=20, use_robust_kernel=True)
+            if self.is_monocular:
+                # Monocular BA has only left-image reprojection edges: keep the original
+                # acceptance metric (and avoid an extra pass over the map points).
+                reproj_error_after = optimized_chi2
+            else:
+                # Stereo/RGB-D chi2 includes depth (right-u) residuals; compare the same
+                # left-image reprojection objective that was measured before BA.
+                reproj_error_after = map.compute_mean_reproj_error()
+            print(
+                f"Initializer: init optimization chi2: {optimized_chi2}, "
+                f"reprojection after: {reproj_error_after}"
+            )
 
             num_map_points = len(map.points)
             print(
@@ -409,7 +440,12 @@ class Initializer(object):
             )
 
             is_ok = (
-                reproj_error_after < reproj_error_before
+                np.isfinite(optimized_chi2)
+                and optimized_chi2 >= 0.0
+                and np.isfinite(reproj_error_before)
+                and np.isfinite(reproj_error_after)
+                and reproj_error_after >= 0.0
+                and reproj_error_after < reproj_error_before
                 and num_map_points > self.num_min_triangulated_points
             )
 

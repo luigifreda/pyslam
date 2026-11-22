@@ -415,3 +415,27 @@ class PyramidAdaptor:
                     else:
                         des_all = des
             return np.array(kps_all), np.array(des_all)
+
+
+# PersistentThreadAdaptor runs a learned (torch) detector/descriptor on one long-lived thread.
+# Frames are extracted on threads created per frame (left/right stereo in Frame and in the
+# C++ core); a torch model called from a new thread rebuilds per-thread CUDA/cuDNN state on
+# every call (KITTI: ALIKED ~20 -> ~45 ms, DeDoDe ~175 ms -> ~2.8 s). Outputs are unchanged.
+class PersistentThreadAdaptor:
+    def __init__(self, feature, name="feature"):
+        from pyslam.utilities.persistent_thread import PersistentThread
+
+        self._feature = feature
+        self._worker = PersistentThread(name)
+
+    def detect(self, *args, **kwargs):
+        return self._worker.run(self._feature.detect, *args, **kwargs)
+
+    def compute(self, *args, **kwargs):
+        return self._worker.run(self._feature.compute, *args, **kwargs)
+
+    def detectAndCompute(self, *args, **kwargs):
+        return self._worker.run(self._feature.detectAndCompute, *args, **kwargs)
+
+    def __getattr__(self, name):  # everything else (setMaxFeatures, attributes, ...) is the wrapped object's
+        return getattr(self._feature, name)

@@ -1857,6 +1857,27 @@ def compute_frame_matches(
             )
         return match_idxs
 
+    matcher = FeatureTrackerShared.feature_matcher
+    if (
+        Parameters.kLightGlueBatchedMatching
+        and hasattr(matcher, "match_frames_batch")
+        and len(geometrically_valid_frames) > 1
+    ):
+        # Opt-in batched LightGlue: one masked forward for all pairs (see feature_matcher_lightglue_batch.py)
+        results = matcher.match_frames_batch(
+            target_frame.img,
+            target_frame.des,
+            target_frame.kps,
+            [(kf.img, kf.des, kf.kps) for kf in geometrically_valid_frames],
+        )
+        for kf, (idxs1, idxs2) in zip(geometrically_valid_frames, results):
+            match_idxs[(target_frame, kf)] = (idxs1, idxs2)
+        if print_fun is not None:
+            print_fun(
+                f"compute_frame_matches: #compared pairs: {len(results)} (batched LightGlue), timing: {timer.elapsed()}"
+            )
+        return match_idxs
+
     if not do_parallel:
         # Do serial computation (optimized)
         for kf in geometrically_valid_frames:

@@ -1,24 +1,40 @@
 #!/usr/bin/env python3
 """
-Test script for the volumetric module to verify imports and linking.
-
-This script tests:
-1. Basic module import
-2. TBB utilities (thread management)
-3. Bounding box classes (BoundingBox3D, OrientedBoundingBox3D, BoundingBox2D, OrientedBoundingBox2D)
-4. Camera frustrum class with all methods
-5. Voxel data classes (VoxelData, VoxelSemanticData, VoxelGridData)
-6. All voxel grid classes:
-   - VoxelGrid, VoxelBlockGrid
-   - VoxelSemanticGrid, VoxelSemanticGridProbabilistic
-   - VoxelBlockSemanticGrid, VoxelBlockSemanticProbabilisticGrid
-7. Grid operations:
-   - Integration with/without colors, semantic data, instance IDs, depths
-   - Segment operations (integrate_segment, merge_segments, remove_segment)
-   - Spatial queries (get_voxels_in_bb, get_voxels_in_camera_frustrum)
-   - Carving and filtering (carve, remove_low_count_voxels, remove_low_confidence_voxels)
-   - Data retrieval (get_voxels, get_points, get_colors, get_object_segments, get_class_segments)
-
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+*
+* Test script for the volumetric module to verify imports and linking.
+*
+* This script tests:
+* 1. Basic module import
+* 2. TBB utilities (thread management)
+* 3. Bounding box classes (BoundingBox3D, OrientedBoundingBox3D, BoundingBox2D, OrientedBoundingBox2D)
+* 4. Camera frustrum class with all methods
+* 5. Voxel data classes (VoxelData, VoxelSemanticData, VoxelGridData)
+* 6. All voxel grid classes:
+*    - VoxelGrid, VoxelBlockGrid
+*    - VoxelSemanticGrid, VoxelSemanticGridProbabilistic
+*    - VoxelBlockSemanticGrid, VoxelBlockSemanticProbabilisticGrid
+* 7. Grid operations:
+*    - Integration with/without colors, semantic data, instance IDs, depths
+*    - Segment operations (integrate_segment, merge_segments, remove_segment)
+*    - Spatial queries (get_voxels_in_bb, get_voxels_in_camera_frustrum)
+*    - Carving and filtering (carve, remove_low_count_voxels, remove_low_confidence_voxels)
+*    - Data retrieval (get_voxels, get_points, get_colors, get_object_segments, get_class_segments)
 """
 
 import sys

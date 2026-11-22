@@ -1,0 +1,659 @@
+{
+  "cases": [
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cpu",
+      "fps": 11.756534123323446,
+      "golden": null,
+      "import_ms": 7260.471400004462,
+      "keypoints": [
+        1974,
+        1977
+      ],
+      "log": "FeatureManager: num_levels:  8\nFeatureManager: Using opencv  4.13.0\nUsing Orbslam2Feature2D\n\u001b[32m FeatureManager: Using same detector and descriptor object:  ORB2\n\u001b[0mFeatureManager: num_levels:  8\n\u001b[32m matcher: BfFeatureMatcher - norm_type: 6, cross_check: False, ratio_test: 0.7\n\u001b[0mdetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\n",
+      "matches": 592,
+      "model_load_ms": 0.28123600350227207,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1530961920,
+      "preset": "ORB2",
+      "pyslam_import_ms": 7260.469503999047,
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 42.95268200075952,
+          "p95": 45.00279309795587
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 41.7619539948646,
+          "p95": 43.74647540098522
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 85.05908199731493,
+          "p95": 88.64999299839837
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 566,
+      "torch_cuda": "12.8",
+      "torch_imported_by_pyslam": true
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cpu",
+      "fps": 11.478493694168355,
+      "golden": null,
+      "import_ms": 7390.165254000749,
+      "keypoints": [
+        1974,
+        1977
+      ],
+      "log": "FeatureManager: num_levels:  8\nFeatureManager: Using opencv  4.13.0\nUsing Orbslam2Feature2D\n\u001b[32m FeatureManager: Using same detector and descriptor object:  ORB2\n\u001b[0mFeatureManager: num_levels:  8\n\u001b[32m matcher: BfFeatureMatcher - norm_type: 6, cross_check: False, ratio_test: 0.7\n\u001b[0mdetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1974\ndescriptor: ORB2 , #features: 1974\ndetector: ORB2 , descriptor: ORB2 , #features: 1974  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 1977\ndescriptor: ORB2 , #features: 1977\ndetector: ORB2 , descriptor: ORB2 , #features: 1977  (#ref: 2000 ), [kp-filter: NONE ]\n",
+      "matches": 590,
+      "model_load_ms": 0.28117499459767714,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1529974784,
+      "preset": "ORB2",
+      "pyslam_import_ms": 7390.163457006565,
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 44.24740999820642,
+          "p95": 47.32177769692498
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 43.230099996435456,
+          "p95": 44.745733398303855
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 87.11944499373203,
+          "p95": 92.61444269577623
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 564,
+      "torch_cuda": "12.8",
+      "torch_imported_by_pyslam": true
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cpu",
+      "fps": 9.66212234491852,
+      "golden": null,
+      "import_ms": 7045.326897998166,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "log": "FeatureManager: num_levels:  8\nFeatureManager: Using opencv  4.13.0\nUsing Orbslam2Feature2D\n\u001b[32m FeatureManager: Using same detector and descriptor object:  ORB2\n\u001b[0mFeatureManager: num_levels:  8\n\u001b[32m matcher: BfFeatureMatcher - norm_type: 6, cross_check: False, ratio_test: 0.7\n\u001b[0mdetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\n",
+      "matches": 532,
+      "model_load_ms": 0.29138899844838306,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1533046784,
+      "preset": "ORB2",
+      "pyslam_import_ms": 7045.324771999731,
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 60.67168799927458,
+          "p95": 63.20176719891606
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 42.7782569968258,
+          "p95": 44.87986950043705
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 103.49693000171101,
+          "p95": 106.45291029868531
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 511,
+      "torch_cuda": "12.8",
+      "torch_imported_by_pyslam": true
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cpu",
+      "fps": 9.404650983114461,
+      "golden": null,
+      "import_ms": 7363.832941002329,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "log": "FeatureManager: num_levels:  8\nFeatureManager: Using opencv  4.13.0\nUsing Orbslam2Feature2D\n\u001b[32m FeatureManager: Using same detector and descriptor object:  ORB2\n\u001b[0mFeatureManager: num_levels:  8\n\u001b[32m matcher: BfFeatureMatcher - norm_type: 6, cross_check: False, ratio_test: 0.7\n\u001b[0mdetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: ORB2 , #features: 2000\ndescriptor: ORB2 , #features: 2000\ndetector: ORB2 , descriptor: ORB2 , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\n",
+      "matches": 532,
+      "model_load_ms": 0.2823129980242811,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1535094784,
+      "preset": "ORB2",
+      "pyslam_import_ms": 7363.830913003767,
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 62.09150000358932,
+          "p95": 68.48168889991939
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 44.546330005687196,
+          "p95": 48.395655903004794
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 106.33036800572881,
+          "p95": 118.40349000340211
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 511,
+      "torch_cuda": "12.8",
+      "torch_imported_by_pyslam": true
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cpu",
+      "fps": 2.0536247969652037,
+      "golden": null,
+      "import_ms": 7120.702314998198,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "log": "FeatureManager: num_levels:  1\nFeatureManager: Using opencv  4.13.0\n\u001b[33m FeatureManager: Forcing scale factor=2 for detector SIFT\n\u001b[0m\u001b[32m FeatureManager: Using same detector and descriptor object:  SIFT\n\u001b[0mFeatureManager: initializing SIFT sigma levels\nFeatureManager: num_levels:  1\nFeatureManager: Original scale factor:  2\n\u001b[32m matcher: BfFeatureMatcher - norm_type: 4, cross_check: False, ratio_test: 0.7\n\u001b[0mdetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\n",
+      "matches": 1954,
+      "model_load_ms": 0.30183500348357484,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1603272704,
+      "preset": "SIFT",
+      "pyslam_import_ms": 7120.700420004141,
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 423.9161799996509,
+          "p95": 469.1317111028183
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 62.522555999748874,
+          "p95": 78.05956920419702
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 486.9438669993542,
+          "p95": 553.9375859050779
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1954,
+      "torch_cuda": "12.8",
+      "torch_imported_by_pyslam": true
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cpu",
+      "fps": 1.9033248220337449,
+      "golden": null,
+      "import_ms": 8287.734199002443,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "log": "FeatureManager: num_levels:  1\nFeatureManager: Using opencv  4.13.0\n\u001b[33m FeatureManager: Forcing scale factor=2 for detector SIFT\n\u001b[0m\u001b[32m FeatureManager: Using same detector and descriptor object:  SIFT\n\u001b[0mFeatureManager: initializing SIFT sigma levels\nFeatureManager: num_levels:  1\nFeatureManager: Original scale factor:  2\n\u001b[32m matcher: BfFeatureMatcher - norm_type: 4, cross_check: False, ratio_test: 0.7\n\u001b[0mdetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8742\ndescriptor: SIFT , #features: 8742\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 8745\ndescriptor: SIFT , #features: 8745\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\n",
+      "matches": 1954,
+      "model_load_ms": 0.36263299989514053,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1603317760,
+      "preset": "SIFT",
+      "pyslam_import_ms": 8287.730923999334,
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 457.8741590012214,
+          "p95": 535.6819393011392
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 65.47437200060813,
+          "p95": 78.52142409683437
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 525.3963949944591,
+          "p95": 612.8302311975858
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1954,
+      "torch_cuda": "12.8",
+      "torch_imported_by_pyslam": true
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cpu",
+      "fps": 1.5057573369642772,
+      "golden": null,
+      "import_ms": 8050.621886002773,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "log": "FeatureManager: num_levels:  1\nFeatureManager: Using opencv  4.13.0\n\u001b[33m FeatureManager: Forcing scale factor=2 for detector SIFT\n\u001b[0m\u001b[32m FeatureManager: Using same detector and descriptor object:  SIFT\n\u001b[0mFeatureManager: initializing SIFT sigma levels\nFeatureManager: num_levels:  1\nFeatureManager: Original scale factor:  2\n\u001b[32m matcher: BfFeatureMatcher - norm_type: 4, cross_check: False, ratio_test: 0.7\n\u001b[0mdetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\n",
+      "matches": 1971,
+      "model_load_ms": 0.29813600121997297,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1641402368,
+      "preset": "SIFT",
+      "pyslam_import_ms": 8050.618989000213,
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 604.8416050034575,
+          "p95": 667.9925770993577
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 57.836343003145885,
+          "p95": 64.66966659791069
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 664.117633998103,
+          "p95": 731.1574988976645
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1971,
+      "torch_cuda": "12.8",
+      "torch_imported_by_pyslam": true
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cpu",
+      "fps": 1.3889964338739726,
+      "golden": null,
+      "import_ms": 9296.906998999475,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "log": "FeatureManager: num_levels:  1\nFeatureManager: Using opencv  4.13.0\n\u001b[33m FeatureManager: Forcing scale factor=2 for detector SIFT\n\u001b[0m\u001b[32m FeatureManager: Using same detector and descriptor object:  SIFT\n\u001b[0mFeatureManager: initializing SIFT sigma levels\nFeatureManager: num_levels:  1\nFeatureManager: Original scale factor:  2\n\u001b[32m matcher: BfFeatureMatcher - norm_type: 4, cross_check: False, ratio_test: 0.7\n\u001b[0mdetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13023\ndescriptor: SIFT , #features: 13023\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\ndetector: SIFT , #features: 13026\ndescriptor: SIFT , #features: 13026\ndetector: SIFT , descriptor: SIFT , #features: 2000  (#ref: 2000 ), [kp-filter: SAT ]\n",
+      "matches": 1971,
+      "model_load_ms": 0.3582759964047,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1643622400,
+      "preset": "SIFT",
+      "pyslam_import_ms": 9296.90379100066,
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 650.7328110019444,
+          "p95": 806.1533135987701
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 66.60307000129251,
+          "p95": 81.49539909863958
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 719.9442529963562,
+          "p95": 876.7223917951923
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1971,
+      "torch_cuda": "12.8",
+      "torch_imported_by_pyslam": true
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cpu",
+      "fps": 5.648349113866098,
+      "golden": null,
+      "import_ms": 7053.04469299881,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "log": "FeatureManager: num_levels:  1\nFeatureManager: Using opencv  4.13.0\n====>XFeat\nloading weights from: /media/ssd2/data/Work/slam_wss/pyslam-master-new/thirdparty/accelerated_features/modules/../weights/xfeat.pt\n\u001b[32m FeatureManager: Using same detector and descriptor object:  XFEAT\n\u001b[0m\u001b[33m WARNING: using NON-ORIENTED features:  XFEAT - XFEAT  (i.e. kp.angle=0)\n\u001b[0mFeatureManager: num_levels:  1\n\u001b[32m matcher: BfFeatureMatcher - norm_type: 4, cross_check: False, ratio_test: 0.8\n\u001b[0mdetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\n",
+      "matches": 588,
+      "model_load_ms": 28.838404999987688,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1578889216,
+      "preset": "XFEAT",
+      "pyslam_import_ms": 7053.042602994537,
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 141.46302500012098,
+          "p95": 157.48445280260057
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 37.34076299588196,
+          "p95": 42.53994840182713
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 177.04288099776022,
+          "p95": 195.92348739970475
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 412,
+      "torch_cuda": "12.8",
+      "torch_imported_by_pyslam": true
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cpu",
+      "fps": 5.713556011610712,
+      "golden": null,
+      "import_ms": 7225.717033004912,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "log": "FeatureManager: num_levels:  1\nFeatureManager: Using opencv  4.13.0\n====>XFeat\nloading weights from: /media/ssd2/data/Work/slam_wss/pyslam-master-new/thirdparty/accelerated_features/modules/../weights/xfeat.pt\n\u001b[32m FeatureManager: Using same detector and descriptor object:  XFEAT\n\u001b[0m\u001b[33m WARNING: using NON-ORIENTED features:  XFEAT - XFEAT  (i.e. kp.angle=0)\n\u001b[0mFeatureManager: num_levels:  1\n\u001b[32m matcher: BfFeatureMatcher - norm_type: 4, cross_check: False, ratio_test: 0.8\n\u001b[0mdetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\n",
+      "matches": 588,
+      "model_load_ms": 28.870929003460333,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1586262016,
+      "preset": "XFEAT",
+      "pyslam_import_ms": 7225.714999003685,
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 138.34117700025672,
+          "p95": 145.42935010176734
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 35.89891700539738,
+          "p95": 37.06926649756497
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 175.02234999847133,
+          "p95": 181.5173661991139
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 412,
+      "torch_cuda": "12.8",
+      "torch_imported_by_pyslam": true
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cpu",
+      "fps": 4.545250753040739,
+      "golden": null,
+      "import_ms": 7289.799579004466,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "log": "FeatureManager: num_levels:  1\nFeatureManager: Using opencv  4.13.0\n====>XFeat\nloading weights from: /media/ssd2/data/Work/slam_wss/pyslam-master-new/thirdparty/accelerated_features/modules/../weights/xfeat.pt\n\u001b[32m FeatureManager: Using same detector and descriptor object:  XFEAT\n\u001b[0m\u001b[33m WARNING: using NON-ORIENTED features:  XFEAT - XFEAT  (i.e. kp.angle=0)\n\u001b[0mFeatureManager: num_levels:  1\n\u001b[32m matcher: BfFeatureMatcher - norm_type: 4, cross_check: False, ratio_test: 0.8\n\u001b[0mdetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\n",
+      "matches": 640,
+      "model_load_ms": 30.340114994032774,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1596092416,
+      "preset": "XFEAT",
+      "pyslam_import_ms": 7289.7972440041485,
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 184.1403239959618,
+          "p95": 194.8016873044253
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 35.95600900007412,
+          "p95": 37.47073749837
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 220.00986399507383,
+          "p95": 231.09469650371466
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 445,
+      "torch_cuda": "12.8",
+      "torch_imported_by_pyslam": true
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cpu",
+      "fps": 4.264407290425936,
+      "golden": null,
+      "import_ms": 7538.168270999449,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "log": "FeatureManager: num_levels:  1\nFeatureManager: Using opencv  4.13.0\n====>XFeat\nloading weights from: /media/ssd2/data/Work/slam_wss/pyslam-master-new/thirdparty/accelerated_features/modules/../weights/xfeat.pt\n\u001b[32m FeatureManager: Using same detector and descriptor object:  XFEAT\n\u001b[0m\u001b[33m WARNING: using NON-ORIENTED features:  XFEAT - XFEAT  (i.e. kp.angle=0)\n\u001b[0mFeatureManager: num_levels:  1\n\u001b[32m matcher: BfFeatureMatcher - norm_type: 4, cross_check: False, ratio_test: 0.8\n\u001b[0mdetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\ndetector: XFEAT , #features: 2000\ndescriptor: XFEAT , #features: 2000\ndetector: XFEAT , descriptor: XFEAT , #features: 2000  (#ref: 2000 ), [kp-filter: NONE ]\n",
+      "matches": 640,
+      "model_load_ms": 31.484706996707246,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1599102976,
+      "preset": "XFEAT",
+      "pyslam_import_ms": 7538.165746998857,
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 196.9086720055202,
+          "p95": 214.35548959634613
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 38.875411002663895,
+          "p95": 43.664339503447984
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 234.49917700054357,
+          "p95": 259.9075590966095
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 445,
+      "torch_cuda": "12.8",
+      "torch_imported_by_pyslam": true
+    }
+  ],
+  "created_utc": "2026-11-22T19:02:34.485297+00:00",
+  "kind": "synthetic_pair_microbenchmark",
+  "machine": {
+    "cpu_count": 20,
+    "executable": "/home/luigi/.python/venvs/pyslam/bin/python",
+    "gpu": "NVIDIA RTX A3000 12GB Laptop GPU, GPU-f3c31f2b-283c-e953-2a8b-d49518c2b1d1, 595.99.02, 330 MHz, [N/A]",
+    "gpu_clock_policy": "observed only; clocks and power settings are not changed",
+    "machine": "x86_64",
+    "packages": {
+      "huggingface-hub": "2.4.0",
+      "kornia": "0.8.2",
+      "numpy": "1.26.4",
+      "opencv-contrib-python": null,
+      "opencv-python": "4.11.0.86",
+      "tensorflow": "2.13.1",
+      "timm": "1.0.15",
+      "torch": "2.8.0",
+      "torchvision": "0.23.0"
+    },
+    "processor": "x86_64",
+    "python": "3.11.9",
+    "release": "6.8.0-151-generic",
+    "system": "Linux"
+  },
+  "provenance": {
+    "commit": "ef82e58d0bde8bf3e554c005ef5b2f6d772b23aa",
+    "source_sha256": {
+      "benchmarking/benchmark_visual_models.py": "0af7093af9581078c529b2dda566103efd011c15c614130f091613d16d29acd4",
+      "benchmarking/benchmark_visual_slam.py": "6b9d999a7cfdc28ac8fc068a1e11b9e9d30c38610ee473bbf704ec0617b100e6",
+      "cpp/core/slam/initializer.cpp": "5c249bb0d03d7217732dd73db6a66290162e2cc01945fbdca7fd8cff6b7798fc",
+      "cpp/core/slam/slam.cpp": "011e3b5dfe8deb1bf1812ad39ecc9e684645d7e1081b4d5db7ffd154c734910d",
+      "pyslam/config_parameters.py": "6bbf5f3a1ef9d579589a74b68babe95cc90b0e43a34e96c93536e239f1e2a310",
+      "pyslam/local_features/feature_manager.py": "706788e6858af603fcf108e3831c0c490ac6c1083169b5c8f77e4cc94503e266",
+      "pyslam/local_features/feature_matcher.py": "bedf8e6fa274df8a005ecbbf59503760ce4cd672ed31ba542c380f57fb7c5986",
+      "pyslam/local_features/feature_tracker.py": "d969555aa0303b1ba28576ee040b272e9bea73aaee5867f8e0bd3cac5648f9c4",
+      "pyslam/local_features/feature_tracker_configs.py": "676a019ce67ab4c4b72f7907fcbe19b696c8848cb9c595ce89cae810725d9b69",
+      "pyslam/local_features/feature_types.py": "0912de17172fb44e51d7cfbf590aef14d1fd498f28aff2324306f1ab0566fa32",
+      "pyslam/loop_closing/loop_detector_configs.py": "3adcc320d563418f4e1d14ec8733b64799129a9afba36f311d0c14360f19afd8",
+      "pyslam/slam/initializer.py": "569a2c5a9d71d792c1c56ea1ec767b599a3f79b23ee1e01e5442b5f11ff39bae",
+      "pyslam/slam/tracking.py": "49c93814326014f3df6071eefd0707f3b6ba059d3bb77028218d1d05bad555f8"
+    },
+    "worktree_status": "M README.md\n M cpp/core/slam/initializer.cpp\n M cpp/core/slam/slam.cpp\n M cpp/core/slam/tests_cpp/CMakeLists.txt\n M cpp/core/slam/tests_cpp/run_all_tests.sh\n M cpp/core/slam/tests_cpp/run_cpp_to_python_serialization_test.sh\n M cpp/core/slam/tests_cpp/run_python_to_cpp_serialization_test.sh\n M cpp/core/slam/tests_cpp/run_python_to_cpp_to_python_serialization_test.sh\n M cpp/core/slam/tests_py/run_all_tests.sh\n M cpp/core/slam/tests_py/test_cpp_to_python_map_serialization.py\n M cpp/core/slam/tests_py/test_cpp_vs_python_map_loading.py\n M cpp/core/slam/tests_py/test_minimal_import.py\n M cpp/core/slam/tests_py/test_pyg2o_abort_flag.py\n M cpp/core/slam/tests_py/test_python_to_cpp_map_serialization.py\n M cpp/core/slam/tests_py/test_python_to_cpp_to_python_map_serialization.py\n M cpp/core/slam/tests_py/test_python_to_python_map_serialization.py\n M cpp/core/slam/tests_py/test_slam_cpp_map.py\n M cpp/core/slam/tests_py/test_slam_cpp_search_for_triangulation.py\n M cpp/core/slam/tests_py/test_tools.py\n M docs/CONDA.md\n M docs/MAC.md\n M docs/PIXI.md\n M docs/PYTHON-VIRTUAL-ENVS.md\n M docs/README.md\n M docs/TROUBLESHOOTING.md\n M docs/system_overview.md\n M docs/tex/document.pdf\n M docs/tex/document.tex\n M pixi.toml\n M pyproject.toml\n M pyslam/config.py\n M pyslam/slam/initializer.py\n M pyslam/slam/tracking.py\n M tests/README.md\n M tests/cv/test_depth_from_pointcloud.py\n M tests/cv/test_pose_estimator.py\n M tests/dataset/test_trajectory_writer.py\n M tests/dust3r/test_dust3r_processor.py\n M tests/loopclosing/test_loop_feature_extraction.py\n M tests/modules/test_pnpsolver.py\n M tests/modules/test_sim3_point_registration_solver.py\n M tests/modules/test_sim3solver.py\n M tests/modules/test_volumetric.py\n M tests/modules/test_volumetric_bounding_boxes.py\n M tests/modules/test_volumetric_voxel_semantic.py\n M tests/run_all.sh\n M tests/slam/test_gba_spanning_tree_cycle.py\n M tests/viz/test_direct_slam_display.py\n M tests/viz/test_gt_alignment_layout.py\n M tests/viz/test_gt_associations_draw.py\n M tests/viz/test_viewer_startup.py\n M tests/viz/viewer_queue_shutdown_probe.py\n m thirdparty/LightGlue\n m thirdparty/d2net\n m thirdparty/keynet\n m thirdparty/lfnet\n m thirdparty/r2d2\n m thirdparty/vpr\n M thirdparty/vpr.patch"
+  },
+  "schema_version": 1,
+  "sequence_validation": "not run; pair benchmarks do not certify SLAM accuracy",
+  "settings": {
+    "image_sha256": null,
+    "iterations": 15,
+    "num_features": 2000,
+    "offline": true,
+    "profile": false,
+    "seed": 17,
+    "threads": 1,
+    "warmup": 3
+  }
+}

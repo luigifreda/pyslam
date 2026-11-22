@@ -1,0 +1,1747 @@
+{
+  "cases": [
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 7.124088629651457,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/ORB2-kitti-cpp-cuda.npz",
+        "sha256": "29765958b6444a2de04d6b1f66b9c8e744a82d598ef2814a51f4a0ac3ee925be"
+      },
+      "import_ms": 9358.098737997352,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 533,
+      "model_load_ms": 185.62838200159604,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1715462144,
+      "preset": "ORB2",
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 81.05635000174516,
+          "p95": 86.53491710101662
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 59.42960399988806,
+          "p95": 62.09561480063712
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 140.36883199878503,
+          "p95": 146.7169661016669
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 512,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 7.166210645958689,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/ORB2-kitti-python-cuda.npz",
+        "sha256": "e188edcc136499822ce27538013a037d90d5f0506730e8ccc4d5cc497d358ecb"
+      },
+      "import_ms": 9778.948994997336,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 538,
+      "model_load_ms": 153.46081600000616,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1715462144,
+      "preset": "ORB2",
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 82.4333789969387,
+          "p95": 90.07949419865326
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 59.32403100086958,
+          "p95": 69.93213169844239
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 139.54376300171134,
+          "p95": 159.02515709785803
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 516,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 8.846445139388221,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/ORB2-tum-cpp-cuda.npz",
+        "sha256": "2c2ba22c29796f6c02515fe5d72c2702f8ce182ee2f697aa24e0cc7bc613dbb8"
+      },
+      "import_ms": 8852.326459000324,
+      "keypoints": [
+        1974,
+        1977
+      ],
+      "matches": 594,
+      "model_load_ms": 140.02801400056342,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1712775168,
+      "preset": "ORB2",
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 57.13493999792263,
+          "p95": 67.06084010002087
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 55.90481599938357,
+          "p95": 71.59731620195085
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 113.0397559973062,
+          "p95": 137.59100539828063
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 568,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 8.907348319291254,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/ORB2-tum-python-cuda.npz",
+        "sha256": "3e6d570b9780a138ee365944d071fcd5b83e3547ef939bbaccbae1b261cee434"
+      },
+      "import_ms": 9241.58178200014,
+      "keypoints": [
+        1974,
+        1977
+      ],
+      "matches": 594,
+      "model_load_ms": 122.22143899998628,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1712369664,
+      "preset": "ORB2",
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 56.0346810016199,
+          "p95": 61.96860840136651
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 56.422698999085696,
+          "p95": 63.759799000035855
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 112.26685699875816,
+          "p95": 125.2609969007608
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 568,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 9.102765194123423,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/ORB2-euroc-cpp-cuda.npz",
+        "sha256": "53e34b8787fb706b474bd0119ce1d38fc14ff94f7ed932f57b83df862106ff59"
+      },
+      "import_ms": 8969.16291999878,
+      "keypoints": [
+        1993,
+        1998
+      ],
+      "matches": 604,
+      "model_load_ms": 125.13279800259625,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1713147904,
+      "preset": "ORB2",
+      "resolution": [
+        752,
+        480
+      ],
+      "size": "euroc",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 59.410444999230094,
+          "p95": 71.50054669982637
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 51.28647000310593,
+          "p95": 73.60838909880839
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 109.8567280023417,
+          "p95": 143.8454441999056
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 580,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 8.17773856825334,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/ORB2-euroc-python-cuda.npz",
+        "sha256": "a3070d9181af14ae8592bf43be1e0a3eeabbcfcbf9fb18b1aee2ff8769157a44"
+      },
+      "import_ms": 9413.952349997999,
+      "keypoints": [
+        1993,
+        1998
+      ],
+      "matches": 612,
+      "model_load_ms": 122.18069699883927,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1711947776,
+      "preset": "ORB2",
+      "resolution": [
+        752,
+        480
+      ],
+      "size": "euroc",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 65.89349099886022,
+          "p95": 74.74021760135655
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 56.52038699918194,
+          "p95": 69.3597646997659
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 122.28319499990903,
+          "p95": 148.29998000132034
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 588,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 1.2836079265481242,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/SIFT-kitti-cpp-cuda.npz",
+        "sha256": "27b5bbfa0a849a7903d4992270939ab6c0f5abaff65f9b460764290423748d24"
+      },
+      "import_ms": 8799.401267002395,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 1971,
+      "model_load_ms": 119.09284200010006,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1824923648,
+      "preset": "SIFT",
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 703.6083669991058,
+          "p95": 748.3750274983322
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 72.37126900145086,
+          "p95": 78.61142330039002
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 779.0540860005422,
+          "p95": 825.2081014979922
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1971,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 1.1355733792343186,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/SIFT-kitti-python-cuda.npz",
+        "sha256": "27b5bbfa0a849a7903d4992270939ab6c0f5abaff65f9b460764290423748d24"
+      },
+      "import_ms": 8791.8382200005,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 1971,
+      "model_load_ms": 115.38641200240818,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1824366592,
+      "preset": "SIFT",
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 794.2123569991963,
+          "p95": 848.6348639991775
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 77.53251600297517,
+          "p95": 90.09802499931538
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 880.6124010006897,
+          "p95": 927.5973966006859
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1971,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 1.625804117837698,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/SIFT-tum-cpp-cuda.npz",
+        "sha256": "00ec3ec350a6fbbc27f2654c0cf9e4e010b8681b4e63541f34d5ec58228b273b"
+      },
+      "import_ms": 8793.58373300056,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 1954,
+      "model_load_ms": 114.27090500001214,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1786064896,
+      "preset": "SIFT",
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 534.9796610025805,
+          "p95": 622.3722345021087
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 79.86417099891696,
+          "p95": 85.82529650084325
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 615.080248000595,
+          "p95": 705.0242673012689
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1954,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 1.5681657706850072,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/SIFT-tum-python-cuda.npz",
+        "sha256": "00ec3ec350a6fbbc27f2654c0cf9e4e010b8681b4e63541f34d5ec58228b273b"
+      },
+      "import_ms": 9448.895628000173,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 1954,
+      "model_load_ms": 121.36242000269704,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1787404288,
+      "preset": "SIFT",
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 554.8581539987936,
+          "p95": 593.5022291996574
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 82.19584300240967,
+          "p95": 109.56928169907762
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 637.6876849972177,
+          "p95": 697.2156467007153
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1954,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 1.3368954448975474,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/SIFT-euroc-cpp-cuda.npz",
+        "sha256": "87f87da4d9009483a71d1c54003fc82d73824ef60d9136e17368c7dc818813c6"
+      },
+      "import_ms": 8877.596751000965,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 1969,
+      "model_load_ms": 115.4129800015653,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1799475200,
+      "preset": "SIFT",
+      "resolution": [
+        752,
+        480
+      ],
+      "size": "euroc",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 667.1286780001537,
+          "p95": 703.1116077010665
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 82.4932470022759,
+          "p95": 91.28022570112078
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 748.0016510016867,
+          "p95": 787.5813900998764
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1969,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 1.5203709509310492,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/SIFT-euroc-python-cuda.npz",
+        "sha256": "87f87da4d9009483a71d1c54003fc82d73824ef60d9136e17368c7dc818813c6"
+      },
+      "import_ms": 8905.812068998785,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 1969,
+      "model_load_ms": 122.42836200312013,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 0,
+      "peak_rss_bytes": 1799950336,
+      "preset": "SIFT",
+      "resolution": [
+        752,
+        480
+      ],
+      "size": "euroc",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 584.5181879994925,
+          "p95": 644.5439565988636
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 74.39954399887938,
+          "p95": 83.98352680087555
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 657.7342189993942,
+          "p95": 723.4045879984477
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1969,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 22.732820567995446,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LIGHTGLUE-kitti-cpp-cuda.npz",
+        "sha256": "64299f2220d774aca5e93ae88eddebdb4ec7377527b852f39b44331e7798e4c0"
+      },
+      "import_ms": 9161.58648399869,
+      "keypoints": [
+        0,
+        0
+      ],
+      "matches": 0,
+      "model_load_ms": 220.92966700074612,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 508894720,
+      "peak_rss_bytes": 2042011648,
+      "preset": "LIGHTGLUE",
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 43.96872800134588,
+          "p95": 45.28135510154243
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 0.019784001779044047,
+          "p95": 0.03013990099134388
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 43.98926200155984,
+          "p95": 45.301074399321806
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 0,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 22.694199027680643,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LIGHTGLUE-kitti-python-cuda.npz",
+        "sha256": "64299f2220d774aca5e93ae88eddebdb4ec7377527b852f39b44331e7798e4c0"
+      },
+      "import_ms": 9515.294492000976,
+      "keypoints": [
+        0,
+        0
+      ],
+      "matches": 0,
+      "model_load_ms": 202.6572690010653,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 508894720,
+      "peak_rss_bytes": 2043535360,
+      "preset": "LIGHTGLUE",
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 44.04583799987449,
+          "p95": 46.85524290143803
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 0.019972001609858125,
+          "p95": 0.028566200126078897
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 44.0641239983961,
+          "p95": 46.87837399978889
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 0,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 30.10862529714782,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LIGHTGLUE-tum-cpp-cuda.npz",
+        "sha256": "7469d021d312f3fa47eccda2245dcb333b599984afc85cb4d8d5337378b41516"
+      },
+      "import_ms": 9241.036586001428,
+      "keypoints": [
+        1,
+        0
+      ],
+      "matches": 0,
+      "model_load_ms": 213.18477999739116,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 343573504,
+      "peak_rss_bytes": 2062290944,
+      "preset": "LIGHTGLUE",
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 33.188722998602316,
+          "p95": 35.79614640038926
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 0.021273001038935035,
+          "p95": 0.03063289877900386
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 33.21307399892248,
+          "p95": 35.81706280056096
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 0,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 30.03334181658964,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LIGHTGLUE-tum-python-cuda.npz",
+        "sha256": "7469d021d312f3fa47eccda2245dcb333b599984afc85cb4d8d5337378b41516"
+      },
+      "import_ms": 9355.322711002373,
+      "keypoints": [
+        1,
+        0
+      ],
+      "matches": 0,
+      "model_load_ms": 196.74732699786546,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 343573504,
+      "peak_rss_bytes": 2061512704,
+      "preset": "LIGHTGLUE",
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 33.232780999242095,
+          "p95": 34.08843849974801
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 0.027588997909333557,
+          "p95": 0.057256800937466316
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 33.29632799795945,
+          "p95": 34.112999299759394
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 0,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 17.44033291504027,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LIGHTGLUE-euroc-cpp-cuda.npz",
+        "sha256": "e8de521f620ba8d6b9e6fe4f5b7ce182d378ef84193b9ee6151226f4b5d82d08"
+      },
+      "import_ms": 9535.15692200017,
+      "keypoints": [
+        1,
+        4
+      ],
+      "matches": 1,
+      "model_load_ms": 238.55121999804396,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 409839104,
+      "peak_rss_bytes": 2396180480,
+      "preset": "LIGHTGLUE",
+      "resolution": [
+        752,
+        480
+      ],
+      "size": "euroc",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 49.634547998721246,
+          "p95": 54.07787509939225
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 7.660680999833858,
+          "p95": 14.532211100231507
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 57.33835499995621,
+          "p95": 66.32529720154707
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 17.593730467679404,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LIGHTGLUE-euroc-python-cuda.npz",
+        "sha256": "e8de521f620ba8d6b9e6fe4f5b7ce182d378ef84193b9ee6151226f4b5d82d08"
+      },
+      "import_ms": 9584.342745998583,
+      "keypoints": [
+        1,
+        4
+      ],
+      "matches": 1,
+      "model_load_ms": 219.35835600015707,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 409839104,
+      "peak_rss_bytes": 2396921856,
+      "preset": "LIGHTGLUE",
+      "resolution": [
+        752,
+        480
+      ],
+      "size": "euroc",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 48.63421999834827,
+          "p95": 53.63446030060003
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 8.548047997464892,
+          "p95": 11.806723899644565
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 56.83842899816227,
+          "p95": 63.021416799529106
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 14.952557106350133,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/XFEAT-kitti-cpp-cuda.npz",
+        "sha256": "f50a331aade0ec173956eea0bd73ca97fe3fc398ed835af25297f7e12aaab1e4"
+      },
+      "import_ms": 9758.995157000754,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 643,
+      "model_load_ms": 215.7979460025672,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 30661120,
+      "peak_rss_bytes": 2445250560,
+      "preset": "XFEAT",
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 17.108780000853585,
+          "p95": 19.87066589936148
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 50.05670399987139,
+          "p95": 56.27150219952455
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 66.87819299986586,
+          "p95": 74.46922970011656
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 445,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 15.40614654058634,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/XFEAT-kitti-python-cuda.npz",
+        "sha256": "f50a331aade0ec173956eea0bd73ca97fe3fc398ed835af25297f7e12aaab1e4"
+      },
+      "import_ms": 8926.511279998522,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 643,
+      "model_load_ms": 176.26585200196132,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 30661120,
+      "peak_rss_bytes": 2431016960,
+      "preset": "XFEAT",
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 19.292394998046802,
+          "p95": 22.194951399069396
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 45.46078700150247,
+          "p95": 48.28503720018489
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 64.90915800168295,
+          "p95": 69.2467905995727
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 445,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 14.948505835634345,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/XFEAT-tum-cpp-cuda.npz",
+        "sha256": "a075f9a8302d0ce61291a1910d2f8b69c313cac5b19baf758577b4f2c58b9ff1"
+      },
+      "import_ms": 9958.21866299957,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 592,
+      "model_load_ms": 184.4713469981798,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 22973952,
+      "peak_rss_bytes": 2432507904,
+      "preset": "XFEAT",
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 17.52531199963414,
+          "p95": 22.91557659955287
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 49.60439899878111,
+          "p95": 52.18750509993697
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 66.89631799963536,
+          "p95": 74.73507869799505
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 412,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 13.865790215445998,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/XFEAT-tum-python-cuda.npz",
+        "sha256": "a075f9a8302d0ce61291a1910d2f8b69c313cac5b19baf758577b4f2c58b9ff1"
+      },
+      "import_ms": 9882.69212600062,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 592,
+      "model_load_ms": 169.95676700025797,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 22973952,
+      "peak_rss_bytes": 2432651264,
+      "preset": "XFEAT",
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 20.897186997899553,
+          "p95": 25.146280499757264
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 51.26923899661051,
+          "p95": 54.99368719938502
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 72.11994300087099,
+          "p95": 79.40149760142958
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 412,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 16.07720763901992,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/XFEAT-euroc-cpp-cuda.npz",
+        "sha256": "e010d6a8c84f74cff7065c32ba920460c682eebe6f3c01a8467165e2b972e659"
+      },
+      "import_ms": 9104.333571998723,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 624,
+      "model_load_ms": 178.10521099818288,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 25819136,
+      "peak_rss_bytes": 2434441216,
+      "preset": "XFEAT",
+      "resolution": [
+        752,
+        480
+      ],
+      "size": "euroc",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 17.846418002591236,
+          "p95": 20.01839680087869
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 42.91383599775145,
+          "p95": 47.743570899183396
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 62.19985599818756,
+          "p95": 65.9167341003922
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 436,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 15.359102026319984,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/XFEAT-euroc-python-cuda.npz",
+        "sha256": "e010d6a8c84f74cff7065c32ba920460c682eebe6f3c01a8467165e2b972e659"
+      },
+      "import_ms": 9217.724598998757,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 624,
+      "model_load_ms": 178.8229509984376,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 25819136,
+      "peak_rss_bytes": 2444558336,
+      "preset": "XFEAT",
+      "resolution": [
+        752,
+        480
+      ],
+      "size": "euroc",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 19.02824100034195,
+          "p95": 20.701278801061562
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 45.974930999364005,
+          "p95": 49.54967599987867
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 65.1079729977937,
+          "p95": 69.18957400157524
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 436,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 14.511230836495423,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LIGHTGLUE_ALIKED-kitti-cpp-cuda.npz",
+        "sha256": "7954aaddb808d6d181c8389d9c06a497cda799d3cb51d31513e0b6464286b065"
+      },
+      "import_ms": 9358.163949997106,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 1712,
+      "model_load_ms": 225.82076899925596,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 547000320,
+      "peak_rss_bytes": 2612301824,
+      "preset": "LIGHTGLUE_ALIKED",
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 54.563110003073234,
+          "p95": 57.756829701247625
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 16.74748100049328,
+          "p95": 19.091132398898477
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 68.9121420000447,
+          "p95": 75.49225889779336
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1707,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 13.838206457757721,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LIGHTGLUE_ALIKED-kitti-python-cuda.npz",
+        "sha256": "7954aaddb808d6d181c8389d9c06a497cda799d3cb51d31513e0b6464286b065"
+      },
+      "import_ms": 8700.157142000535,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 1712,
+      "model_load_ms": 214.35302199824946,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 547000320,
+      "peak_rss_bytes": 2617995264,
+      "preset": "LIGHTGLUE_ALIKED",
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 55.428922998544294,
+          "p95": 61.18950520103681
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 17.208425000717398,
+          "p95": 19.090479599617538
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 72.26369999989402,
+          "p95": 79.0933798005426
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1707,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 9.845730788799965,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LIGHTGLUE_ALIKED-tum-cpp-cuda.npz",
+        "sha256": "c688b4e2eda4b4a60d8540e6deae008e63fc2a879a77c07a1376adb74ae96c5f"
+      },
+      "import_ms": 9238.722644997324,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 1560,
+      "model_load_ms": 218.66093299831846,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 1276819968,
+      "peak_rss_bytes": 2547900416,
+      "preset": "LIGHTGLUE_ALIKED",
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 86.67527199941105,
+          "p95": 102.42063799742027
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 14.226293998945039,
+          "p95": 21.549018799123587
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 101.56686399932369,
+          "p95": 120.81863409875949
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1557,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 8.195115471737576,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LIGHTGLUE_ALIKED-tum-python-cuda.npz",
+        "sha256": "c688b4e2eda4b4a60d8540e6deae008e63fc2a879a77c07a1376adb74ae96c5f"
+      },
+      "import_ms": 10403.219236999576,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 1560,
+      "model_load_ms": 231.83197999969707,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 1276819968,
+      "peak_rss_bytes": 2547830784,
+      "preset": "LIGHTGLUE_ALIKED",
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 99.13239799789153,
+          "p95": 107.99992040265352
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 20.42848299970501,
+          "p95": 25.100902698613936
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 122.0239060021413,
+          "p95": 131.2470734006638
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1557,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 9.700888903245446,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LIGHTGLUE_ALIKED-euroc-cpp-cuda.npz",
+        "sha256": "7c468a90fcc9c883ab2d3050d1fe1ad783da20f7292de58daed00f9854a29f55"
+      },
+      "import_ms": 10129.364680997242,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 1539,
+      "model_load_ms": 216.35233799679554,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 1120248320,
+      "peak_rss_bytes": 2545614848,
+      "preset": "LIGHTGLUE_ALIKED",
+      "resolution": [
+        752,
+        480
+      ],
+      "size": "euroc",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 83.04435399986687,
+          "p95": 100.29354680227698
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 17.902389001392294,
+          "p95": 27.912535101131652
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 103.08333699867944,
+          "p95": 125.35729530027311
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1534,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 10.00887306622116,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LIGHTGLUE_ALIKED-euroc-python-cuda.npz",
+        "sha256": "7c468a90fcc9c883ab2d3050d1fe1ad783da20f7292de58daed00f9854a29f55"
+      },
+      "import_ms": 10330.902607998723,
+      "keypoints": [
+        2000,
+        2000
+      ],
+      "matches": 1539,
+      "model_load_ms": 235.00496899941936,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 1120248320,
+      "peak_rss_bytes": 2546683904,
+      "preset": "LIGHTGLUE_ALIKED",
+      "resolution": [
+        752,
+        480
+      ],
+      "size": "euroc",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 82.62313900195295,
+          "p95": 86.43162699918321
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 16.922573999181623,
+          "p95": 23.227533698445768
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 99.91134799929569,
+          "p95": 106.22976080085209
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 1534,
+      "torch_cuda": "12.8"
+    },
+    {
+      "core": "cpp",
+      "device": "cuda",
+      "preset": "LOFTR",
+      "reason": "OutOfMemoryError: CUDA out of memory. Tried to allocate 64.00 MiB. GPU 0 has a total capacity of 11.63 GiB of which 124.94 MiB is free. Including non-PyTorch memory, this process has 8.00 GiB memory in use. Of the allocated memory 7.47 GiB is allocated by PyTorch, and 387.62 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)",
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "status": "unavailable"
+    },
+    {
+      "core": "python",
+      "device": "cuda",
+      "preset": "LOFTR",
+      "reason": "OutOfMemoryError: CUDA out of memory. Tried to allocate 64.00 MiB. GPU 0 has a total capacity of 11.63 GiB of which 140.62 MiB is free. Including non-PyTorch memory, this process has 8.19 GiB memory in use. Of the allocated memory 7.66 GiB is allocated by PyTorch, and 387.62 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)",
+      "resolution": [
+        1241,
+        376
+      ],
+      "size": "kitti",
+      "status": "unavailable"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 2.294104710194294,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LOFTR-tum-cpp-cuda.npz",
+        "sha256": "4d3ded39e231583ec896a8441f192ca0de1c56bf0b853710a88109914f500321"
+      },
+      "import_ms": 11073.769145001279,
+      "keypoints": [
+        3405,
+        3405
+      ],
+      "matches": 3405,
+      "model_load_ms": 442.82652600304573,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 6569664000,
+      "peak_rss_bytes": 2379681792,
+      "preset": "LOFTR",
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 0.0,
+          "p95": 0.0
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 435.89989400061313,
+          "p95": 491.20600190035475
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 435.89989400061313,
+          "p95": 491.20600190035475
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 3405,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "python",
+      "device": "cuda",
+      "fps": 2.28659458543345,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LOFTR-tum-python-cuda.npz",
+        "sha256": "4d3ded39e231583ec896a8441f192ca0de1c56bf0b853710a88109914f500321"
+      },
+      "import_ms": 10992.394491000596,
+      "keypoints": [
+        3405,
+        3405
+      ],
+      "matches": 3405,
+      "model_load_ms": 497.33444299999974,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 6569664000,
+      "peak_rss_bytes": 2376179712,
+      "preset": "LOFTR",
+      "resolution": [
+        640,
+        480
+      ],
+      "size": "tum",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 0.0,
+          "p95": 0.0
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 437.3315699995146,
+          "p95": 545.1155756010849
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 437.3315699995146,
+          "p95": 545.1155756010849
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 3405,
+      "torch_cuda": "12.8"
+    },
+    {
+      "ate": null,
+      "core": "cpp",
+      "device": "cuda",
+      "fps": 1.906829918101005,
+      "golden": {
+        "path": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/visual-model-golden-gpu/LOFTR-euroc-cpp-cuda.npz",
+        "sha256": "622e63fc3c1ad3cbcb123a0e8b6aeaaa29dd6e05aa0ff5e593b175511eea3da5"
+      },
+      "import_ms": 11675.691062999249,
+      "keypoints": [
+        4035,
+        4035
+      ],
+      "matches": 4035,
+      "model_load_ms": 486.42263600049773,
+      "opencv": "4.13.0",
+      "peak_gpu_bytes": 7798216192,
+      "peak_rss_bytes": 2368585728,
+      "preset": "LOFTR",
+      "resolution": [
+        752,
+        480
+      ],
+      "size": "euroc",
+      "stage_note": "Internal stages uninstrumented; extraction covers two images and coordinate conversion",
+      "stages_ms": {
+        "device_to_host": null,
+        "extraction": {
+          "median": 0.0,
+          "p95": 0.0
+        },
+        "host_to_device": null,
+        "inference": null,
+        "keypoint_conversion": null,
+        "matching": {
+          "median": 524.4306220010913,
+          "p95": 636.5403951986082
+        },
+        "postprocess": null,
+        "preprocess": null,
+        "total": {
+          "median": 524.4306220010913,
+          "p95": 636.5403951986082
+        }
+      },
+      "status": "ok",
+      "synthetic_inliers": 4035,
+      "torch_cuda": "12.8"
+    },
+    {
+      "core": "python",
+      "device": "cuda",
+      "preset": "LOFTR",
+      "reason": "OutOfMemoryError: CUDA out of memory. Tried to allocate 50.00 MiB. GPU 0 has a total capacity of 11.63 GiB of which 117.56 MiB is free. Including non-PyTorch memory, this process has 7.01 GiB memory in use. Of the allocated memory 6.69 GiB is allocated by PyTorch, and 178.53 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)",
+      "resolution": [
+        752,
+        480
+      ],
+      "size": "euroc",
+      "status": "unavailable"
+    }
+  ],
+  "created_utc": "2026-11-22T16:46:40.355455+00:00",
+  "kind": "synthetic_pair_microbenchmark",
+  "limitations": [
+    "33 measured cases; 3 LoFTR native-resolution CUDA OOM cases",
+    "Internal wrapper stages uninstrumented",
+    "Pair benchmark does not measure sequence ATE or exercise core Frame matching",
+    "No runtime default change is certified by this baseline",
+    "GPU clock/power state observed; clocks not locked"
+  ],
+  "machine": {
+    "cpu_count": 20,
+    "executable": "/home/luigi/.python/venvs/pyslam/bin/python",
+    "gpu": "NVIDIA RTX A3000 12GB Laptop GPU, GPU-f3c31f2b-283c-e953-2a8b-d49518c2b1d1, 595.99.02, 690 MHz, [N/A]",
+    "gpu_clock_policy": "observed only; clocks and power settings are not changed",
+    "machine": "x86_64",
+    "packages": {
+      "huggingface-hub": "2.4.0",
+      "kornia": "0.8.2",
+      "numpy": "1.26.4",
+      "opencv-contrib-python": null,
+      "opencv-python": "4.11.0.86",
+      "tensorflow": "2.13.1",
+      "timm": "1.0.15",
+      "torch": "2.8.0",
+      "torchvision": "0.23.0"
+    },
+    "processor": "x86_64",
+    "python": "3.11.9",
+    "release": "6.8.0-151-generic",
+    "system": "Linux"
+  },
+  "provenance": {
+    "commit": "ef82e58d0bde8bf3e554c005ef5b2f6d772b23aa",
+    "source_sha256": {
+      "pyslam/config_parameters.py": "6bbf5f3a1ef9d579589a74b68babe95cc90b0e43a34e96c93536e239f1e2a310",
+      "pyslam/local_features/feature_manager.py": "706788e6858af603fcf108e3831c0c490ac6c1083169b5c8f77e4cc94503e266",
+      "pyslam/local_features/feature_matcher.py": "bedf8e6fa274df8a005ecbbf59503760ce4cd672ed31ba542c380f57fb7c5986",
+      "pyslam/local_features/feature_tracker.py": "d969555aa0303b1ba28576ee040b272e9bea73aaee5867f8e0bd3cac5648f9c4",
+      "pyslam/local_features/feature_tracker_configs.py": "676a019ce67ab4c4b72f7907fcbe19b696c8848cb9c595ce89cae810725d9b69",
+      "pyslam/local_features/feature_types.py": "0912de17172fb44e51d7cfbf590aef14d1fd498f28aff2324306f1ab0566fa32",
+      "pyslam/loop_closing/loop_detector_configs.py": "3adcc320d563418f4e1d14ec8733b64799129a9afba36f311d0c14360f19afd8",
+      "scripts/benchmark_visual_models.py": "97c57a153ec13bbad90a28f5f1f74201655b36f4f0a05c99bf579a94c0f4c65d"
+    },
+    "worktree_status": "M README.md\n M docs/CONDA.md\n M docs/MAC.md\n M docs/PIXI.md\n M docs/PYTHON-VIRTUAL-ENVS.md\n M docs/README.md\n M docs/TROUBLESHOOTING.md\n M docs/system_overview.md\n M docs/tex/document.pdf\n M docs/tex/document.tex\n M tests/README.md\n m thirdparty/LightGlue\n m thirdparty/d2net\n m thirdparty/keynet\n m thirdparty/lfnet\n m thirdparty/r2d2\n m thirdparty/vpr\n M thirdparty/vpr.patch"
+  },
+  "schema_version": 1,
+  "sequence_validation": "not run; pair benchmarks do not certify SLAM accuracy",
+  "settings": {
+    "image_sha256": null,
+    "iterations": 15,
+    "num_features": 2000,
+    "offline": true,
+    "profile": false,
+    "seed": 17,
+    "threads": 1,
+    "warmup": 3
+  }
+}

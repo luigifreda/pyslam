@@ -51,6 +51,8 @@ class FeatureTrackerTypes(SerializableEnum):
     LIGHTGLUE = 4  # LightGlue, "LightGlue: Local Feature Matching at Light Speed"
     LOFTR = 5  # "LoFTR: Efficient Local Feature Matching with Transformers" (Detector-Free)
     MAST3R = 6  # "Grounding Image Matching in 3D with MASt3R" (Detector-Free)
+    ROMA = 7  # "RoMa: Robust Dense Feature Matching" (Detector-Free, dense)
+    TINY_ROMA = 8  # tiny-RoMa v1, XFeat backbone (Detector-Free, dense)
 
 
 def feature_tracker_factory(
@@ -76,7 +78,7 @@ def feature_tracker_factory(
             tracker_type=tracker_type,
             **kwargs,
         )
-    elif tracker_type == FeatureTrackerTypes.LOFTR:
+    elif tracker_type in (FeatureTrackerTypes.LOFTR, FeatureTrackerTypes.ROMA, FeatureTrackerTypes.TINY_ROMA):
         return LoftrFeatureTracker(
             num_features=num_features,
             num_levels=num_levels,
@@ -392,8 +394,13 @@ class LoftrFeatureTracker(FeatureTracker):
             **kwargs,
         )
 
+        # Detector-free trackers share this class: track() only needs matcher.match().
         if tracker_type == FeatureTrackerTypes.LOFTR:
             self.matcher_type = FeatureMatcherTypes.LOFTR
+        elif tracker_type == FeatureTrackerTypes.ROMA:
+            self.matcher_type = FeatureMatcherTypes.ROMA
+        elif tracker_type == FeatureTrackerTypes.TINY_ROMA:
+            self.matcher_type = FeatureMatcherTypes.TINY_ROMA
         else:
             raise ValueError("Unmanaged matching algo for feature tracker %s" % self.tracker_type)
 

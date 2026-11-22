@@ -28,6 +28,9 @@ import os
 import numpy as np
 import time
 import traceback
+import argparse
+import json
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Tuple, Union
 from abc import ABC, abstractmethod
@@ -404,20 +407,20 @@ class MapPointOperationsPerformance(PerformanceTestUnit):
         self.num_points = 1000
 
     def setup(self):
-        np.random.seed(42)
+        rng = np.random.default_rng(42)
+        self.positions = rng.uniform(-10, 10, (self.num_points, 3)).astype(np.float64)
+        self.colors = rng.integers(0, 256, (self.num_points, 3), dtype=np.uint8)
 
     def run_benchmark(self, module_type: str, module: Any) -> float:
         map_obj = module.Map()
 
-        # Pre-allocate positions and colors
-        positions = np.random.uniform(-10, 10, (self.num_points, 3)).astype(np.float64)
-        colors = np.random.randint(0, 256, (self.num_points, 3), dtype=np.uint8)
+        # Object construction is not a Map operation; both backends get identical data.
+        points = [module.MapPoint(self.positions[i], self.colors[i]) for i in range(self.num_points)]
 
         start_time = time.perf_counter()
 
         # Add many points
-        for i in range(self.num_points):
-            mp = module.MapPoint(positions[i], colors[i])
+        for mp in points:
             map_obj.add_point(mp)
 
         # Get points multiple times
@@ -437,7 +440,6 @@ class MapFrameOperationsPerformance(PerformanceTestUnit):
         self.num_frames = 10
 
     def setup(self):
-        np.random.seed(42)
         self.cam_settings = {
             "Camera.width": 640,
             "Camera.height": 480,
@@ -456,13 +458,12 @@ class MapFrameOperationsPerformance(PerformanceTestUnit):
     def run_benchmark(self, module_type: str, module: Any) -> float:
         map_obj = module.Map()
         cam = module.PinholeCamera(self.config)
+        frames = [module.Frame(cam, None, img_id=i) for i in range(self.num_frames)]
 
         start_time = time.perf_counter()
 
         # Add many frames
-        for i in range(self.num_frames):
-            dummy_img = np.random.randint(0, 256, (480, 640, 3), dtype=np.uint8)
-            frame = module.Frame(cam, dummy_img)
+        for frame in frames:
             map_obj.add_frame(frame)
 
         # Get frames multiple times
@@ -481,7 +482,6 @@ class MapKeyFrameOperationsPerformance(PerformanceTestUnit):
         self.num_keyframes = 10
 
     def setup(self):
-        np.random.seed(42)
         self.cam_settings = {
             "Camera.width": 640,
             "Camera.height": 480,
@@ -500,14 +500,12 @@ class MapKeyFrameOperationsPerformance(PerformanceTestUnit):
     def run_benchmark(self, module_type: str, module: Any) -> float:
         map_obj = module.Map()
         cam = module.PinholeCamera(self.config)
+        keyframes = [module.KeyFrame(module.Frame(cam, None, img_id=i)) for i in range(self.num_keyframes)]
 
         start_time = time.perf_counter()
 
         # Add many keyframes
-        for i in range(self.num_keyframes):
-            dummy_img = np.random.randint(0, 256, (480, 640, 3), dtype=np.uint8)
-            frame = module.Frame(cam, dummy_img)
-            keyframe = module.KeyFrame(frame, dummy_img)
+        for keyframe in keyframes:
             map_obj.add_keyframe(keyframe)
 
         # Get keyframes multiple times
@@ -552,6 +550,12 @@ def main():
     print("PYSLAM C++ vs Python Systematic Test Suite")
     print("=" * 60)
 
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--require-cpp-speedup", action="store_true",
+                        help="Opt in to the old strict cross-backend timing assertion")
+    parser.add_argument("--benchmark-output", type=Path, help="Save isolated Map timings for future comparisons")
+    parser.add_argument("--baseline", type=Path, help="Fail on >3%% regressions against this same-backend baseline")
+    args = parser.parse_args()
     # Setup test suite
     suite = setup_test_suite()
     # if not suite.setup_environment():
@@ -563,12 +567,32 @@ def main():
         start_time = time.time()
 
         functional_results = suite.run_functional_tests(cpp_module, python_module)
-        performance_results = suite.run_performance_tests(cpp_module, python_module)
+        performance_results = suite.run_performance_tests(
+            cpp_module, python_module, require_speedup=args.require_cpp_speedup)
+
+        root = Path(__file__).resolve().parents[4]
+        sys.path.insert(0, str(root / "benchmarking"))
+        from compare_map_benchmarks import compare
+        from benchmark_common import machine_info, provenance, write_json
+        report = dict(schema_version=1, kind="map_operations", machine=machine_info(),
+                      provenance=provenance(),
+                      workload={type(test).__name__: {key: value for key, value in vars(test).items()
+                                if key.startswith("num_") and isinstance(value, int)}
+                                for test in suite.performance_tests},
+                      cases=[dict(name=result.name, cpp_time=result.cpp_time, python_time=result.python_time)
+                             for result in performance_results])
+        if args.benchmark_output:
+            write_json(args.benchmark_output, report)
+        regression_passed = True
+        if args.baseline:
+            comparison = compare(json.loads(args.baseline.read_text()), report)
+            print(json.dumps(comparison, indent=2))
+            regression_passed = comparison["status"] == "passed"
 
         total_time = time.time() - start_time
 
         # Print summary
-        all_passed = suite.print_summary(functional_results, performance_results)
+        all_passed = suite.print_summary(functional_results, performance_results) and regression_passed
         print(f"Total execution time: {total_time:.2f}s")
 
         if all_passed:

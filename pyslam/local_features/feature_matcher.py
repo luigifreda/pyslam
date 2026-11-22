@@ -29,15 +29,12 @@ from pyslam.utilities.logging import Printer
 from pyslam.utilities.system import import_from
 from pyslam.utilities.data_management import AtomicCounter
 from pyslam.utilities.serialization import SerializableEnum, register_class
-from pyslam.utilities.dust3r import Dust3rImagePreprocessor
 from pyslam.config_parameters import Parameters
 
 from collections import defaultdict
+from functools import lru_cache
 
 from .feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
-
-import kornia as K
-import kornia.feature as KF
 
 import pyslam_utils
 
@@ -47,8 +44,46 @@ config.cfg.set_lib("xfeat")
 config.cfg.set_lib("lightglue")
 config.cfg.set_lib("mast3r")
 
-XFeat = import_from("modules.xfeat", "XFeat")
-LightGlue = import_from("lightglue", "LightGlue")
+# Heavy optional modules (kornia, XFeat, LightGlue, the MASt3R/Dust3r preprocessing) are
+# imported on first use by the matcher that needs them, not at module import. The vendor
+# paths above are still registered here, unchanged. import_from keeps its original
+# warning-and-None behavior when an optional dependency is missing.
+@lru_cache(maxsize=1)
+def _cuda_available():
+    return torch.cuda.is_available()
+
+
+K = None  # kornia, set by _load_kornia()
+KF = None  # kornia.feature, set by _load_kornia()
+
+
+def _load_kornia():
+    global K, KF
+    if K is None:
+        import kornia
+        import kornia.feature
+
+        K, KF = kornia, kornia.feature
+    return K, KF
+
+
+@lru_cache(maxsize=None)
+def _xfeat_class():
+    return import_from("modules.xfeat", "XFeat")
+
+
+@lru_cache(maxsize=None)
+def _lightglue_class():
+    return import_from("lightglue", "LightGlue")
+
+
+def __getattr__(name):
+    # Backward compatibility for `feature_matcher.XFeat` / `feature_matcher.LightGlue`.
+    if name == "XFeat":
+        return _xfeat_class()
+    if name == "LightGlue":
+        return _lightglue_class()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
@@ -70,6 +105,8 @@ class FeatureMatcherTypes(SerializableEnum):
     LIGHTGLUE = 5  # "LightGlue: Local Feature Matching at Light Speed"
     LOFTR = 6  # "LoFTR: Efficient Local Feature Matching with Transformers" (based on kornia)
     MAST3R = 7  # "Grounding Image Matching in 3D with MASt3R"
+    ROMA = 8  # "RoMa: Robust Dense Feature Matching" (Detector-free, dense)
+    TINY_ROMA = 9  # tiny-RoMa v1 (XFeat backbone) (Detector-free, dense)
 
 
 def feature_matcher_factory(
@@ -138,6 +175,11 @@ def feature_matcher_factory(
             detector_type=detector_type,
             descriptor_type=descriptor_type,
         )
+    elif matcher_type in (FeatureMatcherTypes.ROMA, FeatureMatcherTypes.TINY_ROMA):
+        from .feature_matcher_detector_free import RoMaMatcher, TinyRoMaMatcher, detector_free_options
+
+        cls = RoMaMatcher if matcher_type == FeatureMatcherTypes.ROMA else TinyRoMaMatcher
+        return cls(matcher_type=matcher_type, **detector_free_options(kwargs))
     return None
 
 
@@ -445,6 +487,8 @@ class FeatureMatchingResult:
 
 # base class
 class FeatureMatcher:
+    detector_free = False  # True: matches images directly; des1/des2 are not used
+
     def __init__(
         self,
         norm_type=cv2.NORM_HAMMING,
@@ -481,10 +525,7 @@ class FeatureMatcher:
     ):
         result = FeatureMatchingResult()
 
-        detector_free_matcher = self.matcher_type in (
-            FeatureMatcherTypes.LOFTR,
-            FeatureMatcherTypes.MAST3R,
-        )
+        detector_free_matcher = self.detector_free
 
         # Early validation: return empty result if descriptors are empty.
         # NOTE: Detector-free matchers (e.g. LoFTR/MASt3R) do not use descriptors.
@@ -543,269 +584,80 @@ class FeatureMatcher:
         if ratio_test is None:
             ratio_test = self.ratio_test
             # print(f'[FeatureMatcher.match]: ratio test: {ratio_test}')
-        # TODO: Use inheritance here instead of using if-else.
-        # NOTE: Not using inheritance for now since the interface is not optimal yet and it may change.
-        # ===========================================================
-        if self.matcher_type == FeatureMatcherTypes.LIGHTGLUE:
-            # TODO: add row epipolar check for row matching
-            scales1 = None
-            scales2 = None
-            oris1 = None
-            oris2 = None
-            if kps1 is None and kps2 is None:
-                Printer.red("ERROR: FeatureMatcher.match: kps1 and kps2 are None")
-                return result
-            else:
-                # convert from list of keypoints to an array of points if needed
-                if not isinstance(kps1, np.ndarray) or kps1.dtype != np.float32:
-                    if self.detector_type == FeatureDetectorTypes.LIGHTGLUESIFT:
-                        scales1 = np.array([x.size for x in kps1], dtype=np.float32)
-                        oris1 = np.array([x.angle for x in kps1], dtype=np.float32)
-                    # print(f'kps1: {kps1}')
-                    kps1 = np.array([x.pt for x in kps1], dtype=np.float32)
-                    if kVerbose:
-                        print("kps1.shape:", kps1.shape, " kps1.dtype:", kps1.dtype)
-                if not isinstance(kps2, np.ndarray) or kps2.dtype != np.float32:
-                    if self.detector_type == FeatureDetectorTypes.LIGHTGLUESIFT:
-                        scales2 = np.array([x.size for x in kps2], dtype=np.float32)
-                        oris2 = np.array([x.angle for x in kps2], dtype=np.float32)
-                    kps2 = np.array([x.pt for x in kps2], dtype=np.float32)
-                    if kVerbose:
-                        print("kps2.shape:", kps2.shape, " kps2.dtype:", kps2.dtype)
-            if kVerbose:
-                print(f"image1.shape: {img1.shape}, image2.shape: {img2.shape}")
-            img1_shape = img1.shape[0:2]
-            img2_shape = img2.shape[0:2] if img2 is not None else img1_shape
-            d0 = {
-                "keypoints": torch.tensor(kps1, device=self.torch_device).unsqueeze(0),
-                "descriptors": torch.tensor(des1, device=self.torch_device).unsqueeze(0),
-                "image_size": torch.tensor(img1_shape, device=self.torch_device).unsqueeze(0),
-            }
-            if scales1 is not None and oris1 is not None:
-                d0["scales"] = torch.tensor(scales1, device=self.torch_device).unsqueeze(0)
-                d0["oris"] = torch.tensor(oris1, device=self.torch_device).unsqueeze(0)
-            d1 = {
-                "keypoints": torch.tensor(kps2, device=self.torch_device).unsqueeze(0),
-                "descriptors": torch.tensor(des2, device=self.torch_device).unsqueeze(0),
-                "image_size": torch.tensor(img2_shape, device=self.torch_device).unsqueeze(0),
-            }
-            if scales2 is not None and oris2 is not None:
-                d1["scales"] = torch.tensor(scales2, device=self.torch_device).unsqueeze(0)
-                d1["oris"] = torch.tensor(oris2, device=self.torch_device).unsqueeze(0)
-            matches01 = self.matcher({"image0": d0, "image1": d1})
-            # print(matches01['matches'])
-            idxs0 = matches01["matches"][0][:, 0].cpu().tolist()
-            idxs1 = matches01["matches"][0][:, 1].cpu().tolist()
-            result.idxs1 = np.array(idxs0)
-            result.idxs2 = np.array(idxs1)
-            if row_matching:
-                result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(
-                    kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity
-                )
-            if kVerbose:
-                print(f"#result.idxs1: {result.idxs1.shape}, #result.idxs2: {result.idxs2.shape}")
+        return self._match_impl(
+            result, img1, img2, des1, des2, kps1, kps2, ratio_test, row_matching, max_disparity, data
+        )
+
+    def _match_impl(
+        self, result, img1, img2, des1, des2, kps1, kps2, ratio_test, row_matching, max_disparity, data
+    ):
+        # Descriptor matching (BF/FLANN). Learned and detector-free matchers override this.
+        matcher = self.matcher
+        if (
+            not row_matching
+            and Parameters.kFeatureMatchUseGpuNN
+            and self.norm_type == cv2.NORM_L2
+            and getattr(des1, "dtype", None) in (np.float32, np.float64)
+            and _cuda_available()
+        ):
+            # Opt-in exact GPU kNN with the same one-to-one ratio-test semantics (see feature_matcher_gpu.py)
+            from .feature_matcher_gpu import gpu_ratio_one_to_one
+
+            result.idxs1, result.idxs2 = gpu_ratio_one_to_one(des1, des2, ratio_test)
             return result
-        # ===========================================================
-        elif self.matcher_type == FeatureMatcherTypes.XFEAT:
-            d1_tensor = torch.tensor(
-                des1, dtype=torch.float32, device=self.torch_device
-            )  # Specify dtype if needed
-            d2_tensor = torch.tensor(
-                des2, dtype=torch.float32, device=self.torch_device
-            )  # Specify dtype if needed
-
-            if self.submatcher_type == "lightglue":
-                if kps1 is None and kps2 is None:
-                    Printer.red("ERROR: FeatureMatcher.match: kps1 and kps2 are None")
-                    return result
-                if not isinstance(kps1, np.ndarray):
-                    kps1 = np.array([x.pt for x in kps1], dtype=np.float32)
-                if not isinstance(kps2, np.ndarray):
-                    kps2 = np.array([x.pt for x in kps2], dtype=np.float32)
-                kps1_tensor = torch.tensor(kps1, device=self.torch_device)
-                kps2_tensor = torch.tensor(kps2, device=self.torch_device)
-                H1, W1 = img1.shape[0:2]
-                H2, W2 = img2.shape[0:2]
-                d1 = {"keypoints": kps1_tensor, "descriptors": d1_tensor, "image_size": (W1, H1)}
-                d2 = {"keypoints": kps2_tensor, "descriptors": d2_tensor, "image_size": (W2, H2)}
-                min_conf = 0.1  # default in xfeat code
-                kps1_out, kps2_out, matches_out = self.matcher.match_lighterglue(
-                    d1, d2, min_conf=min_conf
-                )
-                idxs0 = matches_out[:, 0]
-                idxs1 = matches_out[:, 1]
-            elif self.submatcher_type == "xfeat":
-                min_cossim = 0.82  # default in xfeat code
-                idxs0, idxs1 = self.matcher.match(d1_tensor, d2_tensor, min_cossim=min_cossim)
-                idxs0 = idxs0.cpu()
-                idxs1 = idxs1.cpu()
-            result.idxs1 = idxs0
-            result.idxs2 = idxs1
-            if row_matching:
-                result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(
-                    kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity
-                )
-            return result
-        # ===========================================================
-        elif self.matcher_type == FeatureMatcherTypes.LOFTR:  # (Detector-free)
-            if img1.ndim > 2:
-                img1 = cv2.cvtColor(img1, cv2.COLOR_RGB2GRAY)
-            if img2.ndim > 2:
-                img2 = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY)
-            img1 = K.image_to_tensor(img1, False).to(self.torch_device).float() / 255.0
-            img2 = K.image_to_tensor(img2, False).to(self.torch_device).float() / 255.0
-            matching_input = {"image0": img1, "image1": img2}
-            out_matching = self.matcher(matching_input)
-            kps1 = out_matching["keypoints0"].cpu().numpy()
-            kps1 = np.array([cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps1])
-            kps2 = out_matching["keypoints1"].cpu().numpy()
-            kps2 = np.array([cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps2])
-            # idxs = out_matching['batch_indexes'].cpu().numpy()
-            # print(f'idxs.shape: {idxs.shape}, idxs.dtype: {idxs.dtype}')
-            result.kps1 = kps1
-            result.kps2 = kps2
-            result.idxs1 = np.arange(len(kps1), dtype=np.int32)
-            result.idxs2 = np.arange(len(kps2), dtype=np.int32)
-            if row_matching:
-                result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(
-                    kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity
-                )
-            return result
-        # ===========================================================
-        elif self.matcher_type == FeatureMatcherTypes.MAST3R:  # (Detector-free)
-            if img1.ndim == 2:
-                img1 = cv2.cvtColor(img1, cv2.COLOR_GRAY2RGB)
-            if img2.ndim == 2:
-                img2 = cv2.cvtColor(img2, cv2.COLOR_GRAY2RGB)
-            imgs = [img1, img2]
-            dust3r_preprocessor = Dust3rImagePreprocessor(inference_size=self.inference_size)
-            # imgs_preproc = dust3r_preprocess_images(imgs, size=self.inference_size)
-            imgs_preproc = dust3r_preprocessor.preprocess_images(imgs)
-            output = self.mast3r_inference(
-                [tuple(imgs_preproc)], self.matcher, self.device, batch_size=1, verbose=False
-            )
-            # check examples/dust3r/example_mast3r_2images.py
-            view1, view2 = output["view1"], output["view2"]
-            pred1, pred2 = output["pred1"], output["pred2"]
-            # extract descriptors
-            desc1, desc2 = pred1["desc"].squeeze(0).detach(), pred2["desc"].squeeze(0).detach()
-
-            # find 2D-2D matches between the two images
-            matches_im0, matches_im1 = self.mast3r_fast_reciprocal_NNs(
-                desc1,
-                desc2,
-                subsample_or_initxy1=self.subsample_or_initxy1,
-                device=self.device,
-                dist="dot",
-                block_size=2**13,
-            )
-
-            # ignore small border around the edge
-            H0, W0 = view1["true_shape"][0]
-            valid_matches_im0 = (
-                (matches_im0[:, 0] >= 3)
-                & (matches_im0[:, 0] < int(W0) - 3)
-                & (matches_im0[:, 1] >= 3)
-                & (matches_im0[:, 1] < int(H0) - 3)
-            )
-
-            H1, W1 = view2["true_shape"][0]
-            valid_matches_im1 = (
-                (matches_im1[:, 0] >= 3)
-                & (matches_im1[:, 0] < int(W1) - 3)
-                & (matches_im1[:, 1] >= 3)
-                & (matches_im1[:, 1] < int(H1) - 3)
-            )
-
-            valid_matches = valid_matches_im0 & valid_matches_im1
-            kps1, kps2 = matches_im0[valid_matches], matches_im1[valid_matches]
-            des1, des2 = (
-                desc1[kps1[:, 1], kps1[:, 0]],
-                desc2[kps2[:, 1], kps2[:, 0]],
-            )  # extract of independent descriptors is experiemental
-
-            # convert from pixel coordinates to float coordinates (we center the keypoints in the center of the pixels)
-            # kps1 = kps1.astype(np.float32) + 0.5
-            # kps2 = kps2.astype(np.float32) + 0.5
-
-            kps1_rescaled = dust3r_preprocessor.rescale_keypoints(kps1, 0)
-            kps2_rescale = dust3r_preprocessor.rescale_keypoints(kps2, 0)
-
-            cvkps1_rescaled = np.array(
-                [cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps1_rescaled]
-            )
-            cvkps2_rescaled = np.array(
-                [cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps2_rescale]
-            )
-
-            result.kps1 = cvkps1_rescaled
-            result.kps2 = cvkps2_rescaled
-            result.des1 = des1
-            result.des2 = des2
-            result.idxs1 = np.arange(len(cvkps1_rescaled), dtype=np.int32)
-            result.idxs2 = np.arange(len(cvkps2_rescaled), dtype=np.int32)
-
-            if row_matching:
-                result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(
-                    kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity
-                )
-            return result
-        # ===========================================================
+        if not row_matching:
+            """
+            The result of matches = matcher.knnMatch() is a list of cv2.DMatch objects.
+            A DMatch object has the following attributes:
+                DMatch.distance - Distance between descriptors. The lower, the better it is.
+                DMatch.trainIdx - Index of the descriptor in train descriptors
+                DMatch.queryIdx - Index of the descriptor in query descriptors
+                DMatch.imgIdx - Index of the train image.
+            """
+            # NOTE: cv2.BFMatcher.knnMatch() is thread-safe for concurrent calls, so sharing the instance is safe
+            matches = matcher.knnMatch(
+                des1, des2, k=2
+            )  # knnMatch(queryDescriptors,trainDescriptors)
+            # return MatcherUtils.goodMatchesSimple(matches, des1, des2, ratio_test)   # <= N.B.: this generates problem in SLAM since it can produce matches where a trainIdx index is associated to two (or more) queryIdx indexes
+            idxs1, idxs2 = MatcherUtils.goodMatchesOneToOne(matches, des1, des2, ratio_test)
+            # idxs1, idxs2 = MatcherUtils.goodMatchesOneToOneNumba(matches, des1, des2, ratio_test)
         else:
-            matcher = self.matcher
-            if not row_matching:
-                """
-                The result of matches = matcher.knnMatch() is a list of cv2.DMatch objects.
-                A DMatch object has the following attributes:
-                    DMatch.distance - Distance between descriptors. The lower, the better it is.
-                    DMatch.trainIdx - Index of the descriptor in train descriptors
-                    DMatch.queryIdx - Index of the descriptor in query descriptors
-                    DMatch.imgIdx - Index of the train image.
-                """
-                # NOTE: cv2.BFMatcher.knnMatch() is thread-safe for concurrent calls, so sharing the instance is safe
-                matches = matcher.knnMatch(
-                    des1, des2, k=2
-                )  # knnMatch(queryDescriptors,trainDescriptors)
-                # return MatcherUtils.goodMatchesSimple(matches, des1, des2, ratio_test)   # <= N.B.: this generates problem in SLAM since it can produce matches where a trainIdx index is associated to two (or more) queryIdx indexes
-                idxs1, idxs2 = MatcherUtils.goodMatchesOneToOne(matches, des1, des2, ratio_test)
-                # idxs1, idxs2 = MatcherUtils.goodMatchesOneToOneNumba(matches, des1, des2, ratio_test)
+            assert max_disparity is not None
+            # we perform row matching for stereo images (matching rectified left and right images)
+            max_descriptor_distance = (
+                0.75 * FeatureInfo.max_descriptor_distance[self.descriptor_type]
+            )  # for rectified stereo matching we assume the matching descriptors have in general a small relative distance
+            if ratio_test < 1.0:
+                idxs1, idxs2 = MatcherUtils.rowMatchesWithRatioTest(
+                    matcher,
+                    kps1,
+                    des1,
+                    kps2,
+                    des2,
+                    max_descriptor_distance,
+                    max_disparity=max_disparity,
+                    ratio_test=ratio_test,
+                )
             else:
-                assert max_disparity is not None
-                # we perform row matching for stereo images (matching rectified left and right images)
-                max_descriptor_distance = (
-                    0.75 * FeatureInfo.max_descriptor_distance[self.descriptor_type]
-                )  # for rectified stereo matching we assume the matching descriptors have in general a small relative distance
-                if ratio_test < 1.0:
-                    idxs1, idxs2 = MatcherUtils.rowMatchesWithRatioTest(
-                        matcher,
-                        kps1,
-                        des1,
-                        kps2,
-                        des2,
-                        max_descriptor_distance,
-                        max_disparity=max_disparity,
-                        ratio_test=ratio_test,
-                    )
-                else:
-                    idxs1, idxs2 = MatcherUtils.rowMatches(
-                        matcher,
-                        kps1,
-                        des1,
-                        kps2,
-                        des2,
-                        max_descriptor_distance,
-                        max_disparity=max_disparity,
-                    )
+                idxs1, idxs2 = MatcherUtils.rowMatches(
+                    matcher,
+                    kps1,
+                    des1,
+                    kps2,
+                    des2,
+                    max_descriptor_distance,
+                    max_disparity=max_disparity,
+                )
 
-            # Optimize array conversion: only convert if not already numpy array with correct dtype
-            # This avoids unnecessary copies when idxs1/idxs2 are already numpy arrays
-            if not isinstance(idxs1, np.ndarray) or idxs1.dtype != np.int32:
-                idxs1 = np.asarray(idxs1, dtype=np.int32)
-            if not isinstance(idxs2, np.ndarray) or idxs2.dtype != np.int32:
-                idxs2 = np.asarray(idxs2, dtype=np.int32)
-            result.idxs1 = idxs1
-            result.idxs2 = idxs2
-            return result
+        # Optimize array conversion: only convert if not already numpy array with correct dtype
+        # This avoids unnecessary copies when idxs1/idxs2 are already numpy arrays
+        if not isinstance(idxs1, np.ndarray) or idxs1.dtype != np.int32:
+            idxs1 = np.asarray(idxs1, dtype=np.int32)
+        if not isinstance(idxs2, np.ndarray) or idxs2.dtype != np.int32:
+            idxs2 = np.asarray(idxs2, dtype=np.int32)
+        result.idxs1 = idxs1
+        result.idxs2 = idxs2
+        return result
 
 
 # ==============================================================================S
@@ -900,13 +752,57 @@ class XFeatMatcher(FeatureMatcher):
         )
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.torch_device = device
-        self.matcher = XFeat()
+        self.matcher = _xfeat_class()()
         self.submatcher_type = "xfeat"
         if "submatcher_type" in kwargs:
             self.submatcher_type = kwargs["submatcher_type"]
             print(f"XFeatMatcher: submatcher_type: {self.submatcher_type}")
         self.matcher_name = "XFeatFeatureMatcher"
         Printer.green(f"matcher: {self.matcher_name}")
+
+    def _match_impl(
+        self, result, img1, img2, des1, des2, kps1, kps2, ratio_test, row_matching, max_disparity, data
+    ):
+        # XFeat descriptors, matched by XFeat's matcher or LighterGlue
+        d1_tensor = torch.tensor(
+            des1, dtype=torch.float32, device=self.torch_device
+        )  # Specify dtype if needed
+        d2_tensor = torch.tensor(
+            des2, dtype=torch.float32, device=self.torch_device
+        )  # Specify dtype if needed
+
+        if self.submatcher_type == "lightglue":
+            if kps1 is None and kps2 is None:
+                Printer.red("ERROR: FeatureMatcher.match: kps1 and kps2 are None")
+                return result
+            if not isinstance(kps1, np.ndarray):
+                kps1 = np.array([x.pt for x in kps1], dtype=np.float32)
+            if not isinstance(kps2, np.ndarray):
+                kps2 = np.array([x.pt for x in kps2], dtype=np.float32)
+            kps1_tensor = torch.tensor(kps1, device=self.torch_device)
+            kps2_tensor = torch.tensor(kps2, device=self.torch_device)
+            H1, W1 = img1.shape[0:2]
+            H2, W2 = img2.shape[0:2]
+            d1 = {"keypoints": kps1_tensor, "descriptors": d1_tensor, "image_size": (W1, H1)}
+            d2 = {"keypoints": kps2_tensor, "descriptors": d2_tensor, "image_size": (W2, H2)}
+            min_conf = 0.1  # default in xfeat code
+            kps1_out, kps2_out, matches_out = self.matcher.match_lighterglue(
+                d1, d2, min_conf=min_conf
+            )
+            idxs0 = matches_out[:, 0]
+            idxs1 = matches_out[:, 1]
+        elif self.submatcher_type == "xfeat":
+            min_cossim = 0.82  # default in xfeat code
+            idxs0, idxs1 = self.matcher.match(d1_tensor, d2_tensor, min_cossim=min_cossim)
+            idxs0 = idxs0.cpu()
+            idxs1 = idxs1.cpu()
+        result.idxs1 = idxs0
+        result.idxs2 = idxs1
+        if row_matching:
+            result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(
+                kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity
+            )
+        return result
 
 
 # ==============================================================================
@@ -931,6 +827,7 @@ class LightGlueMatcher(FeatureMatcher):
         )
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.torch_device = device
+        LightGlue = _lightglue_class()
         if self.torch_device == "cuda":
             LightGlue.pruning_keypoint_thresholds["cuda"]
         features_string = None
@@ -945,13 +842,115 @@ class LightGlueMatcher(FeatureMatcher):
         else:
             raise ValueError(f"LightGlue: Unmanaged detector type: {detector_type.name}")
         self.matcher = LightGlue(features=features_string, n_layers=2).eval().to(device)
+        if Parameters.kTorchCompile and device.type == "cuda":
+            # Opt-in: upstream LightGlue.compile() (padded static lengths, compiled transformer
+            # layers; disables adaptive point pruning). Lengths extended to pyslam's 2000-4000 kps.
+            try:
+                self.matcher.compile(mode="default", static_lengths=[256, 512, 1024, 1536, 2048, 3072, 4096])
+                print("LightGlue: torch.compile enabled (static lengths up to 4096)")
+            except Exception as exc:
+                Printer.orange(f"LightGlue: torch.compile unavailable ({exc}); using eager mode")
         self.matcher_name = "LightGlueFeatureMatcher"
         print("device: ", self.torch_device)
         Printer.green(f"matcher: {self.matcher_name}")
 
+    def match_frames_batch(self, img1, des1, kps1, others, chunk=8):
+        """Opt-in (Parameters.kLightGlueBatchedMatching): match one frame against several
+        frames, `others` = [(img2, des2, kps2), ...], in batched LightGlue passes.
+        Returns [(idxs1, idxs2), ...]. See feature_matcher_lightglue_batch.py."""
+        from .feature_matcher_lightglue_batch import lightglue_match_batch
+
+        def side(img, des, kps):
+            item = {}
+            if not isinstance(kps, np.ndarray) or kps.dtype != np.float32:
+                if self.detector_type == FeatureDetectorTypes.LIGHTGLUESIFT:
+                    item["scales"] = np.array([x.size for x in kps], dtype=np.float32)
+                    item["oris"] = np.array([x.angle for x in kps], dtype=np.float32)
+                kps = np.array([x.pt for x in kps], dtype=np.float32)
+            item.update(kpts=np.asarray(kps, np.float32).reshape(-1, 2), desc=des,
+                        size=np.array(img.shape[0:2], np.float32))  # same convention as _match_impl
+            return item
+
+        first = side(img1, des1, kps1)
+        results = []
+        for start in range(0, len(others), chunk):
+            items = []
+            for img2, des2, kps2 in others[start:start + chunk]:
+                second = side(img2 if img2 is not None else img1, des2, kps2)
+                item = {k + "0": v for k, v in first.items()}
+                item.update({k + "1": v for k, v in second.items()})
+                items.append(item)
+            results += lightglue_match_batch(self.matcher, items, self.torch_device)
+        return results
+
+    def _match_impl(
+        self, result, img1, img2, des1, des2, kps1, kps2, ratio_test, row_matching, max_disparity, data
+    ):
+        # LightGlue on precomputed keypoints/descriptors
+        # TODO: add row epipolar check for row matching
+        scales1 = None
+        scales2 = None
+        oris1 = None
+        oris2 = None
+        if kps1 is None and kps2 is None:
+            Printer.red("ERROR: FeatureMatcher.match: kps1 and kps2 are None")
+            return result
+        else:
+            # convert from list of keypoints to an array of points if needed
+            if not isinstance(kps1, np.ndarray) or kps1.dtype != np.float32:
+                if self.detector_type == FeatureDetectorTypes.LIGHTGLUESIFT:
+                    scales1 = np.array([x.size for x in kps1], dtype=np.float32)
+                    oris1 = np.array([x.angle for x in kps1], dtype=np.float32)
+                # print(f'kps1: {kps1}')
+                kps1 = np.array([x.pt for x in kps1], dtype=np.float32)
+                if kVerbose:
+                    print("kps1.shape:", kps1.shape, " kps1.dtype:", kps1.dtype)
+            if not isinstance(kps2, np.ndarray) or kps2.dtype != np.float32:
+                if self.detector_type == FeatureDetectorTypes.LIGHTGLUESIFT:
+                    scales2 = np.array([x.size for x in kps2], dtype=np.float32)
+                    oris2 = np.array([x.angle for x in kps2], dtype=np.float32)
+                kps2 = np.array([x.pt for x in kps2], dtype=np.float32)
+                if kVerbose:
+                    print("kps2.shape:", kps2.shape, " kps2.dtype:", kps2.dtype)
+        if kVerbose:
+            print(f"image1.shape: {img1.shape}, image2.shape: {img2.shape}")
+        img1_shape = img1.shape[0:2]
+        img2_shape = img2.shape[0:2] if img2 is not None else img1_shape
+        d0 = {
+            "keypoints": torch.tensor(kps1, device=self.torch_device).unsqueeze(0),
+            "descriptors": torch.tensor(des1, device=self.torch_device).unsqueeze(0),
+            "image_size": torch.tensor(img1_shape, device=self.torch_device).unsqueeze(0),
+        }
+        if scales1 is not None and oris1 is not None:
+            d0["scales"] = torch.tensor(scales1, device=self.torch_device).unsqueeze(0)
+            d0["oris"] = torch.tensor(oris1, device=self.torch_device).unsqueeze(0)
+        d1 = {
+            "keypoints": torch.tensor(kps2, device=self.torch_device).unsqueeze(0),
+            "descriptors": torch.tensor(des2, device=self.torch_device).unsqueeze(0),
+            "image_size": torch.tensor(img2_shape, device=self.torch_device).unsqueeze(0),
+        }
+        if scales2 is not None and oris2 is not None:
+            d1["scales"] = torch.tensor(scales2, device=self.torch_device).unsqueeze(0)
+            d1["oris"] = torch.tensor(oris2, device=self.torch_device).unsqueeze(0)
+        matches01 = self.matcher({"image0": d0, "image1": d1})
+        # print(matches01['matches'])
+        idxs0 = matches01["matches"][0][:, 0].cpu().tolist()
+        idxs1 = matches01["matches"][0][:, 1].cpu().tolist()
+        result.idxs1 = np.array(idxs0)
+        result.idxs2 = np.array(idxs1)
+        if row_matching:
+            result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(
+                kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity
+            )
+        if kVerbose:
+            print(f"#result.idxs1: {result.idxs1.shape}, #result.idxs2: {result.idxs2.shape}")
+        return result
+
 
 # ==============================================================================
 class LoFTRMatcher(FeatureMatcher):
+    detector_free = True
+
     def __init__(
         self,
         norm_type=cv2.NORM_L2,
@@ -980,14 +979,46 @@ class LoFTRMatcher(FeatureMatcher):
         if self.torch_device == "cuda":
             torch.cuda.empty_cache()
         # https://kornia.readthedocs.io/en/latest/feature.html#kornia.feature.LoFTR
-        self.matcher = KF.LoFTR("outdoor").eval().to(device)
+        _, kornia_feature = _load_kornia()
+        self.matcher = kornia_feature.LoFTR("outdoor").eval().to(device)
         self.matcher_name = "LoFTRMatcher"
         print("device: ", self.torch_device)
         Printer.green(f"matcher: {self.matcher_name}")
 
+    def _match_impl(
+        self, result, img1, img2, des1, des2, kps1, kps2, ratio_test, row_matching, max_disparity, data
+    ):
+        # Detector-free (kornia LoFTR)
+        if img1.ndim > 2:
+            img1 = cv2.cvtColor(img1, cv2.COLOR_RGB2GRAY)
+        if img2.ndim > 2:
+            img2 = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY)
+        kornia, _ = _load_kornia()
+        img1 = kornia.image_to_tensor(img1, False).to(self.torch_device).float() / 255.0
+        img2 = kornia.image_to_tensor(img2, False).to(self.torch_device).float() / 255.0
+        matching_input = {"image0": img1, "image1": img2}
+        out_matching = self.matcher(matching_input)
+        kps1 = out_matching["keypoints0"].cpu().numpy()
+        kps1 = np.array([cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps1])
+        kps2 = out_matching["keypoints1"].cpu().numpy()
+        kps2 = np.array([cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps2])
+        # idxs = out_matching['batch_indexes'].cpu().numpy()
+        # print(f'idxs.shape: {idxs.shape}, idxs.dtype: {idxs.dtype}')
+        result.kps1 = kps1
+        result.kps2 = kps2
+        result.idxs1 = np.arange(len(kps1), dtype=np.int32)
+        result.idxs2 = np.arange(len(kps2), dtype=np.int32)
+        if row_matching:
+            result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(
+                kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity
+            )
+        return result
+
 
 # ==============================================================================
 class Mast3RMatcher(FeatureMatcher):
+    detector_free = True
+
     def __init__(
         self,
         norm_type=cv2.NORM_L2,
@@ -1033,3 +1064,87 @@ class Mast3RMatcher(FeatureMatcher):
         self.matcher = model
         self.matcher_name = "Mast3RMatcher"
         Printer.green(f"matcher: {self.matcher_name}")
+
+    def _match_impl(
+        self, result, img1, img2, des1, des2, kps1, kps2, ratio_test, row_matching, max_disparity, data
+    ):
+        # Detector-free (MASt3R)
+        if img1.ndim == 2:
+            img1 = cv2.cvtColor(img1, cv2.COLOR_GRAY2RGB)
+        if img2.ndim == 2:
+            img2 = cv2.cvtColor(img2, cv2.COLOR_GRAY2RGB)
+        imgs = [img1, img2]
+        from pyslam.utilities.dust3r import Dust3rImagePreprocessor
+
+        dust3r_preprocessor = Dust3rImagePreprocessor(inference_size=self.inference_size)
+        # imgs_preproc = dust3r_preprocess_images(imgs, size=self.inference_size)
+        imgs_preproc = dust3r_preprocessor.preprocess_images(imgs)
+        output = self.mast3r_inference(
+            [tuple(imgs_preproc)], self.matcher, self.device, batch_size=1, verbose=False
+        )
+        # check examples/dust3r/example_mast3r_2images.py
+        view1, view2 = output["view1"], output["view2"]
+        pred1, pred2 = output["pred1"], output["pred2"]
+        # extract descriptors
+        desc1, desc2 = pred1["desc"].squeeze(0).detach(), pred2["desc"].squeeze(0).detach()
+
+        # find 2D-2D matches between the two images
+        matches_im0, matches_im1 = self.mast3r_fast_reciprocal_NNs(
+            desc1,
+            desc2,
+            subsample_or_initxy1=self.subsample_or_initxy1,
+            device=self.device,
+            dist="dot",
+            block_size=2**13,
+        )
+
+        # ignore small border around the edge
+        H0, W0 = view1["true_shape"][0]
+        valid_matches_im0 = (
+            (matches_im0[:, 0] >= 3)
+            & (matches_im0[:, 0] < int(W0) - 3)
+            & (matches_im0[:, 1] >= 3)
+            & (matches_im0[:, 1] < int(H0) - 3)
+        )
+
+        H1, W1 = view2["true_shape"][0]
+        valid_matches_im1 = (
+            (matches_im1[:, 0] >= 3)
+            & (matches_im1[:, 0] < int(W1) - 3)
+            & (matches_im1[:, 1] >= 3)
+            & (matches_im1[:, 1] < int(H1) - 3)
+        )
+
+        valid_matches = valid_matches_im0 & valid_matches_im1
+        kps1, kps2 = matches_im0[valid_matches], matches_im1[valid_matches]
+        des1, des2 = (
+            desc1[kps1[:, 1], kps1[:, 0]],
+            desc2[kps2[:, 1], kps2[:, 0]],
+        )  # extract of independent descriptors is experiemental
+
+        # convert from pixel coordinates to float coordinates (we center the keypoints in the center of the pixels)
+        # kps1 = kps1.astype(np.float32) + 0.5
+        # kps2 = kps2.astype(np.float32) + 0.5
+
+        kps1_rescaled = dust3r_preprocessor.rescale_keypoints(kps1, 0)
+        kps2_rescale = dust3r_preprocessor.rescale_keypoints(kps2, 0)
+
+        cvkps1_rescaled = np.array(
+            [cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps1_rescaled]
+        )
+        cvkps2_rescaled = np.array(
+            [cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps2_rescale]
+        )
+
+        result.kps1 = cvkps1_rescaled
+        result.kps2 = cvkps2_rescaled
+        result.des1 = des1
+        result.des2 = des2
+        result.idxs1 = np.arange(len(cvkps1_rescaled), dtype=np.int32)
+        result.idxs2 = np.arange(len(cvkps2_rescaled), dtype=np.int32)
+
+        if row_matching:
+            result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(
+                kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity
+            )
+        return result

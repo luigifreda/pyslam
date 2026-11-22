@@ -24,6 +24,13 @@ if sys.version_info[0] != 3:
     exit()
 
 import os
+
+# Deterministic glibc heap behavior for per-frame image buffers (see malloc_tuning.py).
+# Applied first, before any large allocation, once per process (spawned children too).
+from pyslam.utilities.malloc_tuning import configure_malloc
+
+configure_malloc()
+
 import yaml
 import numpy as np
 import math

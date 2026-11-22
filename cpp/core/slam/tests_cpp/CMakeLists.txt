@@ -14,6 +14,7 @@ set(TESTS
     test_camera_edges_g2o
     test_owned_g2o_optimizer
     test_local_map_limits
+    test_initializer_support
     test_camera_factors_gtsam
     test_numpy_map_state
     test_json_map_point

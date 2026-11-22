@@ -92,6 +92,8 @@ class LoopDetectingProcess:
             or global_descriptor_type == GlobalDescriptorType.VLAD
             or global_descriptor_type == GlobalDescriptorType.EIGENPLACES
             or global_descriptor_type == GlobalDescriptorType.MEGALOC
+            or global_descriptor_type == GlobalDescriptorType.SALAD
+            or global_descriptor_type == GlobalDescriptorType.BOQ
         ):
             if mp.get_start_method() != "spawn":
                 mp.set_start_method(

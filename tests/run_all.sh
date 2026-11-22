@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Author: Luigi Freda 
+# This file is part of https://github.com/luigifreda/pyslam
+
 # Run the pySLAM checks from the repository root.
 # Requires the pySLAM environment, the C++ modules (cpp/build.sh), and the C++ core (cpp/core/slam/build.sh).
 

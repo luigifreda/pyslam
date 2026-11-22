@@ -1,13 +1,13 @@
 <p align="center"><img src="./images/pyslam-logo.png" height="160"></p>
 
-# pySLAM v2.12.1
+# pySLAM v2.13.0
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
  
 **pySLAM** is a hybrid **python/C++** implementation of a *Visual SLAM* pipeline (Simultaneous Localization And Mapping) that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features in a **single python environment**:
-- A wide range of classical and modern **[local features](#supported-local-features)** with a convenient interface for their integration.
-- Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (*BoW*, *iBow*), Vector of Locally Aggregated Descriptors (*VLAD*) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors such as *SAD*, *NetVLAD*, *HDC-Delf*, *CosPlace*, *EigenPlaces*, *Megaloc*).
+- A wide range of classical and modern **[local features](#supported-local-features)** and **[matchers](#supported-matchers)** with a convenient interface for their integration.
+- Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (*BoW*, *iBow*), Vector of Locally Aggregated Descriptors (*VLAD*) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors such as *SAD*, *NetVLAD*, *HDC-Delf*, *CosPlace*, *EigenPlaces*, *Megaloc*, *SALAD*, *BoQ*).
 - A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports different voxel grid models (with semantic support) and **TSDF** with voxel hashing, and incremental **Gaussian Splatting**. 
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include *DepthPro*, *DepthAnythingV2*, *DepthAnythingV3*, *RAFT-Stereo*, *CREStereo*, etc.  
 - A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as *DeepLabv3*, *Segformer*, *CLIP*, *DETIC*, *EOV-SEG*, *ODISE*, *RFDETR*, *YOLO*, etc.
@@ -16,8 +16,10 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - A C++ **[direct and semi-direct SLAM](docs/direct_slam.md)** pipeline (`main_slam_direct.py`) with three tracking modes: *KLT* tracks, *hybrid* sparse photometric alignment, and an *SVO*-style **semi-direct** mode with a Bayesian inverse-depth filter. It supports **stereo** and **RGBD** input, plus **monocular** in semi-direct mode, with local bundle adjustment and the same loop closing as the sparse pipeline (with a Sim(3) correction for monocular). Further details [here](docs/direct_slam.md).
 - A modular pipeline for **feed-forward inference of 3D scenes from multiple images**. Supports models like *DUSt3R*, *Mast3r*, *MV-DUSt3R*, *VGGT*, *Robust VGGT*, *DepthFromAnythingV3*, and *Fast3R*. Further details [here](pyslam/scene_from_views/README.md).
 - Built-in support for over **[10 dataset types](#datasets)**.
+
+**New in v2.13.0**: *DeDoDe v2* and *RDD* local features, *RoMa* and *tiny-RoMa* dense matchers, *SALAD* and *BoQ* loop-closure descriptors, a faster and lighter feature pipeline, optional GPU accelerations, and a one-command model installer (`./scripts/install_visual_model.sh`). See [visual features, matchers and loop-closure descriptors](./docs/visual_features.md).
   
-pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction)*, *[depth prediction](#depth-prediction)* and *[semantic mapping](#semantic-mapping-and-image-segmentation)*. It allows to explore, prototype and develop VO/SLAM pipelines both in Python and C++. pySLAM is a research framework and a work in progress.
+pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction)*, *[depth prediction](#depth-prediction)*, *[semantic mapping](#semantic-mapping-and-image-segmentation)* and *[direct and semi-direct tracking](docs/direct_slam.md)*. It allows to explore, prototype and develop VO/SLAM pipelines both in Python and C++. pySLAM is a research framework and a work in progress.
 
 **Enjoy it!**
 
@@ -53,7 +55,7 @@ See the demo **video** for release v2.10.0
 
 <!-- TOC -->
 
-- [pySLAM v2.12.1](#pyslam-v2121)
+- [pySLAM v2.13.0](#pyslam-v2130)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
@@ -68,6 +70,7 @@ See the demo **video** for release v2.10.0
   - [Usage](#usage)
     - [Visual odometry](#visual-odometry)
     - [Full SLAM](#full-slam)
+    - [Direct and semi-direct SLAM](#direct-and-semi-direct-slam)
     - [Selecting a dataset and different configuration parameters](#selecting-a-dataset-and-different-configuration-parameters)
     - [Feature extraction and matching](#feature-extraction-and-matching)
     - [Loop closing and relocalization](#loop-closing-and-relocalization)
@@ -139,6 +142,7 @@ See the demo **video** for release v2.10.0
 ## Overview
  
 ```bash
+├── benchmarking         # Visual-model and SLAM benchmark tools (not part of pytest)
 ├── cpp
 │   ├── modules          # utility extensions: hamming, glutils, solvers, volumetric, camera_models, ...
 │   ├── casters          # shared pybind11 type casters (OpenCV, nlohmann json, Dict/List)
@@ -163,6 +167,7 @@ See the demo **video** for release v2.10.0
 │   ├── slam
 │   │   └── cpp          # Python facade that imports cpp_core
 │   ├── utilities
+│   ├── visual_models    # Model catalog, weight resolver and installer
 │   ├── viz
 ├── scripts              # Shell utility scripts
 ├── settings             # Dataset/configuration files
@@ -229,6 +234,8 @@ Grab a coffee. It will take a while.
 ``` -->
 
 The install scripts create a **single Python environment** `pyslam` that hosts all the [supported components and models](#supported-components-and-models). If `conda` is available, it automatically uses it; otherwise, it installs and uses `venv`. An internet connection is required.
+
+The learned models added in v2.13.0 (*DeDoDe v2*, *RDD*, *RoMa*, *tiny-RoMa*, *SALAD*, *BoQ*) can be prefetched with `./scripts/install_visual_model.sh`. They are also downloaded on first use. See [visual features](./docs/visual_features.md).
 
 Refer to these links for further details about the specific install procedures that are supported.
 - **Ubuntu**  [=>](#ubuntu)
@@ -345,7 +352,9 @@ Similarly, you can test the **full SLAM** by running `main_slam.py`:
 
 This will process the same default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by clicking on one of the open windows and pressing the key 'Q' or closing the 3D Pangolin GUI. 
 
-For **direct SLAM**, select a stereo or RGBD dataset (or a monocular one with `semi_direct` mode) and matching camera settings in `config.yaml`, build `cpp_core` with `./build_cpp_core.sh`, then run. All three modes run on an undistorted pinhole or a raw-pixel model such as native TUM-VI:
+### Direct and semi-direct SLAM
+
+Select a stereo or RGBD dataset (or a monocular one with `semi_direct` mode) and matching camera settings in `config.yaml`, build `cpp_core` with `./build_cpp_core.sh`, then run. All three modes run on an undistorted pinhole or a raw-pixel model such as native TUM-VI:
 
 ```bash
 python main_slam_direct.py -c config.yaml
@@ -422,7 +431,7 @@ Once you have trained the vocabulary, you can add it in [pyslam/loop_closing/loo
 
 Most methods do not require pre-trained vocabularies. Specifically:
 - `iBoW` and `OBindex2`: These methods incrementally build bags of binary words and, if needed, convert (front-end) non-binary descriptors into binary ones. 
-- Others: Methods like `HDC_DELF`, `SAD`, `AlexNet`, `NetVLAD`, `CosPlace`, `EigenPlaces`, and `Megaloc` directly extract their specific **global descriptors** and process them using dedicated aggregators, independently from the used front-end descriptors.
+- Others: Methods like `HDC_DELF`, `SAD`, `AlexNet`, `NetVLAD`, `CosPlace`, `EigenPlaces`, `Megaloc`, `SALAD`, and `BoQ` directly extract their specific **global descriptors** and process them using dedicated aggregators, independently from the used front-end descriptors.
 
 As mentioned above, only `DBoW2`, `DBoW3`, and `VLAD` require pre-trained vocabularies.
 
@@ -637,7 +646,7 @@ Known **limitations** in volumetric semantic mapping:
 ---
 ### C++ Core Module
 
-The system provides a modular sparse-SLAM core, implemented in both C++ and Python, allowing users to switch between high-performance/speed and high-flexibility modes.
+The system provides a modular sparse-SLAM core, implemented in both C++ and Python, allowing users to switch between high-performance/speed and high-flexibility modes. The same `cpp_core` module contains the C++-only [direct and semi-direct frontend](./docs/direct_slam.md) (`cpp/core/slam_direct`). That pipeline has no Python implementation. See [Direct and semi-direct SLAM](#direct-and-semi-direct-slam).
 
 The C++ core reimplements the sparse SLAM originally implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11. The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names (see this [table](./cpp/core/slam/README.md#table-of-corresponding-files)). When feasible, the bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++.
 
@@ -806,6 +815,8 @@ Further details [here](pyslam/scene_from_views/README.md).
 ## Supported components and models
 ### Supported local features
 
+**New in v2.13.0**: DeDoDe v2 and RDD local features, RoMa and tiny-RoMa dense matchers, SALAD and BoQ loop-closure descriptors, faster startup and lighter memory, persistent inference threads, opt-in GPU accelerations and a one-command model installer (`./scripts/install_visual_model.sh`). See [visual features, matchers and loop-closure descriptors](./docs/visual_features.md).
+
 At present time, the following feature **detectors** are supported: 
 * *[FAST](https://www.edwardrosten.com/work/fast.html)*  
 * *[Good features to track](https://ieeexplore.ieee.org/document/323794)* 
@@ -831,6 +842,8 @@ At present time, the following feature **detectors** are supported:
 * *[ALIKED](https://arxiv.org/abs/2304.03608)*
 * *[Xfeat](https://arxiv.org/abs/2404.19174)*
 * *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)* (KeyNet detector + AffNet + HardNet descriptor).
+* *[DeDoDe v2](https://github.com/Parskatt/DeDoDe)* (DeDoDe v2 detector + DeDoDe descriptor, via kornia).
+* *[RDD](https://github.com/xtcpete/rdd)* (deformable-transformer detector + descriptor).
 
 The following feature **descriptors** are supported: 
 * *[ORB](http://www.willowgarage.com/sites/default/files/orb_final.pdf)*  
@@ -862,6 +875,8 @@ The following feature **descriptors** are supported:
 * *[ALIKED](https://arxiv.org/abs/2304.03608)*
 * *[Xfeat](https://arxiv.org/abs/2404.19174)*
 * *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)* (KeyNet detector + AffNet + HardNet descriptor).
+* *[DeDoDe v2](https://github.com/Parskatt/DeDoDe)* (DeDoDe v2 detector + DeDoDe descriptor, via kornia).
+* *[RDD](https://github.com/xtcpete/rdd)* (deformable-transformer detector + descriptor).
   
 For more information, refer to [pyslam/local_features/feature_types.py](pyslam/local_features/feature_types.py) file. Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `examples/cv/example_feature_manager.py` and `main_feature_matching.py`.
 
@@ -880,6 +895,7 @@ The function `feature_tracker_factory()` can be found in the file `pyslam/local_
 * *[LightGlue](https://arxiv.org/abs/2306.13643)*
 * *[LoFTR](https://arxiv.org/abs/2104.00680)*
 * *[MASt3R](https://arxiv.org/abs/2406.09756)*
+* *[RoMa](https://github.com/Parskatt/RoMa)* and *tiny-RoMa* (dense, detector-free)
   
 See the file `pyslam/local_features/feature_matcher.py` for further details.
 
@@ -907,6 +923,8 @@ Also referred to as *holistic descriptors*:
 * [CosPlace](https://github.com/gmberton/CosPlace)
 * [EigenPlaces](https://github.com/gmberton/EigenPlaces)
 * [Megaloc](https://github.com/gmberton/MegaLoc)
+* [SALAD](https://github.com/serizba/salad)
+* [BoQ](https://github.com/amaralibey/Bag-of-Queries)
 
 
 Different [loop closing methods](#loop-closing-and-relocalization) are available. These combines the above aggregation methods and global descriptors.
@@ -1221,6 +1239,11 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [mast3r](https://github.com/naver/mast3r)
 * [mvdust3r](https://github.com/facebookresearch/mvdust3r)
 * [MegaLoc](https://github.com/gmberton/MegaLoc)
+* [DeDoDe](https://github.com/Parskatt/DeDoDe)
+* [RDD](https://github.com/xtcpete/rdd)
+* [RoMa](https://github.com/Parskatt/RoMa)
+* [SALAD](https://github.com/serizba/salad)
+* [Bag-of-Queries (BoQ)](https://github.com/amaralibey/Bag-of-Queries)
 * [VGGT](https://github.com/facebookresearch/vggt.git) and [Robust VGGT](https://github.com/cvlab-kaist/RobustVGGT.git)
 * [MAST3R](https://github.com/naver/mast3r) 
 * [EOV-Seg](https://github.com/nhw649/EOV-Seg.git)

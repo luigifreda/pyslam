@@ -146,6 +146,8 @@ class LoopDetectorVprBase(LoopDetectorBase):
             or global_descriptor_name.lower() == "netvlad"
             or global_descriptor_name.lower() == "eigenplaces"
             or global_descriptor_name.lower() == "megaloc"
+            or global_descriptor_name.lower() == "salad"
+            or global_descriptor_name.lower() == "boq"
         ):
             import torch.multiprocessing as mp
 
@@ -247,9 +249,16 @@ class LoopDetectorVprBase(LoopDetectorBase):
 
             global_feature_extractor = EigenPlacesFeatureExtractor()
         elif global_descriptor_name.lower() == "megaloc":
-            from global_feature_megaloc import GlobalFeatureMegaloc
-
+            # Package import: the former bare `global_feature_megaloc` module was not on sys.path.
             global_feature_extractor = GlobalFeatureMegaloc()
+        elif global_descriptor_name.lower() == "salad":
+            from .global_feature_torchhub import GlobalFeatureSalad
+
+            global_feature_extractor = GlobalFeatureSalad()
+        elif global_descriptor_name.lower() == "boq":
+            from .global_feature_torchhub import GlobalFeatureBoQ
+
+            global_feature_extractor = GlobalFeatureBoQ()
         else:
             raise ValueError("Unknown descriptor: " + global_descriptor_name)
         return global_feature_extractor
@@ -452,5 +461,25 @@ class LoopDetectorMegaloc(LoopDetectorVprBase):
         global_descriptor_name="Megaloc",
         local_feature_manager=None,
         name="LoopDetectorMegaloc",
+    ):
+        super().__init__(global_descriptor_name, local_feature_manager, name)
+
+
+class LoopDetectorSalad(LoopDetectorVprBase):
+    def __init__(
+        self,
+        global_descriptor_name="Salad",
+        local_feature_manager=None,
+        name="LoopDetectorSalad",
+    ):
+        super().__init__(global_descriptor_name, local_feature_manager, name)
+
+
+class LoopDetectorBoQ(LoopDetectorVprBase):
+    def __init__(
+        self,
+        global_descriptor_name="BoQ",
+        local_feature_manager=None,
+        name="LoopDetectorBoQ",
     ):
         super().__init__(global_descriptor_name, local_feature_manager, name)

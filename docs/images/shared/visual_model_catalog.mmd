@@ -1,0 +1,30 @@
+---
+config:
+  look: handDrawn
+  flowchart:
+    wrappingWidth: 400
+---
+graph LR;
+    %% Additive visual-model catalog beside the existing feature runtime
+    linkStyle default stroke:#021526,stroke-width:1px,font-size:16px;
+
+    classDef catalog fill:#EAD7F3,stroke:#6A0DAD,stroke-width:1.5px,font-size:16px;
+    classDef tool fill:#FFFACD,stroke:#E1A100,stroke-width:1.5px,font-size:16px;
+    classDef factory fill:#D1F0FF,stroke:#0077B6,stroke-width:1.5px,font-size:16px;
+    classDef existing fill:#D6FFD6,stroke:#218380,stroke-width:1.5px,font-size:16px;
+    classDef runtime fill:#FFE3F1,stroke:#C71585,stroke-width:1.5px,font-size:16px;
+    classDef future fill:#FAFAFA,stroke:#888888,stroke-width:1.5px,stroke-dasharray:6 4,font-size:16px;
+
+    Catalog["Visual model<br>specs"] --> Inspect["Read-only check<br>/ model table"];
+    Catalog --> Factory["Explicit<br>lazy factory"];
+    Factory --> Existing["Existing wrapper<br>constructors"];
+    Resolver["Verified offline<br>weight resolver"] -.->|"`_validated future migration_`"| Existing;
+    Presets["Existing tracker<br>and loop presets"] --> Runtime["Current runtime<br>dispatch"];
+    Runtime --> Existing;
+
+    class Catalog catalog;
+    class Inspect tool;
+    class Factory factory;
+    class Existing existing;
+    class Presets,Runtime runtime;
+    class Resolver future;

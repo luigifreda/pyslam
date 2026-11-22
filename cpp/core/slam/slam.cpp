@@ -277,6 +277,15 @@ void Slam::set_feature_tracker_num_features(bool doubled) {
     } else {
         feature_tracker.attr("set_normal_num_features")();
     }
+    if (sensor_type == SensorType::STEREO) {
+        // Stereo depths need candidates in both views. Boosting only the left
+        // extractor during startup leaves reliable depth support needlessly sparse.
+        py::object right = py::module_::import("pyslam.slam.feature_tracker_shared")
+                               .attr("FeatureTrackerShared").attr("feature_tracker_right");
+        if (alive(right)) {
+            right.attr(doubled ? "set_double_num_features" : "set_normal_num_features")();
+        }
+    }
 #else
     (void)doubled;
 #endif

@@ -3,6 +3,7 @@ Diagrams are written in [Mermaid](https://mermaid.js.org/). Each `<name>.png` is
 - `indirect_slam/`: feature-based SLAM (`main_slam.py`) workflow, components and modules.
 - `direct_slam/`: direct / semi-direct SLAM (`main_slam_direct.py`) workflow, components, pose tracker and map.
 - `scene_from_views/`: 3D scene reconstruction from views.
+- `shared/`: infrastructure shared by the pipelines (visual model catalog).
 
 To regenerate the PNGs, run [`render_diagrams.py`](./render_diagrams.py). It needs Node.js (>= 18.19) and Chrome/Chromium; it uses `mmdc` from PATH or fetches the pinned [mermaid-cli](https://github.com/mermaid-js/mermaid-cli) with `npx`.
 

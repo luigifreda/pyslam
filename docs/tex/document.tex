@@ -766,6 +766,8 @@ Fig.~\ref{Fig_TimelineLocalFeatures} shows a timeline with some of the most famo
     \item \href{https://arxiv.org/abs/2304.03608}{ALIKED} \cite{barroso2023alike}
     \item \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{barroso2024xfeat}
     \item \href{https://github.com/axelBarroso/Key.Net}{KeyNetAffNetHardNet} (KeyNet detector \cite{barroso2020key} + AffNet + HardNet descriptor \cite{mishchuk2017working})
+    \item \href{https://github.com/Parskatt/DeDoDe}{DeDoDe v2} \cite{edstedt2024dedode,edstedt2024dedodev2} (via kornia)
+    \item \href{https://github.com/xtcpete/rdd}{RDD} \cite{chen2025rdd}
 \end{itemize}
 
 The following feature \textbf{descriptors} are supported: 
@@ -800,6 +802,8 @@ The following feature \textbf{descriptors} are supported:
     \item \href{https://arxiv.org/abs/2304.03608}{ALIKED} \cite{barroso2023alike}
     \item \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{barroso2024xfeat}
     \item \href{https://github.com/axelBarroso/Key.Net}{KeyNetAffNetHardNet} (KeyNet detector \cite{barroso2020key} + AffNet + HardNet descriptor \cite{mishchuk2017working})
+    \item \href{https://github.com/Parskatt/DeDoDe}{DeDoDe v2} \cite{edstedt2024dedode,edstedt2024dedodev2} (via kornia)
+    \item \href{https://github.com/xtcpete/rdd}{RDD} \cite{chen2025rdd}
 \end{itemize}
 
 For more information, refer to \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/local_features/feature_types.py}{pyslam/local\_features/feature\_types.py}
@@ -822,6 +826,72 @@ file \texttt{pyslam/local\_features/feature\_manager.py} for further details.
 able to work with all the
 \protect\hyperlink{supported-local-features}{supported local features}!
 
+\subsection{Visual-model integration and validation}
+The additive \texttt{pyslam.visual\_models} catalog records existing local features,
+pair matchers and global descriptor extractors using lazy constructor symbols.
+The existing serialized enums, \texttt{FeatureInfo} tables, presets and runtime
+dispatch remain authoritative. Stateful extractor instances stay with their
+pipeline owners rather than being shared through a global cache.
+
+The new weight resolver supports checksum-verified caches, immutable Hugging Face
+revisions, offline operation and explicit prefetching. Existing wrappers retain
+their legacy weight-loading behavior until individually validated migrations.
+The read-only command \texttt{python -m pyslam.visual\_models check} reports
+unresolved dependency, weight and license checks without constructing a model.
+
+Inventory and benchmark scripts capture source/patch provenance, enum/table
+compatibility, median/p95 pair timings and numerical output fixtures. Missing
+measurements remain explicit: synthetic pair inliers do not replace sequence ATE,
+and a CPU baseline does not certify GPU performance. New methods and runtime
+defaults require output equivalence, license review and completed performance gates.
+See \texttt{docs/visual\_features.md} for the generated catalog and commands.
+
+The feature manager and feature matcher import learned/vendor wrappers (and kornia,
+LightGlue, XFeat, TensorFlow) only when the selected configuration constructs them.
+OpenCV and ORB2 features are unaffected. Importing the feature stack dropped from about
+4\,s to 0.3\,s, and benchmark process startup from about 7.3\,s to 1.4\,s with half the
+peak memory; outputs are bit-identical for the deterministic presets. On Linux,
+\texttt{pyslam/config.py} also fixes glibc's heap trim/mmap thresholds, so per-frame
+image buffers are reused instead of being returned to the kernel and page-faulted back
+on every frame (about 17k faults per SIFT call at 640$\times$480 with glibc defaults).
+\texttt{PYSLAM\_MALLOC\_TUNING=0} restores the defaults.
+
+Torch-based learned detectors run inference on one long-lived thread each. Stereo
+frames are extracted on threads created per frame, and PyTorch rebuilds per-thread
+CUDA/cuDNN state on every call from a new thread (at KITTI resolution: ALIKED 20 to
+45\,ms, DeDoDe 175\,ms to 2.8\,s per image). Outputs are unchanged; KITTI stereo tracking
+went from 197 to 90\,ms per frame with ALIKED. New integrations: the DeDoDe~v2 local
+feature (via kornia) and the SALAD and BoQ global descriptors for loop closure (pinned
+torch.hub sources); the MegaLoc loop detector, previously unusable because of a factory
+error, works again.
+
+Three accelerations are opt-in and off by default. They are enabled with environment
+variables, or the matching fields in \texttt{pyslam/config\_parameters.py}, and can
+change matches slightly; those differences are accepted when the option is on.
+\texttt{PYSLAM\_GPU\_NN\_MATCHER=1} matches float L2 descriptors on the GPU with the
+same one-to-one ratio test as the C++ path (about 5--10$\times$ faster per pair).
+Rare near-ties can flip, and FLANN's approximate search becomes exact. It applies
+to the Python \texttt{FeatureMatcher} only.
+\texttt{PYSLAM\_LIGHTGLUE\_BATCHED=1} matches one keyframe against every candidate of
+\texttt{compute\_frame\_matches} in one forward. On the measured GPU it was 10--20\%
+slower than per-pair matching, and one of twelve test pairs differed by a single
+match. \texttt{PYSLAM\_TORCH\_COMPILE=1} compiles SuperPoint, XFeat, ALIKED and
+LightGlue (\texttt{PYSLAM\_TORCH\_COMPILE\_BACKEND} is \texttt{inductor} or
+\texttt{tensorrt}). Extraction stayed within $\pm$5\%, the first call spends
+several seconds compiling, and keypoint order can change. The TensorRT backend
+needs \texttt{torch\_tensorrt}, which pySLAM does not install, and any failure
+falls back to eager mode. Set \texttt{TORCHINDUCTOR\_COMPILE\_THREADS=1} so the
+inductor workers stay within memory. Commands and the 60-frame smoke results are
+in \texttt{docs/visual\_features.md}.
+
+Stereo initialization boosts both image extractors and progressively relaxes
+point support after repeated failures, bounded by twice the depth-PnP minimum.
+Acceptance requires finite optimization and, for stereo/RGB-D, improved left-image
+reprojection error measured consistently before and after BA (monocular keeps its
+original solver-chi2 comparison). Reset restores the original initialization checks.
+Map benchmarks isolate map operations from feature extraction; cross-backend speed
+ratios are advisory by default, with optional same-backend baseline regression checks.
+
 \hypertarget{supported-matchers}{%
 \subsection{Supported matchers}\label{supported-matchers}}
 
@@ -832,6 +902,7 @@ able to work with all the
     \item \href{https://arxiv.org/abs/2306.13643}{LightGlue} \cite{lindenberger2023lightglue}
     \item \href{https://arxiv.org/abs/2104.00680}{LoFTR} \cite{sun2021loftr}
     \item \href{https://arxiv.org/abs/2406.09756}{MASt3R} \cite{master}
+    \item \href{https://github.com/Parskatt/RoMa}{RoMa} and tiny-RoMa \cite{edstedt2024roma} (dense, detector-free)
 \end{itemize}
 
 See the file \texttt{pyslam/local\_features/feature\_matcher.py} for further
@@ -878,7 +949,11 @@ Also referred to as \emph{holistic descriptors}:
 \item
   \href{https://github.com/gmberton/EigenPlaces}{EigenPlaces} \cite{berton2023eigenplaces}
 \item
-  \href{https://github.com/gmberton/MegaLoc}{MegaLoc} \cite{berton2025megaloc}	
+  \href{https://github.com/gmberton/MegaLoc}{MegaLoc} \cite{berton2025megaloc}
+\item
+  \href{https://github.com/serizba/salad}{SALAD} \cite{izquierdo2024salad}
+\item
+  \href{https://github.com/amaralibey/Bag-of-Queries}{BoQ} \cite{alibey2024boq}
 \end{itemize}
 
 Different \protect\hyperlink{loop-closing}{loop closing methods} are
@@ -1702,7 +1777,7 @@ bags of binary words and, if needed, convert (front-end) non-binary
 descriptors into binary ones. 
 \item Others: Methods like \texttt{HDC\_DELF},
 \texttt{SAD}, \texttt{AlexNet}, \texttt{NetVLAD}, \texttt{CosPlace}, and
-\texttt{EigenPlaces}, and \texttt{Megaloc} directly extract their specific \textbf{global
+\texttt{EigenPlaces}, \texttt{Megaloc}, \texttt{SALAD}, and \texttt{BoQ} directly extract their specific \textbf{global
 descriptors} and process them using dedicated aggregators, independently
 from the used front-end descriptors.
 \end{itemize}

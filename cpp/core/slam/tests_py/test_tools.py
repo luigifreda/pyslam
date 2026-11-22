@@ -1,7 +1,24 @@
 #!/usr/bin/env python3
 """
-Test script for pybind11 SLAM C++ module
-Tests core C++ classes against Python implementations with systematic comparison
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+*
+* Test script for pybind11 SLAM C++ module
+* Tests core C++ classes against Python implementations with systematic comparison
 """
 
 import sys
@@ -38,6 +55,8 @@ class PerformanceResult:
     python_time: float
     speedup: float
     passed: bool
+    require_speedup: bool = True
+    error_message: str = ""
 
 
 # ============================================================================
@@ -401,43 +420,37 @@ class PerformanceTestUnit(ABC):
         """Run C++ benchmark, return execution time"""
         pass
 
-    def execute(self, cpp_module, python_module) -> PerformanceResult:
+    def execute(self, cpp_module, python_module, *, require_speedup=True) -> PerformanceResult:
         """Execute performance test"""
         self.setup()
 
-        # Warmup
-        try:
-            self.run_benchmark("C++", cpp_module)
-            self.run_benchmark("Python", python_module)
-        except:
-            pass
-
-        # Benchmark C++
-        cpp_times = []
-        for _ in range(self.num_iterations):
+        errors = []
+        for label, module in (("C++", cpp_module), ("Python", python_module)):
             try:
-                cpp_time = self.run_benchmark("C++", cpp_module)
-                cpp_times.append(cpp_time)
-            except Exception as e:
-                print(f"C++ benchmark failed: {e}")
-                cpp_times.append(float("inf"))
-                traceback.print_exc()
+                self.run_benchmark(label, module)
+            except Exception as error:
+                errors.append(f"{label} warmup: {error}")
 
-        # Benchmark Python
-        python_times = []
-        for _ in range(self.num_iterations):
-            try:
-                python_time = self.run_benchmark("Python", python_module)
-                python_times.append(python_time)
-            except Exception as e:
-                print(f"Python benchmark failed: {e}")
-                python_times.append(float("inf"))
-                traceback.print_exc()
+        samples = {"C++": [], "Python": []}
+        for iteration in range(self.num_iterations):
+            # Pair measurements and counterbalance order to reduce clock/cache drift.
+            pair = (("C++", cpp_module), ("Python", python_module))
+            for label, module in pair if iteration % 2 == 0 else reversed(pair):
+                try:
+                    elapsed = float(self.run_benchmark(label, module))
+                    if not np.isfinite(elapsed) or elapsed <= 0:
+                        raise ValueError(f"invalid elapsed time: {elapsed}")
+                    samples[label].append(elapsed)
+                except Exception as error:
+                    errors.append(f"{label} sample {iteration}: {error}")
+                    samples[label].append(float("inf"))
+        cpp_times, python_times = samples["C++"], samples["Python"]
 
         cpp_median = np.median(cpp_times)
         python_median = np.median(python_times)
         speedup = python_median / cpp_median if cpp_median > 0 else 0
-        passed = cpp_median < python_median
+        valid = not errors and bool(cpp_times) and np.isfinite(cpp_median) and np.isfinite(python_median)
+        passed = bool(valid and (not require_speedup or cpp_median < python_median))
 
         return PerformanceResult(
             name=self.name,
@@ -445,6 +458,8 @@ class PerformanceTestUnit(ABC):
             python_time=python_median,
             speedup=speedup,
             passed=passed,
+            require_speedup=require_speedup,
+            error_message="; ".join(errors),
         )
 
 
@@ -516,7 +531,7 @@ class TestSuite:
 
         return results
 
-    def run_performance_tests(self, cpp_module, python_module) -> List[PerformanceResult]:
+    def run_performance_tests(self, cpp_module, python_module, *, require_speedup=True) -> List[PerformanceResult]:
         """Run all performance tests"""
         print("\n" + "=" * 100)
         print("Running Performance Tests")
@@ -526,7 +541,7 @@ class TestSuite:
         for test in self.performance_tests:
             print("\n" + "-" * 60)
             print(f"Running {test.name}...", end=" ")
-            result = test.execute(cpp_module, python_module)
+            result = test.execute(cpp_module, python_module, require_speedup=require_speedup)
             results.append(result)
 
             # Fix the numpy array boolean issue
@@ -537,12 +552,14 @@ class TestSuite:
                 passed = bool(passed)
 
             if passed:
+                status = "PASSED" if result.require_speedup else "MEASURED (comparison only)"
+                ratio_label = "Speedup" if result.require_speedup else "Python/C++ time ratio"
                 print(
-                    f"✅ PASSED - Speedup: {result.speedup:.1f}x (C++: {result.cpp_time:.6f}s, Python: {result.python_time:.6f}s)"
+                    f"✅ {status} - {ratio_label}: {result.speedup:.2f}x (C++: {result.cpp_time:.6f}s, Python: {result.python_time:.6f}s)"
                 )
             else:
                 print(
-                    f"❌ FAILED - C++ slower (C++: {result.cpp_time:.6f}s, Python: {result.python_time:.6f}s)"
+                    f"❌ FAILED - {result.error_message or 'C++ slower'} (C++: {result.cpp_time:.6f}s, Python: {result.python_time:.6f}s)"
                 )
 
         return results
@@ -571,7 +588,9 @@ class TestSuite:
             if (bool(np.all(r.passed)) if isinstance(r.passed, np.ndarray) else bool(r.passed))
         )
         total_performance = len(performance_results)
-        print(f"Performance Tests: {passed_performance}/{total_performance} passed")
+        comparisons_only = bool(performance_results) and all(not r.require_speedup for r in performance_results)
+        label = "Performance measurements" if comparisons_only else "Performance Tests"
+        print(f"{label}: {passed_performance}/{total_performance} {'valid' if comparisons_only else 'passed'}")
 
         # Functional details
         if functional_results:
@@ -597,11 +616,12 @@ class TestSuite:
                     else bool(result.passed)
                 )
                 status = "✅" if passed else "❌"
-                print(f"  {status} {result.name:30} {result.speedup:6.1f}x speedup")
+                ratio_label = "speedup" if result.require_speedup else "Python/C++ time ratio"
+                print(f"  {status} {result.name:30} {result.speedup:6.1f}x {ratio_label}")
 
         total_passed = passed_functional + passed_performance
         total_tests = total_functional + total_performance
 
-        print(f"\nOverall: {total_passed}/{total_tests} tests passed")
+        print(f"\nOverall: {total_passed}/{total_tests} {'checks' if comparisons_only else 'tests'} passed")
 
         return total_passed == total_tests

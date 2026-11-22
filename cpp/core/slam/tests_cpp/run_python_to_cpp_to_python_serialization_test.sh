@@ -1,4 +1,7 @@
 #!/bin/bash
+# Author: Luigi Freda 
+# This file is part of https://github.com/luigifreda/pyslam
+
 # Script to run Python → C++ → Python round-trip serialization test
 # This test verifies that data is correctly preserved when going through both serialization paths
 

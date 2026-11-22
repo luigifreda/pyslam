@@ -22,6 +22,7 @@
   - [Scene from Views](#scene-from-views)
   - [Shared Infrastructure](#shared-infrastructure)
     - [Camera models](#camera-models)
+    - [Visual model catalog](#visual-model-catalog)
 
 <!-- /TOC -->
 
@@ -128,7 +129,7 @@ The section [Supported matchers](../README.md#supported-matchers) reports a list
 <img src="./images/indirect_slam/loop_detector.png" alt="Loop Detector"  /> 
 </p>
 
-This diagram shows the architecture of the *Loop Detector* component. A central `loop_detector_factory` instantiates loop detectors based on the selected `global_descriptor_type`, which may include traditional descriptors (e.g., `DBOW2`, `VLAD`, `IBOW`) or deep learning-based embeddings (e.g., `NetVLAD`, `CosPlace`, `EigenPlaces`, `Megaloc`).
+This diagram shows the architecture of the *Loop Detector* component. A central `loop_detector_factory` instantiates loop detectors based on the selected `global_descriptor_type`, which may include traditional descriptors (e.g., `DBOW2`, `VLAD`, `IBOW`) or deep learning-based embeddings (e.g., `NetVLAD`, `CosPlace`, `EigenPlaces`, `Megaloc`, `SALAD`, `BoQ`).
 
 Each descriptor type creates a corresponding loop detector implementation (e.g., `LoopDetectorDBoW2`, `LoopDetectorNetVLAD`), all of which inherit from a base class hierarchy. Traditional methods inherit directly from `LoopDetectorBase`, while deep learning-based approaches inherit from `LoopDetectorVprBase`, which itself extends `LoopDetectorBase`. This design supports modular integration of diverse place recognition techniques within a unified loop closure framework.
 
@@ -296,3 +297,11 @@ The model parameters, pixel conventions, and factor layout are described in [Cam
 New-model mapping uses raw-pixel measurements consistently. RGB-D and calibrated native stereo use model-aware native factors, and serialization preserves camera subclasses and rig extrinsics. Pinhole observations retain their native optimizer paths. See [TUM-VI](./tum-vi.md) for native and rectified modes, and [Camera models](../cpp/modules/camera_models/README.md#tests) for the regression suite.
 
 The direct SLAM pipeline uses the same camera classes. All its modes accept an undistorted pinhole or a raw-pixel camera and track in the distorted pixels; for monocular or RGBD input, the runner undistorts the images of a distorted pinhole; see [Direct SLAM](./direct_slam.md#quick-start) for the supported sensors.
+
+### Visual model catalog
+
+The additive [`pyslam.visual_models` catalog](./visual_features.md) records constructor symbols, capabilities, dependency groups and source provenance without importing inference frameworks. Its lazy factories resolve constructors on demand; pipeline owners retain stateful extractor instances. The checksum/offline weight resolver is available for individually validated migrations. Existing feature-manager/matcher dispatch, serialized enums, FeatureInfo tables and loop-detector process remain in use.
+
+<p align="center">
+<img src="./images/shared/visual_model_catalog.png" alt="Visual Model Catalog"  />
+</p>

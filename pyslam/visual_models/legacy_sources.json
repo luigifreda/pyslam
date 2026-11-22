@@ -1,0 +1,398 @@
+{
+  "LightGlue": {
+    "checkout_sha": "edb2b838efb2ecfe3f88097c5fad9887d95aedad",
+    "license_evidence": [
+      {
+        "heading": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n   1. Definitions.\n\n      \"License\" shall mean the terms and conditions for u",
+        "path": "thirdparty/LightGlue/LICENSE",
+        "sha256": "0e6031ed3e62dc91dc8b1c8f240abd200b1083f60773362e64e339fe01d1bf18"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [
+      "thirdparty/lightglue.patch"
+    ],
+    "path": "thirdparty/LightGlue",
+    "revision": "edb2b838efb2ecfe3f88097c5fad9887d95aedad",
+    "url": "https://github.com/cvg/LightGlue.git",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "SOSNet": {
+    "checkout_sha": "aea9275e4a3bdbea33d6fa9766bf167847760532",
+    "license_evidence": [],
+    "license_review": "pending; weight terms are separate",
+    "patches": [],
+    "path": "thirdparty/SOSNet",
+    "revision": "aea9275e4a3bdbea33d6fa9766bf167847760532",
+    "url": "https://github.com/yuruntian/SOSNet.git",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "accelerated_features": {
+    "checkout_sha": "e92685f57f8318b18725c5c8c0bd28c7fe188d9a",
+    "license_evidence": [
+      {
+        "heading": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n   1. Definitions.\n\n      \"License\" shall mean the terms and conditions for u",
+        "path": "thirdparty/accelerated_features/LICENSE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [],
+    "path": "thirdparty/accelerated_features",
+    "revision": "e92685f57f8318b18725c5c8c0bd28c7fe188d9a",
+    "url": "https://github.com/verlab/accelerated_features.git",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "boq": {
+    "package": "amaralibey/Bag-of-Queries (pinned torch.hub entry point get_trained_boq)",
+    "revision": "1a4965ea7dfd9bd0dd846adf7a0e430f68101d12",
+    "license_review": "MIT; DINOv2 backbone Apache-2.0",
+    "weights": "github release v1.0 dinov2_12288.pth (SHA-256 registered) + facebookresearch/dinov2 via torch.hub"
+  },
+  "contextdesc": {
+    "license_review": "pending; no redistribution or model migration authorized by metadata alone",
+    "path": "thirdparty/contextdesc",
+    "revision": null,
+    "url": null,
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "d2net": {
+    "checkout_sha": "2a4d88fbe84961a3a17c46adb6d16a94b87020c5",
+    "license_evidence": [
+      {
+        "heading": "The Clear BSD License\n\nCopyright (c) 2019 Mihai Dusmanu\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted (subject to the limitations in the disclaimer\nbelow) provided that the following conditions are met:\n\n     * Redistributions of",
+        "path": "thirdparty/d2net/LICENSE",
+        "sha256": "f9b2a348d3ac4473f1a9a75e106c71d09eebc155fed1f8998e0d6a7e7a0a5aaa"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [
+      "thirdparty/d2net.patch"
+    ],
+    "path": "thirdparty/d2net",
+    "revision": "2a4d88fbe84961a3a17c46adb6d16a94b87020c5",
+    "url": "https://github.com/mihaidusmanu/d2-net.git",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "dedode": {
+    "package": "kornia (kornia.feature.DeDoDe); no new install",
+    "observed_version": "0.8.2",
+    "license_review": "code Apache-2.0 (kornia); method and weights MIT (Parskatt/DeDoDe)",
+    "weights": "dedode_detector_L_v2.pth, dedode_descriptor_B.pth (SHA-256 registered)"
+  },
+  "disk": {
+    "checkout_sha": "eafa0ee80d26f86d6c838b78cea8ae4c9abd4b51",
+    "license_evidence": [
+      {
+        "heading": "Code release for \"DISK: learning local features with policy gradient\" (NeurIPS 2020)\nCopyright (C) 2020 Micha\u0142 Tyszkiewicz, Pascal Fua, Eduard Trulls\n\nThis program is free software: you can redistribute it and/or modify\nit under the terms of the GNU General Public License as published by\nthe Free So",
+        "path": "thirdparty/disk/LICENSE.txt",
+        "sha256": "27ff1bb1d8d1ee44af861b79882de6f4d1418f3632a8e61b2274c20980588a34"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [],
+    "path": "thirdparty/disk",
+    "revision": "eafa0ee80d26f86d6c838b78cea8ae4c9abd4b51",
+    "url": "https://github.com/cvlab-epfl/disk.git",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "geodesc": {
+    "license_review": "pending; no redistribution or model migration authorized by metadata alone",
+    "path": "thirdparty/geodesc",
+    "revision": null,
+    "url": null,
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "hardnet": {
+    "checkout_sha": "74fe11a77460aa2aef84ffeb07fa5cde3afec37f",
+    "license_evidence": [
+      {
+        "heading": "MIT License\n\nCopyright (c) 2017 Anastasiia Mishchuk, Dmytro Mishkin\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights",
+        "path": "thirdparty/hardnet/LICENSE",
+        "sha256": "947406498f4d5b6faf8c8ed357687e3b6762b23f51bbb40294b8c96472506c4d"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [],
+    "path": "thirdparty/hardnet",
+    "revision": "74fe11a77460aa2aef84ffeb07fa5cde3afec37f",
+    "url": "https://github.com/DagnyT/hardnet",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "keynet": {
+    "checkout_sha": "ce7a9c9c5d9141ee958218b32779214aeff7787a",
+    "license_evidence": [
+      {
+        "heading": "The Clear BSD License\n\nCopyright (c) 2019 Axel Barroso-Laguna\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted (subject to the limitations in the disclaimer\nbelow) provided that the following conditions are met:\n\n     * Redistributi",
+        "path": "thirdparty/keynet/LICENSE",
+        "sha256": "8e7d780617b788d915f5de780c048426549cc40ae167e25a1133efc31410a46d"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [
+      "thirdparty/keynet.patch"
+    ],
+    "path": "thirdparty/keynet",
+    "revision": "ce7a9c9c5d9141ee958218b32779214aeff7787a",
+    "url": "https://github.com/axelBarroso/Key.Net.git",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "kornia": {
+    "license_review": "existing integration; review code and weight terms before new redistribution",
+    "observed_version": "0.8.2",
+    "package": "kornia",
+    "pin_source": "scripts/install_pip3_packages.sh and scripts/install_final_pip_pins.sh"
+  },
+  "l2net": {
+    "license_review": "pending; no redistribution or model migration authorized by metadata alone",
+    "path": "thirdparty/l2net",
+    "revision": null,
+    "url": null,
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "lfnet": {
+    "checkout_sha": "12ba6ebf427cdcac1eebbbc36b3bdaf082809a02",
+    "license_evidence": [
+      {
+        "heading": "This software  release is only for  research and evaluation purposes  only. For\nany  form of  commercial  usage, prior  approval form  EPFL  and University  of\nVictoria should be obtained in writing.\n",
+        "path": "thirdparty/lfnet/license.md",
+        "sha256": "aaf290532c0fcd2cc27cb7cb9a687a51426deb8f7939f266fde33a66d0e3ce9e"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [
+      "thirdparty/lfnet.patch"
+    ],
+    "path": "thirdparty/lfnet",
+    "revision": "12ba6ebf427cdcac1eebbbc36b3bdaf082809a02",
+    "url": "https://github.com/vcg-uvic/lf-net-release.git",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "logpolar": {
+    "checkout_sha": "aed70f882cddcfe0c27b65768b9248bf1f2c65cb",
+    "license_evidence": [
+      {
+        "heading": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n   1. Definitions.\n\n      \"License\" shall mean the terms and conditions for ",
+        "path": "thirdparty/logpolar/LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [],
+    "path": "thirdparty/logpolar",
+    "revision": "aed70f882cddcfe0c27b65768b9248bf1f2c65cb",
+    "url": "https://github.com/cvlab-epfl/log-polar-descriptors.git",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "mast3r": {
+    "license_review": "pending; no redistribution or model migration authorized by metadata alone",
+    "path": "thirdparty/mast3r",
+    "revision": "e06b0093ddacfd8267cdafe5387954a650af0d3b",
+    "url": "https://github.com/naver/mast3r",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "megaloc": {
+    "license_review": "pending",
+    "revision": null,
+    "url": "https://github.com/gmberton/MegaLoc",
+    "weights": {
+      "migration": "legacy torch.hub entry point retained; upstream pin unresolved",
+      "verified_sources": []
+    }
+  },
+  "opencv": {
+    "license_review": "existing integration; review code and weight terms before new redistribution",
+    "observed_version": "4.11.0.86",
+    "package": "opencv-python",
+    "pin_source": "scripts/install_pip3_packages.sh and scripts/install_final_pip_pins.sh"
+  },
+  "orbslam2_features": {
+    "license_review": "pending; no redistribution or model migration authorized by metadata alone",
+    "path": "thirdparty/orbslam2_features",
+    "revision": null,
+    "url": null,
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "patch_netvlad": {
+    "checkout_sha": "cddb9ae39391bc598dfb9e28ef762f1c084ff0cd",
+    "license_evidence": [
+      {
+        "heading": "MIT License\n\nCopyright (c) 2021 Stephen Hausler, Sourav Garg, Ming Xu, Michael Milford and Tobias Fischer\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, i",
+        "path": "thirdparty/patch_netvlad/LICENSE",
+        "sha256": "3df73bbe7dec87510d0962c404558b1a810bbe3209e745835f1b4cf2bff84cc4"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [
+      "thirdparty/patch_netvlad.patch"
+    ],
+    "path": "thirdparty/patch_netvlad",
+    "revision": "cddb9ae39391bc598dfb9e28ef762f1c084ff0cd",
+    "url": "https://github.com/QVPR/Patch-NetVLAD.git",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "r2d2": {
+    "checkout_sha": "b23a2c4f4f6083e2eb36d39b159875ca4d7ff852",
+    "license_evidence": [
+      {
+        "heading": "Creative Commons\n\nAttribution-NonCommercial-ShareAlike 3.0 Unported\n\nCREATIVE COMMONS CORPORATION IS NOT A LAW FIRM AND DOES NOT PROVIDE LEGAL SERVICES. DISTRIBUTION OF THIS LICENSE DOES NOT CREATE AN ATTORNEY-CLIENT RELATIONSHIP. CREATIVE COMMONS PROVIDES THIS INFORMATION ON AN \"AS-IS\" BASIS. CREAT",
+        "path": "thirdparty/r2d2/LICENSE",
+        "sha256": "2891af7a316a5783cdbde291bb6122637f0934473997fd7a335f8b668e2dcd7f"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [
+      "thirdparty/r2d2.patch"
+    ],
+    "path": "thirdparty/r2d2",
+    "revision": "b23a2c4f4f6083e2eb36d39b159875ca4d7ff852",
+    "url": "https://github.com/naver/r2d2.git",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "rdd": {
+    "package": "xtcpete/rdd (pinned source snapshot, mounted as pyslam_vendor_rdd; not pip-installed)",
+    "revision": "02ff3724279332eca395befd8a8ba5198f3484f0",
+    "license_review": "Apache-2.0 (code); weights distributed by the authors with the repository",
+    "weights": "Google Drive weights/rdd.pth (SHA-256 registered and verified before loading)",
+    "notes": "pure-PyTorch deformable attention unless the optional CUDA op is compiled"
+  },
+  "roma": {
+    "package": "Parskatt/RoMa (romatch) from a pinned source snapshot; not pip-installed",
+    "revision": "77f8d68803526dcddfd9b7a46bc76125bdc25f15",
+    "license_review": "code and weights MIT; DINOv2 Apache-2.0; tiny-RoMa uses pyslam's vendored XFeat (Apache-2.0)",
+    "weights": "roma_outdoor.pth, tiny_roma_v1_outdoor.pth (Parskatt/storage releases) + dinov2_vitl14_pretrain.pth; SHA-256 registered",
+    "notes": "loguru shimmed to logging if absent; fused-local-corr not used (use_custom_corr=False)"
+  },
+  "salad": {
+    "package": "serizba/salad (pinned torch.hub snapshot; model assembled without the Lightning wrapper)",
+    "revision": "6aede13a3f6c25750bf7fde10209c06cb73060bb",
+    "license_review": "code and weights GPL-3.0 (same as pyslam); DINOv2 backbone Apache-2.0",
+    "weights": "github release v1.0.0 dino_salad.ckpt (SHA-256 registered) + facebookresearch/dinov2 vitb14 via torch.hub"
+  },
+  "superpoint": {
+    "checkout_sha": "4698c7f001663ff2b13304d699f2cdb3f663c28f",
+    "license_evidence": [
+      {
+        "heading": "SUPERPOINT: SELF-SUPERVISED INTEREST POINT DETECTION AND DESCRIPTION\nSOFTWARE LICENSE AGREEMENT\nACADEMIC OR NON-PROFIT ORGANIZATION NONCOMMERCIAL RESEARCH USE ONLY\n\nBY USING OR DOWNLOADING THE SOFTWARE, YOU ARE AGREEING TO THE TERMS OF THIS LICENSE AGREEMENT.  IF YOU DO NOT AGREE WITH THESE TERMS, Y",
+        "path": "thirdparty/superpoint/LICENSE",
+        "sha256": "a79449584867091af048b81d4b8fa3a0e2cfa724ccf994a5873dea8c073d9266"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [],
+    "path": "thirdparty/superpoint",
+    "revision": "4698c7f001663ff2b13304d699f2cdb3f663c28f",
+    "url": "https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork.git",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "tensorflow_models": {
+    "checkout_sha": "4e1539bf961071710543e0e6d53268d86df5d216",
+    "license_evidence": [
+      {
+        "heading": "Copyright 2022 Google LLC. All rights reserved.\n\nAll files in the following folders:\n/community\n/official\n/orbit\n/research\n/tensorflow_models\n\nAre licensed as follows:\n\n                                 Apache License\n                           Version 2.0, January 2004\n                        http:/",
+        "path": "thirdparty/tensorflow_models/LICENSE",
+        "sha256": "5b17814bf0de8cf65069bc6d7cc38cff19fcaa864d243423ad3ef3db01b52385"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [],
+    "path": "thirdparty/tensorflow_models",
+    "revision": "4e1539bf961071710543e0e6d53268d86df5d216",
+    "url": "https://github.com/tensorflow/models",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "tfeat": {
+    "checkout_sha": "9a34fb9233b9bfdffab1c6fb5bf9fda0ca82dc49",
+    "license_evidence": [
+      {
+        "heading": "MIT License\n\nCopyright (c) 2018 Vassileios Balntas\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, mo",
+        "path": "thirdparty/tfeat/LICENSE",
+        "sha256": "289ac9164a572aa1208afeb7ac93b71a8025af85275c0bfcd383d4fd3a8d0230"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [],
+    "path": "thirdparty/tfeat",
+    "revision": "9a34fb9233b9bfdffab1c6fb5bf9fda0ca82dc49",
+    "url": "https://github.com/vbalnt/tfeat.git",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  },
+  "vpr": {
+    "checkout_sha": "bfbbc6ec681c2168e6032356013b2cd37ebc1a5f",
+    "license_evidence": [
+      {
+        "heading": "                    GNU GENERAL PUBLIC LICENSE\n                       Version 3, 29 June 2007\n\n Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>\n Everyone is permitted to copy and distribute verbatim copies\n of this license document, but changing it is not allowed.\n\n             ",
+        "path": "thirdparty/vpr/LICENSE",
+        "sha256": "8b1ba204bb69a0ade2bfcf65ef294a920f6bb361b317dba43c7ef29d96332b9b"
+      }
+    ],
+    "license_review": "pending; weight terms are separate",
+    "patches": [
+      "thirdparty/vpr.patch"
+    ],
+    "path": "thirdparty/vpr",
+    "revision": "bfbbc6ec681c2168e6032356013b2cd37ebc1a5f",
+    "url": "https://github.com/stschubert/VPR_Tutorial.git",
+    "weights": {
+      "migration": "legacy wrapper paths retained",
+      "verified_sources": []
+    }
+  }
+}

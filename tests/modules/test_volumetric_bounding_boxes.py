@@ -1,46 +1,62 @@
 #!/usr/bin/env python3
 """
-Comprehensive tests for bounding box classes.
-
-Tests:
-
-- **BoundingBox3D**
-  - Basic operations (creation, getters)
-  - Contains (single point and multiple points)
-  - Intersects with other boxes
-  - Compute from points
-
-- **OrientedBoundingBox3D**
-  - Basic operations (creation, getters, corners)
-  - Contains (including rotated boxes)
-  - Intersects (OBB vs OBB, OBB vs AABB)
-  - Compute from points (PCA method)
-  - Compute from points (Convex Hull method, requires Qhull)
-
-- **BoundingBox2D**
-  - Basic operations
-  - Contains and intersects
-  - Compute from points
-
-- **OrientedBoundingBox2D**
-  - Basic operations
-  - Contains (including rotated boxes)
-  - Intersects
-  - Compute from points
-
-- **Edge Cases**
-  - Single point
-  - Two points
-  - Collinear points
-  - Coplanar points
-
-## Notes
-
-- The convex hull method for OBB computation requires Qhull to be installed and linked
-- If Qhull is not available, the convex hull tests will be skipped with a warning
-- All tests use numpy arrays for point coordinates
-- Tests verify both correctness and edge case handling
-
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+*
+* Comprehensive tests for bounding box classes.
+*
+* Tests:
+*
+* - **BoundingBox3D**
+*   - Basic operations (creation, getters)
+*   - Contains (single point and multiple points)
+*   - Intersects with other boxes
+*   - Compute from points
+*
+* - **OrientedBoundingBox3D**
+*   - Basic operations (creation, getters, corners)
+*   - Contains (including rotated boxes)
+*   - Intersects (OBB vs OBB, OBB vs AABB)
+*   - Compute from points (PCA method)
+*   - Compute from points (Convex Hull method, requires Qhull)
+*
+* - **BoundingBox2D**
+*   - Basic operations
+*   - Contains and intersects
+*   - Compute from points
+*
+* - **OrientedBoundingBox2D**
+*   - Basic operations
+*   - Contains (including rotated boxes)
+*   - Intersects
+*   - Compute from points
+*
+* - **Edge Cases**
+*   - Single point
+*   - Two points
+*   - Collinear points
+*   - Coplanar points
+*
+* ## Notes
+*
+* - The convex hull method for OBB computation requires Qhull to be installed and linked
+* - If Qhull is not available, the convex hull tests will be skipped with a warning
+* - All tests use numpy arrays for point coordinates
+* - Tests verify both correctness and edge case handling
 """
 
 import sys

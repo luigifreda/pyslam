@@ -103,7 +103,7 @@ index fe24051..6e1febc 100644
          else:
 -            print('Using CPU')
 -            self.device = torch.device("cpu")
-+            self.device = device
++            self.device = torch.device(device)
          self.model = torch.hub.load("gmberton/cosplace", "get_trained_model",
                                      backbone="ResNet50", fc_output_dim=2048)
 +        if share_memory:
@@ -193,7 +193,7 @@ index 5471cff..c507811 100644
          else:
 -            print('Using CPU')
 -            self.device = torch.device("cpu")
-+            self.device = device
++            self.device = torch.device(device)
          self.model = torch.hub.load("gmberton/eigenplaces", "get_trained_model",
                                      backbone="ResNet50", fc_output_dim=2048)
 +        

@@ -47,6 +47,9 @@ class XFeat2D(BaseFeature2D):
         print("====>XFeat")
         # This class runs the SuperPoint network and processes its outputs.
         self.xfeat = XFeat(top_k=num_features)
+        from pyslam.utilities.torch_compile import compile_module_forward
+
+        compile_module_forward(self.xfeat.net, "XFeat")  # opt-in (PYSLAM_TORCH_COMPILE=1)
 
         self.pts = []
         self.kps = []

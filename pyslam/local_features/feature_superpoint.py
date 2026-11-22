@@ -106,6 +106,9 @@ class SuperPointFeature2D(BaseFeature2D):
             nn_thresh=self.opts.nn_thresh,
             cuda=self.opts.cuda,
         )
+        from pyslam.utilities.torch_compile import compile_module_forward
+
+        compile_module_forward(self.fe.net, "SuperPoint")  # opt-in (PYSLAM_TORCH_COMPILE=1)
         print("==> Successfully loaded pre-trained network.")
 
         self.pts = []

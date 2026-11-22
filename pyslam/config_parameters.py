@@ -41,6 +41,18 @@ def _use_cpp_core_from_env(default: bool) -> bool:
     return default
 
 
+def _bool_from_env(name: str, default: bool) -> bool:
+    v = os.environ.get(name)
+    if v is None:
+        return default
+    s = v.strip().lower()
+    if s in ("false", "0", "no", "off"):
+        return False
+    if s in ("true", "1", "yes", "on"):
+        return True
+    return default
+
+
 # List of shared static parameters for configuring SLAM modules
 class Parameters:
 
@@ -96,6 +108,12 @@ class Parameters:
 
     # Feature management
     kSigmaLevel0 = 1.0  # Sigma of the keypoint localization at level 0 (default value is 1 for ORB detector); can be changed by selected feature
+    kFeatureExtractionPersistentThread = _bool_from_env("PYSLAM_PERSISTENT_THREAD", True)  # Run torch-based learned detectors on one long-lived thread each: per-frame threads otherwise rebuild CUDA/cuDNN state on every call (see pyslam/utilities/persistent_thread.py)
+    # Opt-in accelerations (default off). Results can differ slightly from the default path; see docs/visual_features.md.
+    kFeatureMatchUseGpuNN = _bool_from_env("PYSLAM_GPU_NN_MATCHER", False)  # exact GPU kNN + one-to-one ratio test for float (L2) descriptors in BF/FLANN matchers (FLANN is approximate on CPU)
+    kLightGlueBatchedMatching = _bool_from_env("PYSLAM_LIGHTGLUE_BATCHED", False)  # batch LightGlue over the keyframe pairs of compute_frame_matches (no adaptive early-stop/pruning)
+    kTorchCompile = _bool_from_env("PYSLAM_TORCH_COMPILE", False)  # torch.compile learned extractors/LightGlue (slow first calls)
+    kTorchCompileBackend = os.environ.get("PYSLAM_TORCH_COMPILE_BACKEND", "inductor")  # "inductor" or "tensorrt" (needs torch_tensorrt)
     kFeatureMatchDefaultRatioTest = 0.7  # This is the default ratio test used by all feature matchers. It can be configured per descriptor in feature_tracker_configs.py
     # kInitializerFeatureMatchRatioTest        # Ratio test used by Initializer
     #

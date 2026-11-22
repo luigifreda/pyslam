@@ -1,4 +1,6 @@
-# Troubleshooting 
+# Troubleshooting
+
+Visual-model diagnostics are described in [the integration guide](./visual_features.md). Run `python -m pyslam.visual_models check NAME` to inspect a selected integration. The command reports unresolved legacy weight/license checks instead of downloading. For the new resolver, `PYSLAM_MODELS_DIR` selects the cache and `PYSLAM_OFFLINE=1` disables network retrieval; unmigrated wrappers retain their existing cache behavior. If pytest fails before collection inside the installed `torchtyping` plugin, use `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest ...`, as `tests/run_all.sh` does.
 
 <!-- TOC -->
 
@@ -104,6 +106,25 @@ See the related discussion [here](https://github.com/luigifreda/pyslam/issues/22
 
 --- 
 
+## Memory usage and heap tuning
+
+On Linux, `pyslam/config.py` tunes glibc's heap once per process so that per-frame image buffers (OpenCV pyramids, numpy arrays) are reused instead of being returned to the kernel and page-faulted back on every frame. Up to 128 MB of freed heap can stay mapped. To change or disable it:
+
+```bash
+PYSLAM_MALLOC_TRIM_MB=64 python main_slam.py   # keep less freed heap mapped
+PYSLAM_MALLOC_TUNING=0 python main_slam.py     # glibc defaults
+```
+
+Details and measurements: [visual_features.md](./visual_features.md#lazy-imports-and-heap-tuning).
+
+## Learned features: persistent inference threads
+
+Torch-based learned detectors (SuperPoint, XFeat, ALIKED, DISK, R2D2, D2-Net, DeDoDe, ...) run their inference on one long-lived thread each, which avoids rebuilding CUDA/cuDNN state on every stereo frame. To compare with the previous behavior:
+
+```bash
+PYSLAM_PERSISTENT_THREAD=0 python main_slam.py
+```
+
 ## Limitations of `main_vo.py` on General Datasets
 
 As explained in the main [README](../README.md), `main_vo.py` implements a **minimal monocular visual odometry (VO) pipeline**, focusing on the core geometric building blocks rather than a full SLAM system. In particular, it does **not** include:
@@ -187,6 +208,12 @@ These approaches provide additional constraints that make motion and scale estim
 
 
 --- 
+
+## Stereo SLAM stays in initialization
+
+The opening close, repetitive tabletop view in EuRoC V1_02 can produce many temporal feature matches but few reliable stereo depths. Startup boosts both left and right feature budgets; both return to normal once tracking starts. After repeated failures, the stereo initializer progressively relaxes its point target, bounded by twice the configured depth-PnP minimum. It still requires a successful optimization, improved reprojection error measured consistently before and after BA, and sufficient surviving map points. Reset restores the original target and checks. Monocular and RGB-D support fallback policies are unchanged.
+
+Rebuild the C++ core after updating these sources. Use [`benchmark_visual_slam.py`](../benchmarking/benchmark_visual_slam.py) to check accepted trajectory rows; a clean process exit alone does not show that SLAM initialized.
 
 ## Terminal Errors message
 

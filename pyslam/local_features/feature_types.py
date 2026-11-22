@@ -68,6 +68,8 @@ class FeatureDetectorTypes(SerializableEnum):
     LIGHTGLUESIFT = 26  # To be used with LightGlue
     XFEAT = 27  # [end-to-end] joint detector-descriptor - "XFeat: Accelerated Features for Lightweight Image Matching"
     KEYNETAFFNETHARDNET = 28  # [kornia-based] Convenience module, which implements KeyNet detector + AffNet + HardNet descriptor. "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"
+    DEDODE = 29  # [end-to-end, kornia-based] DeDoDe v2 detector + DeDoDe descriptor - "DeDoDe: Detect, Don't Describe - Describe, Don't Detect"
+    RDD = 30  # [end-to-end] joint detector-descriptor - "RDD: Robust Feature Detector and Descriptor using Deformable Transformer"
 
 
 @register_class
@@ -109,6 +111,8 @@ class FeatureDescriptorTypes(SerializableEnum):
     XFEAT = 32  # [end-to-end] joint detector-descriptor - "XFeat: Accelerated Features for Lightweight Image Matching"
     KEYNETAFFNETHARDNET = 33  # [kornia-based] Convenience module, which implements KeyNet detector + AffNet + HardNet descriptor. "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"
     # MAST3R             = 34  # "Grounding Image Matching in 3D with MASt3R"
+    DEDODE = 35  # [end-to-end, kornia-based] only with DEDODE detector - "DeDoDe: Detect, Don't Describe - Describe, Don't Detect" (34 is reserved above)
+    RDD = 36  # [end-to-end] only with RDD detector - "RDD: Robust Feature Detector and Descriptor using Deformable Transformer"
     # NOTE: The extraction of independent descriptors from a single image does not make sense for the MASt3R/DUST3R model. The model ground the image matching in a 3D context defined by two images of the same place.
 
 
@@ -139,6 +143,8 @@ class FeatureInfo(object):
         FeatureDetectorTypes.ALIKED,
         FeatureDetectorTypes.LIGHTGLUESIFT,
         FeatureDetectorTypes.KEYNETAFFNETHARDNET,
+        FeatureDetectorTypes.DEDODE,
+        FeatureDetectorTypes.RDD,
     )
     for detector_type in custom_detector_types:
         need_mask_management[detector_type] = True
@@ -258,6 +264,15 @@ class FeatureInfo(object):
     max_descriptor_distance[FeatureDescriptorTypes.KEYNETAFFNETHARDNET] = (
         2.40  # KEYNETAFFNETHARDNET
     )
+    #
+    norm_type[FeatureDescriptorTypes.DEDODE] = cv2.NORM_L2
+    # 3 * sigma_mad of descriptor distances (main_feature_matching.py rule) on 12 TUM/KITTI/EuRoC
+    # pairs; descriptors are L2-normalized, so distances lie in [0, 2].
+    max_descriptor_distance[FeatureDescriptorTypes.DEDODE] = 1.76  # DEDODE
+    #
+    norm_type[FeatureDescriptorTypes.RDD] = cv2.NORM_L2
+    # 3 * sigma_mad of descriptor distances on the same 12 TUM/KITTI/EuRoC pairs; L2-normalized.
+    max_descriptor_distance[FeatureDescriptorTypes.RDD] = 1.41  # RDD
     #
     # norm_type[FeatureDescriptorTypes.MAST3R] = cv2.NORM_L2
     # max_descriptor_distance[FeatureDescriptorTypes.MAST3R] = 2.0               # MAST3R

@@ -1,5 +1,7 @@
 # Install pyslam virtual environment 
 
+After the standard installation, `./scripts/install_visual_model.sh` (or `python -m pyslam.visual_models install`) prefetches the models integrated through pinned sources (DeDoDe, RDD, RoMa, tiny-RoMa, SALAD, BoQ, MegaLoc, LoFTR weights) and verifies their checksums. It installs no packages and does not change any pin. See [visual_features.md](./visual_features.md#installing-models).
+
 <!-- TOC -->
 
 - [Install pyslam virtual environment](#install-pyslam-virtual-environment)

@@ -1,0 +1,76 @@
+{
+  "cases": [
+    {
+      "cpp_time": 0.0008318159998452757,
+      "name": "Map Point Operations Performance",
+      "python_time": 0.000452181000582641
+    },
+    {
+      "cpp_time": 2.6161000278079882e-05,
+      "name": "Map Frame Operations Performance",
+      "python_time": 1.97730005311314e-05
+    },
+    {
+      "cpp_time": 3.94355010939762e-05,
+      "name": "Map KeyFrame Operations Performance",
+      "python_time": 8.424300176557153e-05
+    }
+  ],
+  "kind": "map_operations",
+  "machine": {
+    "cpu_count": 20,
+    "executable": "/home/luigi/.python/venvs/pyslam/bin/python",
+    "gpu": null,
+    "gpu_clock_policy": "observed only; clocks and power settings are not changed",
+    "machine": "x86_64",
+    "packages": {
+      "huggingface-hub": "2.4.0",
+      "kornia": "0.8.2",
+      "numpy": "1.26.4",
+      "opencv-contrib-python": null,
+      "opencv-python": "4.11.0.86",
+      "tensorflow": "2.13.1",
+      "timm": "1.0.15",
+      "torch": "2.8.0",
+      "torchvision": "0.23.0"
+    },
+    "processor": "x86_64",
+    "python": "3.11.9",
+    "release": "6.8.0-151-generic",
+    "system": "Linux"
+  },
+  "provenance": {
+    "commit": "ef82e58d0bde8bf3e554c005ef5b2f6d772b23aa",
+    "source_sha256": {
+      "cpp/core/slam/initializer.cpp": "de7a0bf01ccefb0d23319883feb4152f24fb1ddd4127cae673b730987957ad79",
+      "cpp/core/slam/slam.cpp": "011e3b5dfe8deb1bf1812ad39ecc9e684645d7e1081b4d5db7ffd154c734910d",
+      "pyslam/config_parameters.py": "6bbf5f3a1ef9d579589a74b68babe95cc90b0e43a34e96c93536e239f1e2a310",
+      "pyslam/local_features/feature_manager.py": "706788e6858af603fcf108e3831c0c490ac6c1083169b5c8f77e4cc94503e266",
+      "pyslam/local_features/feature_matcher.py": "bedf8e6fa274df8a005ecbbf59503760ce4cd672ed31ba542c380f57fb7c5986",
+      "pyslam/local_features/feature_tracker.py": "d969555aa0303b1ba28576ee040b272e9bea73aaee5867f8e0bd3cac5648f9c4",
+      "pyslam/local_features/feature_tracker_configs.py": "676a019ce67ab4c4b72f7907fcbe19b696c8848cb9c595ce89cae810725d9b69",
+      "pyslam/local_features/feature_types.py": "0912de17172fb44e51d7cfbf590aef14d1fd498f28aff2324306f1ab0566fa32",
+      "pyslam/loop_closing/loop_detector_configs.py": "3adcc320d563418f4e1d14ec8733b64799129a9afba36f311d0c14360f19afd8",
+      "pyslam/slam/initializer.py": "b9e6b5c8eb59d3ab4b4b4e3a88d83c9a8f06ed5f857f540dd4ca74997d37c2ef",
+      "pyslam/slam/tracking.py": "891a9853573e70bc32df9b483aaf8a5e3e32284b0576be5a3379c888cbb2312c",
+      "scripts/benchmark_visual_models.py": "222362cf51924a608f95e8d002cd387166a1a8dcd331b5c2af99e90ea8369552",
+      "scripts/benchmark_visual_slam.py": "d2256fef4899baa856e9e822f12adaa4a77886ce295d72a744a3da8f61299c2e"
+    },
+    "worktree_status": "M README.md\n M cpp/core/slam/initializer.cpp\n M cpp/core/slam/slam.cpp\n M cpp/core/slam/tests_cpp/CMakeLists.txt\n M cpp/core/slam/tests_cpp/run_all_tests.sh\n M cpp/core/slam/tests_py/test_slam_cpp_map.py\n M cpp/core/slam/tests_py/test_tools.py\n M docs/CONDA.md\n M docs/MAC.md\n M docs/PIXI.md\n M docs/PYTHON-VIRTUAL-ENVS.md\n M docs/README.md\n M docs/TROUBLESHOOTING.md\n M docs/system_overview.md\n M docs/tex/document.pdf\n M docs/tex/document.tex\n M pyproject.toml\n M pyslam/slam/initializer.py\n M pyslam/slam/tracking.py\n M tests/README.md\n m thirdparty/LightGlue\n m thirdparty/d2net\n m thirdparty/keynet\n m thirdparty/lfnet\n m thirdparty/r2d2\n m thirdparty/vpr\n M thirdparty/vpr.patch"
+  },
+  "schema_version": 1,
+  "workload": {
+    "MapFrameOperationsPerformance": {
+      "num_frames": 10,
+      "num_iterations": 10
+    },
+    "MapKeyFrameOperationsPerformance": {
+      "num_iterations": 10,
+      "num_keyframes": 10
+    },
+    "MapPointOperationsPerformance": {
+      "num_iterations": 10,
+      "num_points": 1000
+    }
+  }
+}

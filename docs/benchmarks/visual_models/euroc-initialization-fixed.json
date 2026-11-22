@@ -1,0 +1,686 @@
+{
+  "cases": [
+    {
+      "accepted_trajectory_rows": 28,
+      "artifacts": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/euroc-initialization-fixed-artifacts/EUROC_DATASET-ORB2-DBOW3-cpp-cpu-6xho7q4_",
+      "ate": {
+        "max": 0.0318754047316431,
+        "mean": 0.009793158413558337,
+        "median": 0.007895202994424661,
+        "min": 0.002970780474021155,
+        "rmse": 0.011771701960937592,
+        "sse": 0.0038800430775999743,
+        "std": 0.00653199933742292
+      },
+      "core": "cpp",
+      "dataset": "EUROC_DATASET",
+      "device": "cpu",
+      "elapsed_seconds": 21.342726048002078,
+      "local_mapping_keyframe_ms": null,
+      "loop_detection_latency_ms": null,
+      "loop_preset": "DBOW3",
+      "peak_rss_bytes": 6374318080,
+      "playback": {
+        "after_warmup": {
+          "fps": 27.633545917569595,
+          "frames": 30,
+          "stages_ms": {
+            "controls_and_output": {
+              "mean": 0.10369463319269319,
+              "median": 0.10234649744234048,
+              "p95": 0.1536909989226842
+            },
+            "depth_and_setup": {
+              "mean": 0.015526866385092339,
+              "median": 0.01383099879603833,
+              "p95": 0.023910050367703654
+            },
+            "image_loading": {
+              "mean": 0.05308873345105288,
+              "median": 0.04740200165542774,
+              "p95": 0.08846535129123359
+            },
+            "image_viewer_submit": {
+              "mean": 0.0021795000066049397,
+              "median": 0.0021420019038487226,
+              "p95": 0.0028923965146532282
+            },
+            "map_viewer_submit": {
+              "mean": 0.005669099967538689,
+              "median": 0.0054390002333093435,
+              "p95": 0.007974352411110885
+            },
+            "other": {
+              "mean": 0.0012351001108375688,
+              "median": 0.0011999982234556228,
+              "p95": 0.0017241050954908133
+            },
+            "pacing": {
+              "mean": 0.0011494999246982236,
+              "median": 0.0009164978109765798,
+              "p95": 0.001809800232877023
+            },
+            "plots_submit": {
+              "mean": 0.001890400502209862,
+              "median": 0.0017114980437327176,
+              "p95": 0.0029575505323009557
+            },
+            "total": {
+              "mean": 36.18790013351827,
+              "median": 31.081142500624992,
+              "p95": 69.85541209869551
+            },
+            "tracking": {
+              "mean": 36.00346629997754,
+              "median": 30.88265650148969,
+              "p95": 69.73064964840886
+            }
+          }
+        },
+        "all_frames": {
+          "fps": 18.77176504029485,
+          "frames": 60,
+          "stages_ms": {
+            "controls_and_output": {
+              "mean": 0.07610268318482365,
+              "median": 0.062099003116600215,
+              "p95": 0.14419099425140303
+            },
+            "depth_and_setup": {
+              "mean": 0.01624663333738378,
+              "median": 0.015253001038217917,
+              "p95": 0.02279455147800035
+            },
+            "image_loading": {
+              "mean": 0.06005683305071822,
+              "median": 0.057999499404104427,
+              "p95": 0.09548124762659425
+            },
+            "image_viewer_submit": {
+              "mean": 0.00207384982786607,
+              "median": 0.002056502125924453,
+              "p95": 0.0028783939342247322
+            },
+            "map_viewer_submit": {
+              "mean": 0.0058597995424255105,
+              "median": 0.005961501301499084,
+              "p95": 0.00814614468254149
+            },
+            "other": {
+              "mean": 0.001390000640337045,
+              "median": 0.0012355012586340308,
+              "p95": 0.0017938047676580018
+            },
+            "pacing": {
+              "mean": 0.001035749664879404,
+              "median": 0.0008714996511116624,
+              "p95": 0.0017418027709936719
+            },
+            "plots_submit": {
+              "mean": 0.001802817132556811,
+              "median": 0.0016904996300581843,
+              "p95": 0.002638799924170598
+            },
+            "total": {
+              "mean": 53.27149566667989,
+              "median": 62.29855749916169,
+              "p95": 81.11383965151617
+            },
+            "tracking": {
+              "mean": 53.1069273002989,
+              "median": 62.167325497284764,
+              "p95": 80.97230965177005
+            }
+          }
+        },
+        "metadata": {
+          "cpp_core": true,
+          "dataset": {
+            "associations": "auto",
+            "base_path": "/home/luigi/Work/datasets/rgbd_datasets/euroc",
+            "groundtruth_file": "auto",
+            "name": "V102",
+            "sensor_type": "stereo",
+            "settings": "/tmp/pyslam-sequence-d7unhcvm/settings.yaml",
+            "start_frame_id": 0,
+            "type": "euroc"
+          },
+          "headless": true,
+          "local_mapping_threaded": true,
+          "loop_closing": true
+        },
+        "warmup_frames": 30
+      },
+      "preset": "ORB2",
+      "requested_frames": 60,
+      "returncode": 0,
+      "startup_to_first_frame_ms": null,
+      "status": "ok",
+      "tracking_counts": "num_total_frames: 1710\nnum_processed_frames: 60\nnum_lost_frames: 0\npercent_lost: 0.00\n"
+    },
+    {
+      "accepted_trajectory_rows": 39,
+      "artifacts": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/euroc-initialization-fixed-artifacts/EUROC_DATASET-ORB2-DBOW3-python-cpu-fysus9xl",
+      "ate": {
+        "max": 0.014357176284048668,
+        "mean": 0.005808297416253228,
+        "median": 0.005048355541961299,
+        "min": 0.0023263333096962707,
+        "rmse": 0.006336399103484058,
+        "sse": 0.0015658481903467092,
+        "std": 0.0025325154931371374
+      },
+      "core": "python",
+      "dataset": "EUROC_DATASET",
+      "device": "cpu",
+      "elapsed_seconds": 23.101821142001427,
+      "local_mapping_keyframe_ms": null,
+      "loop_detection_latency_ms": null,
+      "loop_preset": "DBOW3",
+      "peak_rss_bytes": 6378582016,
+      "playback": {
+        "after_warmup": {
+          "fps": 15.902650833373679,
+          "frames": 30,
+          "stages_ms": {
+            "controls_and_output": {
+              "mean": 0.03203786594288734,
+              "median": 0.03136099985567853,
+              "p95": 0.04153919799136929
+            },
+            "depth_and_setup": {
+              "mean": 0.009602366723508263,
+              "median": 0.008871498721418902,
+              "p95": 0.013627348016598258
+            },
+            "image_loading": {
+              "mean": 0.03276330001729851,
+              "median": 0.031411502277478576,
+              "p95": 0.042121202932321467
+            },
+            "image_viewer_submit": {
+              "mean": 0.0016833007975947112,
+              "median": 0.001631502527743578,
+              "p95": 0.0021505016775336117
+            },
+            "map_viewer_submit": {
+              "mean": 0.0015067656931933016,
+              "median": 0.0014840006770100445,
+              "p95": 0.0018373513739788903
+            },
+            "other": {
+              "mean": 0.0011223324690945446,
+              "median": 0.0008875031198840588,
+              "p95": 0.0013928442058386281
+            },
+            "pacing": {
+              "mean": 0.0005939002827896426,
+              "median": 0.0005749971023760736,
+              "p95": 0.000778903267928399
+            },
+            "plots_submit": {
+              "mean": 0.0009877003321889788,
+              "median": 0.0009915020200423896,
+              "p95": 0.0011841497325804085
+            },
+            "total": {
+              "mean": 62.88259803210773,
+              "median": 56.19431800005259,
+              "p95": 101.54756904666996
+            },
+            "tracking": {
+              "mean": 62.802300499849174,
+              "median": 56.113683498551836,
+              "p95": 101.46621009589566
+            }
+          }
+        },
+        "all_frames": {
+          "fps": 13.51751235002426,
+          "frames": 60,
+          "stages_ms": {
+            "controls_and_output": {
+              "mean": 0.024300082926250372,
+              "median": 0.027722497179638594,
+              "p95": 0.04420304903760549
+            },
+            "depth_and_setup": {
+              "mean": 0.01322960003259747,
+              "median": 0.011445499694673344,
+              "p95": 0.021762095275334986
+            },
+            "image_loading": {
+              "mean": 0.03930708335246891,
+              "median": 0.03337950329296291,
+              "p95": 0.05688670171366537
+            },
+            "image_viewer_submit": {
+              "mean": 0.0017173671949421987,
+              "median": 0.0016510057321283966,
+              "p95": 0.002275652150274254
+            },
+            "map_viewer_submit": {
+              "mean": 0.0018976665160153061,
+              "median": 0.001731503289192915,
+              "p95": 0.0027117999707115814
+            },
+            "other": {
+              "mean": 0.0012050324585288763,
+              "median": 0.0009874966053757817,
+              "p95": 0.0016403522749897067
+            },
+            "pacing": {
+              "mean": 0.0006536670601538693,
+              "median": 0.0006040027074050158,
+              "p95": 0.0008939001418184489
+            },
+            "plots_submit": {
+              "mean": 0.001021116622723639,
+              "median": 0.0009915020200423896,
+              "p95": 0.0013667511666426433
+            },
+            "total": {
+              "mean": 73.97810884916301,
+              "median": 71.56039699839312,
+              "p95": 120.92260609497315
+            },
+            "tracking": {
+              "mean": 73.89477723299933,
+              "median": 71.47795499986387,
+              "p95": 120.8337975975155
+            }
+          }
+        },
+        "metadata": {
+          "cpp_core": false,
+          "dataset": {
+            "associations": "auto",
+            "base_path": "/home/luigi/Work/datasets/rgbd_datasets/euroc",
+            "groundtruth_file": "auto",
+            "name": "V102",
+            "sensor_type": "stereo",
+            "settings": "/tmp/pyslam-sequence-27t86g03/settings.yaml",
+            "start_frame_id": 0,
+            "type": "euroc"
+          },
+          "headless": true,
+          "local_mapping_threaded": true,
+          "loop_closing": true
+        },
+        "warmup_frames": 30
+      },
+      "preset": "ORB2",
+      "requested_frames": 60,
+      "returncode": 0,
+      "startup_to_first_frame_ms": null,
+      "status": "ok",
+      "tracking_counts": "num_total_frames: 1710\nnum_processed_frames: 60\nnum_lost_frames: 0\npercent_lost: 0.00\n"
+    },
+    {
+      "accepted_trajectory_rows": 29,
+      "artifacts": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/euroc-initialization-fixed-artifacts/EUROC_DATASET-ORB2-SAD-cpp-cpu-bkj1x2qq",
+      "ate": {
+        "max": 0.038371912805775676,
+        "mean": 0.014277971277401838,
+        "median": 0.010847486783171597,
+        "min": 0.0028824401169398085,
+        "rmse": 0.017396199175847137,
+        "sse": 0.008776204627206591,
+        "std": 0.009938172969285286
+      },
+      "core": "cpp",
+      "dataset": "EUROC_DATASET",
+      "device": "cpu",
+      "elapsed_seconds": 19.82818758099893,
+      "local_mapping_keyframe_ms": null,
+      "loop_detection_latency_ms": null,
+      "loop_preset": "SAD",
+      "peak_rss_bytes": 5764616192,
+      "playback": {
+        "after_warmup": {
+          "fps": 31.549001489041718,
+          "frames": 30,
+          "stages_ms": {
+            "controls_and_output": {
+              "mean": 0.08401243273207608,
+              "median": 0.0817359978100285,
+              "p95": 0.10481994977453724
+            },
+            "depth_and_setup": {
+              "mean": 0.011665566853480414,
+              "median": 0.010571999155217782,
+              "p95": 0.01565929924254305
+            },
+            "image_loading": {
+              "mean": 0.04037979912633697,
+              "median": 0.03726199793163687,
+              "p95": 0.057146401741192676
+            },
+            "image_viewer_submit": {
+              "mean": 0.0020032666119125984,
+              "median": 0.0020064981072209775,
+              "p95": 0.0024938493879744774
+            },
+            "map_viewer_submit": {
+              "mean": 0.003801167137377585,
+              "median": 0.0037900026654824615,
+              "p95": 0.005119951310916802
+            },
+            "other": {
+              "mean": 0.0012071660118332754,
+              "median": 0.001219999830937013,
+              "p95": 0.0014762954378966236
+            },
+            "pacing": {
+              "mean": 0.0008575666773443421,
+              "median": 0.0008090028131846339,
+              "p95": 0.00115805487439502
+            },
+            "plots_submit": {
+              "mean": 0.0013219003449194133,
+              "median": 0.0012659984349738806,
+              "p95": 0.0016022495401557535
+            },
+            "total": {
+              "mean": 31.696724232218305,
+              "median": 25.642855496698758,
+              "p95": 58.24004594942378
+            },
+            "tracking": {
+              "mean": 31.551475366723025,
+              "median": 25.484471501840744,
+              "p95": 58.08464785077374
+            }
+          }
+        },
+        "all_frames": {
+          "fps": 19.86654532954803,
+          "frames": 60,
+          "stages_ms": {
+            "controls_and_output": {
+              "mean": 0.06628198292067584,
+              "median": 0.05781649815617129,
+              "p95": 0.10462544887559488
+            },
+            "depth_and_setup": {
+              "mean": 0.014356800117335903,
+              "median": 0.013510001735994592,
+              "p95": 0.0219084966374794
+            },
+            "image_loading": {
+              "mean": 0.05469711686600931,
+              "median": 0.05632700049318373,
+              "p95": 0.07872555288486181
+            },
+            "image_viewer_submit": {
+              "mean": 0.0020573164268474406,
+              "median": 0.0020394982129801065,
+              "p95": 0.002678702730918303
+            },
+            "map_viewer_submit": {
+              "mean": 0.0049526837149945395,
+              "median": 0.004213503416394815,
+              "p95": 0.006726095671183425
+            },
+            "other": {
+              "mean": 0.0014155995207450662,
+              "median": 0.0012535019777715206,
+              "p95": 0.0016476016753586007
+            },
+            "pacing": {
+              "mean": 0.000908133612635235,
+              "median": 0.000805001036496833,
+              "p95": 0.0011372518201824275
+            },
+            "plots_submit": {
+              "mean": 0.0014112335823786755,
+              "median": 0.0014005017874296755,
+              "p95": 0.0018571481632534412
+            },
+            "total": {
+              "mean": 50.335877899851766,
+              "median": 61.35294099658495,
+              "p95": 74.18564499530476
+            },
+            "tracking": {
+              "mean": 50.189797033090144,
+              "median": 61.22348700228031,
+              "p95": 74.03517099919554
+            }
+          }
+        },
+        "metadata": {
+          "cpp_core": true,
+          "dataset": {
+            "associations": "auto",
+            "base_path": "/home/luigi/Work/datasets/rgbd_datasets/euroc",
+            "groundtruth_file": "auto",
+            "name": "V102",
+            "sensor_type": "stereo",
+            "settings": "/tmp/pyslam-sequence-j4pd2s7o/settings.yaml",
+            "start_frame_id": 0,
+            "type": "euroc"
+          },
+          "headless": true,
+          "local_mapping_threaded": true,
+          "loop_closing": true
+        },
+        "warmup_frames": 30
+      },
+      "preset": "ORB2",
+      "requested_frames": 60,
+      "returncode": 0,
+      "startup_to_first_frame_ms": null,
+      "status": "ok",
+      "tracking_counts": "num_total_frames: 1710\nnum_processed_frames: 60\nnum_lost_frames: 0\npercent_lost: 0.00\n"
+    },
+    {
+      "accepted_trajectory_rows": 30,
+      "artifacts": "/media/ssd2/data/Work/slam_wss/pyslam-master-new/docs/private/2026-11-22/euroc-initialization-fixed-artifacts/EUROC_DATASET-ORB2-SAD-python-cpu-ehm8lmfm",
+      "ate": {
+        "max": 0.025773992964907958,
+        "mean": 0.009002145680364606,
+        "median": 0.007971104614070412,
+        "min": 0.0020051672839921284,
+        "rmse": 0.010622459603559987,
+        "sse": 0.0033850994408779144,
+        "std": 0.00563897341532629
+      },
+      "core": "python",
+      "dataset": "EUROC_DATASET",
+      "device": "cpu",
+      "elapsed_seconds": 21.713689682997938,
+      "local_mapping_keyframe_ms": null,
+      "loop_detection_latency_ms": null,
+      "loop_preset": "SAD",
+      "peak_rss_bytes": 5765267456,
+      "playback": {
+        "after_warmup": {
+          "fps": 15.362506028096009,
+          "frames": 30,
+          "stages_ms": {
+            "controls_and_output": {
+              "mean": 0.03173743267931665,
+              "median": 0.028464495699154213,
+              "p95": 0.052879100257996456
+            },
+            "depth_and_setup": {
+              "mean": 0.027430932823335752,
+              "median": 0.008689999958733097,
+              "p95": 0.14972234712331506
+            },
+            "image_loading": {
+              "mean": 0.04344903403155816,
+              "median": 0.030270002753240988,
+              "p95": 0.12105415153200716
+            },
+            "image_viewer_submit": {
+              "mean": 0.0013815658652068425,
+              "median": 0.001298503775615245,
+              "p95": 0.0023412940208800124
+            },
+            "map_viewer_submit": {
+              "mean": 0.0015775328696084519,
+              "median": 0.0013280041457619518,
+              "p95": 0.0028521524654934183
+            },
+            "other": {
+              "mean": 0.0010861008680270363,
+              "median": 0.0010180010576732457,
+              "p95": 0.0015253030142048372
+            },
+            "pacing": {
+              "mean": 0.0006097342217496285,
+              "median": 0.000547999661648646,
+              "p95": 0.0009438008419238027
+            },
+            "plots_submit": {
+              "mean": 0.0010598344185079138,
+              "median": 0.0010130024747923017,
+              "p95": 0.0014405501133296637
+            },
+            "total": {
+              "mean": 65.0935464676877,
+              "median": 53.679201504564844,
+              "p95": 116.06970509637901
+            },
+            "tracking": {
+              "mean": 64.9852142999104,
+              "median": 53.534721500909654,
+              "p95": 115.90107559895839
+            }
+          }
+        },
+        "all_frames": {
+          "fps": 13.72903265342713,
+          "frames": 60,
+          "stages_ms": {
+            "controls_and_output": {
+              "mean": 0.018593216615651425,
+              "median": 0.008007500582607463,
+              "p95": 0.04177530390734316
+            },
+            "depth_and_setup": {
+              "mean": 0.02100563251588028,
+              "median": 0.01201150007545948,
+              "p95": 0.027864995354320778
+            },
+            "image_loading": {
+              "mean": 0.040876083827849165,
+              "median": 0.03266150088165887,
+              "p95": 0.07937175032566289
+            },
+            "image_viewer_submit": {
+              "mean": 0.0014434994227485731,
+              "median": 0.0013239987310953438,
+              "p95": 0.0023567950847791504
+            },
+            "map_viewer_submit": {
+              "mean": 0.0018626166517303016,
+              "median": 0.0018480022845324129,
+              "p95": 0.0028590031433850527
+            },
+            "other": {
+              "mean": 0.001215716838487424,
+              "median": 0.0010519943316467106,
+              "p95": 0.0017532503989059465
+            },
+            "pacing": {
+              "mean": 0.0006221003180447345,
+              "median": 0.0005585025064647198,
+              "p95": 0.0008943014108808708
+            },
+            "plots_submit": {
+              "mean": 0.0011005841467219095,
+              "median": 0.0010459953045938164,
+              "p95": 0.001566000355524011
+            },
+            "total": {
+              "mean": 72.83834376709517,
+              "median": 69.9292274985055,
+              "p95": 112.09002879877515
+            },
+            "tracking": {
+              "mean": 72.75162431675805,
+              "median": 69.81296700178063,
+              "p95": 112.01723924714314
+            }
+          }
+        },
+        "metadata": {
+          "cpp_core": false,
+          "dataset": {
+            "associations": "auto",
+            "base_path": "/home/luigi/Work/datasets/rgbd_datasets/euroc",
+            "groundtruth_file": "auto",
+            "name": "V102",
+            "sensor_type": "stereo",
+            "settings": "/tmp/pyslam-sequence-p038_n00/settings.yaml",
+            "start_frame_id": 0,
+            "type": "euroc"
+          },
+          "headless": true,
+          "local_mapping_threaded": true,
+          "loop_closing": true
+        },
+        "warmup_frames": 30
+      },
+      "preset": "ORB2",
+      "requested_frames": 60,
+      "returncode": 0,
+      "startup_to_first_frame_ms": null,
+      "status": "ok",
+      "tracking_counts": "num_total_frames: 1710\nnum_processed_frames: 60\nnum_lost_frames: 0\npercent_lost: 0.00\n"
+    }
+  ],
+  "created_utc": "2026-11-22T17:48:38.035498+00:00",
+  "kind": "slam_sequence_smoke",
+  "limitations": [
+    "main_slam only; main_vo lacks the required headless/config CLI",
+    "Local-mapping and loop latency instrumentation is not yet integrated",
+    "Short bounded runs do not certify full sequence accuracy"
+  ],
+  "machine": {
+    "cpu_count": 20,
+    "executable": "/home/luigi/.python/venvs/pyslam/bin/python",
+    "gpu": "NVIDIA RTX A3000 12GB Laptop GPU, GPU-f3c31f2b-283c-e953-2a8b-d49518c2b1d1, 595.99.02, 585 MHz, [N/A]",
+    "gpu_clock_policy": "observed only; clocks and power settings are not changed",
+    "machine": "x86_64",
+    "packages": {
+      "huggingface-hub": "2.4.0",
+      "kornia": "0.8.2",
+      "numpy": "1.26.4",
+      "opencv-contrib-python": null,
+      "opencv-python": "4.11.0.86",
+      "tensorflow": "2.13.1",
+      "timm": "1.0.15",
+      "torch": "2.8.0",
+      "torchvision": "0.23.0"
+    },
+    "processor": "x86_64",
+    "python": "3.11.9",
+    "release": "6.8.0-151-generic",
+    "system": "Linux"
+  },
+  "provenance": {
+    "commit": "ef82e58d0bde8bf3e554c005ef5b2f6d772b23aa",
+    "source_sha256": {
+      "cpp/core/slam/initializer.cpp": "de7a0bf01ccefb0d23319883feb4152f24fb1ddd4127cae673b730987957ad79",
+      "cpp/core/slam/slam.cpp": "011e3b5dfe8deb1bf1812ad39ecc9e684645d7e1081b4d5db7ffd154c734910d",
+      "pyslam/config_parameters.py": "6bbf5f3a1ef9d579589a74b68babe95cc90b0e43a34e96c93536e239f1e2a310",
+      "pyslam/local_features/feature_manager.py": "706788e6858af603fcf108e3831c0c490ac6c1083169b5c8f77e4cc94503e266",
+      "pyslam/local_features/feature_matcher.py": "bedf8e6fa274df8a005ecbbf59503760ce4cd672ed31ba542c380f57fb7c5986",
+      "pyslam/local_features/feature_tracker.py": "d969555aa0303b1ba28576ee040b272e9bea73aaee5867f8e0bd3cac5648f9c4",
+      "pyslam/local_features/feature_tracker_configs.py": "676a019ce67ab4c4b72f7907fcbe19b696c8848cb9c595ce89cae810725d9b69",
+      "pyslam/local_features/feature_types.py": "0912de17172fb44e51d7cfbf590aef14d1fd498f28aff2324306f1ab0566fa32",
+      "pyslam/loop_closing/loop_detector_configs.py": "3adcc320d563418f4e1d14ec8733b64799129a9afba36f311d0c14360f19afd8",
+      "pyslam/slam/initializer.py": "b9e6b5c8eb59d3ab4b4b4e3a88d83c9a8f06ed5f857f540dd4ca74997d37c2ef",
+      "pyslam/slam/tracking.py": "891a9853573e70bc32df9b483aaf8a5e3e32284b0576be5a3379c888cbb2312c",
+      "scripts/benchmark_visual_models.py": "222362cf51924a608f95e8d002cd387166a1a8dcd331b5c2af99e90ea8369552",
+      "scripts/benchmark_visual_slam.py": "d2256fef4899baa856e9e822f12adaa4a77886ce295d72a744a3da8f61299c2e"
+    },
+    "worktree_status": "M README.md\n M cpp/core/slam/initializer.cpp\n M cpp/core/slam/slam.cpp\n M cpp/core/slam/tests_cpp/CMakeLists.txt\n M cpp/core/slam/tests_cpp/run_all_tests.sh\n M cpp/core/slam/tests_py/test_slam_cpp_map.py\n M cpp/core/slam/tests_py/test_tools.py\n M docs/CONDA.md\n M docs/MAC.md\n M docs/PIXI.md\n M docs/PYTHON-VIRTUAL-ENVS.md\n M docs/README.md\n M docs/TROUBLESHOOTING.md\n M docs/system_overview.md\n M docs/tex/document.pdf\n M docs/tex/document.tex\n M pyproject.toml\n M pyslam/slam/initializer.py\n M pyslam/slam/tracking.py\n M tests/README.md\n m thirdparty/LightGlue\n m thirdparty/d2net\n m thirdparty/keynet\n m thirdparty/lfnet\n m thirdparty/r2d2\n m thirdparty/vpr\n M thirdparty/vpr.patch"
+  },
+  "raw_report": "docs/private/2026-11-22/euroc-initialization-fixed.json",
+  "schema_version": 1
+}

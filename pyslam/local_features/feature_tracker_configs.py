@@ -404,6 +404,28 @@ class FeatureTrackerConfigs:
         tracker_type=kTrackerType,
     )
 
+    RDD = dict(
+        num_features=kNumFeatures,  # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+        num_levels=1,
+        scale_factor=1.2,
+        detector_type=FeatureDetectorTypes.RDD,
+        descriptor_type=FeatureDescriptorTypes.RDD,
+        sigma_level0=Parameters.kSigmaLevel0,
+        match_ratio_test=kDefaultRatioTest,
+        tracker_type=kTrackerType,
+    )
+
+    DEDODE = dict(
+        num_features=kNumFeatures,  # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+        num_levels=1,
+        scale_factor=1.2,
+        detector_type=FeatureDetectorTypes.DEDODE,
+        descriptor_type=FeatureDescriptorTypes.DEDODE,
+        sigma_level0=Parameters.kSigmaLevel0,
+        match_ratio_test=kDefaultRatioTest,
+        tracker_type=kTrackerType,
+    )
+
     KEYNETAFFNETHARDNET = dict(
         num_features=kNumFeatures,  # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
         num_levels=1,
@@ -505,6 +527,30 @@ class FeatureTrackerConfigs:
         sigma_level0=Parameters.kSigmaLevel0,
         match_ratio_test=kDefaultRatioTest,
         tracker_type=FeatureTrackerTypes.LOFTR,
+    )
+
+    ROMA = dict(
+        num_features=kNumFeatures,  # number of sampled matches
+        num_levels=1,
+        scale_factor=1.2,
+        detector_type=FeatureDetectorTypes.NONE,
+        descriptor_type=FeatureDescriptorTypes.NONE,
+        sigma_level0=Parameters.kSigmaLevel0,
+        match_ratio_test=kDefaultRatioTest,
+        tracker_type=FeatureTrackerTypes.ROMA,
+        max_num_matches=kNumFeatures,  # dense matches sampled by certainty (random: not deterministic)
+    )
+
+    TINY_ROMA = dict(
+        num_features=kNumFeatures,  # number of sampled matches
+        num_levels=1,
+        scale_factor=1.2,
+        detector_type=FeatureDetectorTypes.NONE,
+        descriptor_type=FeatureDescriptorTypes.NONE,
+        sigma_level0=Parameters.kSigmaLevel0,
+        match_ratio_test=kDefaultRatioTest,
+        tracker_type=FeatureTrackerTypes.TINY_ROMA,
+        max_num_matches=kNumFeatures,  # dense matches sampled by certainty (random: not deterministic)
     )
 
     MAST3R_MATCHER = dict(

@@ -77,7 +77,7 @@ class GlobalFeatureMegaloc(torch.nn.Module):
             print("GlobalFeatureMegaloc - Share memory")
             self.model.share_memory()  # Share the model parameters among processes
 
-        self.dim = 2048
+        self.dim = 8448  # MegaLoc descriptor size (2048 made compute_features() fail)
         self.model = self.model.to(self.device)
 
     def compute_features(self, imgs: List[np.ndarray]) -> np.ndarray:

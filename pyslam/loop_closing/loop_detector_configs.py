@@ -45,6 +45,9 @@ from .loop_detector_vpr import (
     LoopDetectorSad,
     LoopDetectorAlexNet,
     LoopDetectorCosPlace,
+    LoopDetectorMegaloc,
+    LoopDetectorSalad,
+    LoopDetectorBoQ,
 )
 from .loop_detector_vlad import LoopDetectorVlad
 from .global_feature_megaloc import GlobalFeatureMegaloc
@@ -106,6 +109,10 @@ class GlobalDescriptorType(SerializableEnum):
         11  # Global feature descriptor based on MegaLoc model. https://github.com/gmberton/MegaLoc
     )
     # Reference: "MegaLoc: One Retrieval to Place Them All".
+    SALAD = 12  # DINOv2 + optimal-transport aggregation. https://github.com/serizba/salad
+    # Reference: "Optimal Transport Aggregation for Visual Place Recognition" (CVPR 2024).
+    BOQ = 13  # DINOv2 + Bag-of-Queries aggregation. https://github.com/amaralibey/Bag-of-Queries
+    # Reference: "BoQ: A Place is Worth a Bag of Learnable Queries" (CVPR 2024).
 
 
 # Additional information about used local descriptors aggregation method
@@ -274,6 +281,20 @@ class LoopDetectorConfigs:
         vocabulary_data=None,
     )  # It does not need a vocabulary
 
+    SALAD = dict(
+        global_descriptor_type=GlobalDescriptorType.SALAD,
+        local_feature_manager_config=None,  # Not needed.
+        local_descriptor_aggregation_type=LocalDescriptorAggregationType.NONE,
+        vocabulary_data=None,
+    )  # It does not need a vocabulary
+
+    BOQ = dict(
+        global_descriptor_type=GlobalDescriptorType.BOQ,
+        local_feature_manager_config=None,  # Not needed.
+        local_descriptor_aggregation_type=LocalDescriptorAggregationType.NONE,
+        vocabulary_data=None,
+    )  # It does not need a vocabulary
+
 
 def loop_detector_factory(
     global_descriptor_type=GlobalDescriptorType.DBOW3,
@@ -336,7 +357,11 @@ def loop_detector_factory(
     elif global_descriptor_type == GlobalDescriptorType.EIGENPLACES:
         loop_detector = LoopDetectorEigenPlaces(local_feature_manager=local_feature_manager)
     elif global_descriptor_type == GlobalDescriptorType.MEGALOC:
-        loop_detector = GlobalFeatureMegaloc(local_feature_manager=local_feature_manager)
+        loop_detector = LoopDetectorMegaloc(local_feature_manager=local_feature_manager)
+    elif global_descriptor_type == GlobalDescriptorType.SALAD:
+        loop_detector = LoopDetectorSalad(local_feature_manager=local_feature_manager)
+    elif global_descriptor_type == GlobalDescriptorType.BOQ:
+        loop_detector = LoopDetectorBoQ(local_feature_manager=local_feature_manager)
     else:
         raise ValueError("loop_detector_factory: unknown global_descriptor_type")
 

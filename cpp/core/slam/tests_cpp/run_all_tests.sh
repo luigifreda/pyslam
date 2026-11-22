@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Author: Luigi Freda 
+# This file is part of https://github.com/luigifreda/pyslam
 
 # =============================================================================
 # Simple PYSLAM C++ Test Runner
@@ -25,6 +27,7 @@ KDTREE_TESTS=("test_kdtree_basic" "test_kdtree_validation")
 GENERIC_TESTS=("test_image_management" "test_camera_model_math" "test_camera_models" "test_camera_edges_g2o" "test_camera_factors_gtsam")
 GENERIC_TESTS+=("test_owned_g2o_optimizer")
 GENERIC_TESTS+=("test_local_map_limits")
+GENERIC_TESTS+=("test_initializer_support")
 
 # Test tracking
 PASSED_TESTS=()

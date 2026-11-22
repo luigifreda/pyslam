@@ -1116,6 +1116,13 @@ class Tracking:
             FeatureTrackerShared.feature_tracker.set_double_num_features()
         else:
             FeatureTrackerShared.feature_tracker.set_normal_num_features()
+        feature_tracker_right = FeatureTrackerShared.feature_tracker_right
+        if self.sensor_type == SensorType.STEREO and feature_tracker_right is not None:
+            # Same guard as the C++ core (alive(right)): the right tracker is optional.
+            if self.state != SlamState.OK:
+                feature_tracker_right.set_double_num_features()
+            else:
+                feature_tracker_right.set_normal_num_features()
 
         # preprocessing
         f_cur_is_blurry = False

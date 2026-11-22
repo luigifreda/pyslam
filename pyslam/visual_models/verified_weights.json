@@ -1,0 +1,231 @@
+{
+  "ALIKED_N16": {
+    "checksum_provenance": "Observed SHA256 of explicitly prefetched upstream artifact, 2026-11-22",
+    "model": "local_feature:ALIKED",
+    "reference": "https://github.com/Shiaoming/ALIKED/raw/main/models/aliked-n16.pth",
+    "sources": [
+      {
+        "filename": "aliked-n16.pth",
+        "kind": "torch_hub",
+        "sha256": "5be8704840ed662d9d8c561bf7279c222092674e7eb05fd0feab94899e9d82f2",
+        "url": "https://github.com/Shiaoming/ALIKED/raw/main/models/aliked-n16.pth"
+      },
+      {
+        "filename": "aliked-n16.pth",
+        "kind": "url",
+        "sha256": "5be8704840ed662d9d8c561bf7279c222092674e7eb05fd0feab94899e9d82f2",
+        "url": "https://github.com/Shiaoming/ALIKED/raw/main/models/aliked-n16.pth"
+      }
+    ]
+  },
+  "BOQ_DINOV2_12288": {
+    "checksum_provenance": "Observed SHA256 of the upstream release artifact downloaded through torch.hub, 2026-11-22",
+    "model": "global_descriptor:BOQ",
+    "reference": "https://github.com/amaralibey/Bag-of-Queries/releases/download/v1.0/dinov2_12288.pth",
+    "sources": [
+      {
+        "filename": "dinov2_12288.pth",
+        "kind": "torch_hub",
+        "sha256": "d72ee0ce899e2790be6cf6d1d57f75dfad0c76475bd2198e6dc0c3f0221b3583",
+        "url": "https://github.com/amaralibey/Bag-of-Queries/releases/download/v1.0/dinov2_12288.pth"
+      },
+      {
+        "filename": "dinov2_12288.pth",
+        "kind": "url",
+        "sha256": "d72ee0ce899e2790be6cf6d1d57f75dfad0c76475bd2198e6dc0c3f0221b3583",
+        "url": "https://github.com/amaralibey/Bag-of-Queries/releases/download/v1.0/dinov2_12288.pth"
+      }
+    ]
+  },
+  "DEDODE_DESCRIPTOR_B": {
+    "checksum_provenance": "Observed SHA256 of the upstream release artifact downloaded by kornia through torch.hub, 2026-11-22",
+    "model": "local_feature:DEDODE",
+    "reference": "https://github.com/Parskatt/DeDoDe/releases/download/dedode_pretrained_models/dedode_descriptor_B.pth",
+    "sources": [
+      {
+        "filename": "dedode_descriptor_B.pth",
+        "kind": "torch_hub",
+        "sha256": "8eccfc270ec990ced60cd54a434411a47c4c504de13586f596d042e005b3022b",
+        "url": "https://github.com/Parskatt/DeDoDe/releases/download/dedode_pretrained_models/dedode_descriptor_B.pth"
+      },
+      {
+        "filename": "dedode_descriptor_B.pth",
+        "kind": "url",
+        "sha256": "8eccfc270ec990ced60cd54a434411a47c4c504de13586f596d042e005b3022b",
+        "url": "https://github.com/Parskatt/DeDoDe/releases/download/dedode_pretrained_models/dedode_descriptor_B.pth"
+      }
+    ]
+  },
+  "DEDODE_DETECTOR_L_V2": {
+    "checksum_provenance": "Observed SHA256 of the upstream release artifact downloaded by kornia through torch.hub, 2026-11-22",
+    "model": "local_feature:DEDODE",
+    "reference": "https://github.com/Parskatt/DeDoDe/releases/download/v2/dedode_detector_L_v2.pth",
+    "sources": [
+      {
+        "filename": "dedode_detector_L_v2.pth",
+        "kind": "torch_hub",
+        "sha256": "4113809dd9e0367af013a45fc2255a6b243ff241cd06520d17a65d9e231bdc17",
+        "url": "https://github.com/Parskatt/DeDoDe/releases/download/v2/dedode_detector_L_v2.pth"
+      },
+      {
+        "filename": "dedode_detector_L_v2.pth",
+        "kind": "url",
+        "sha256": "4113809dd9e0367af013a45fc2255a6b243ff241cd06520d17a65d9e231bdc17",
+        "url": "https://github.com/Parskatt/DeDoDe/releases/download/v2/dedode_detector_L_v2.pth"
+      }
+    ]
+  },
+  "LIGHTGLUE_ALIKED": {
+    "checksum_provenance": "Observed SHA256 of explicitly prefetched upstream artifact, 2026-11-22",
+    "model": "pair_matcher:LIGHTGLUE",
+    "reference": "https://github.com/cvg/LightGlue/releases/download/v0.1_arxiv/aliked_lightglue.pth",
+    "sources": [
+      {
+        "filename": "aliked_lightglue_v0-1_arxiv.pth",
+        "kind": "torch_hub",
+        "sha256": "d975e965b105311a6143194852297dff4f02aea5cc2e10cecfed966ca0e22503",
+        "url": "https://github.com/cvg/LightGlue/releases/download/v0.1_arxiv/aliked_lightglue.pth"
+      },
+      {
+        "filename": "aliked_lightglue_v0-1_arxiv.pth",
+        "kind": "url",
+        "sha256": "d975e965b105311a6143194852297dff4f02aea5cc2e10cecfed966ca0e22503",
+        "url": "https://github.com/cvg/LightGlue/releases/download/v0.1_arxiv/aliked_lightglue.pth"
+      }
+    ]
+  },
+  "LIGHTGLUE_SUPERPOINT": {
+    "checksum_provenance": "Observed SHA256 of explicitly prefetched upstream artifact, 2026-11-22",
+    "model": "pair_matcher:LIGHTGLUE",
+    "reference": "https://github.com/cvg/LightGlue/releases/download/v0.1_arxiv/superpoint_lightglue.pth",
+    "sources": [
+      {
+        "filename": "superpoint_lightglue_v0-1_arxiv.pth",
+        "kind": "torch_hub",
+        "sha256": "6ff7040d0a497fc6639337946d7538dae07428c18f77a067a0b5a960e7cc551a",
+        "url": "https://github.com/cvg/LightGlue/releases/download/v0.1_arxiv/superpoint_lightglue.pth"
+      },
+      {
+        "filename": "superpoint_lightglue_v0-1_arxiv.pth",
+        "kind": "url",
+        "sha256": "6ff7040d0a497fc6639337946d7538dae07428c18f77a067a0b5a960e7cc551a",
+        "url": "https://github.com/cvg/LightGlue/releases/download/v0.1_arxiv/superpoint_lightglue.pth"
+      }
+    ]
+  },
+  "LOFTR_OUTDOOR": {
+    "checksum_provenance": "Published SHA256 on Kornia's pinned Hugging Face file page",
+    "model": "pair_matcher:LOFTR",
+    "reference": "https://huggingface.co/kornia/loftr/blob/0fb3b456cf176746709c38fa9cf80695a1c82dac/loftr_outdoor.ckpt",
+    "sources": [
+      {
+        "filename": "loftr_outdoor.ckpt",
+        "kind": "hf",
+        "repo_id": "kornia/loftr",
+        "revision": "0fb3b456cf176746709c38fa9cf80695a1c82dac",
+        "sha256": "21f5bec5968178e8bc8b7633441836fe5de4f47d861dd2cd7dc38e271b0479ec"
+      },
+      {
+        "filename": "loftr_outdoor.ckpt",
+        "kind": "torch_hub",
+        "sha256": "21f5bec5968178e8bc8b7633441836fe5de4f47d861dd2cd7dc38e271b0479ec",
+        "url": "https://huggingface.co/kornia/loftr/resolve/0fb3b456cf176746709c38fa9cf80695a1c82dac/loftr_outdoor.ckpt"
+      },
+      {
+        "filename": "loftr_outdoor.ckpt",
+        "kind": "url",
+        "sha256": "21f5bec5968178e8bc8b7633441836fe5de4f47d861dd2cd7dc38e271b0479ec",
+        "url": "https://huggingface.co/kornia/loftr/resolve/0fb3b456cf176746709c38fa9cf80695a1c82dac/loftr_outdoor.ckpt"
+      }
+    ]
+  },
+  "RDD": {
+    "checksum_provenance": "Observed SHA256 of weights/rdd.pth downloaded from the authors' Google Drive folder, 2026-11-22",
+    "model": "local_feature:RDD",
+    "reference": "https://drive.google.com/drive/folders/1QgVaqm4iTUCqbWb7_Fi6mX09EHTId0oA (weights/rdd.pth, id 18Xyzwtrk7dqppZzPz01Tpo6cdMBk_h6J)",
+    "sources": [
+      {
+        "filename": "rdd.pth",
+        "kind": "torch_hub",
+        "sha256": "b9f72267db638d7daa3a896d2c688d5fe02ea0a2acf39a1d4218305b4153b1d6",
+        "url": "https://drive.google.com/uc?id=18Xyzwtrk7dqppZzPz01Tpo6cdMBk_h6J"
+      }
+    ]
+  },
+  "ROMA_DINOV2_VITL14": {
+    "checksum_provenance": "Observed SHA256 of the upstream artifact downloaded through torch.hub, 2026-11-22",
+    "model": "pair_matcher:ROMA",
+    "reference": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth",
+    "sources": [
+      {
+        "filename": "dinov2_vitl14_pretrain.pth",
+        "kind": "torch_hub",
+        "sha256": "d5383ea8f4877b2472eb973e0fd72d557c7da5d3611bd527ceeb1d7162cbf428",
+        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth"
+      },
+      {
+        "filename": "dinov2_vitl14_pretrain.pth",
+        "kind": "url",
+        "sha256": "d5383ea8f4877b2472eb973e0fd72d557c7da5d3611bd527ceeb1d7162cbf428",
+        "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth"
+      }
+    ]
+  },
+  "ROMA_OUTDOOR": {
+    "checksum_provenance": "Observed SHA256 of the upstream artifact downloaded through torch.hub, 2026-11-22",
+    "model": "pair_matcher:ROMA",
+    "reference": "https://github.com/Parskatt/storage/releases/download/roma/roma_outdoor.pth",
+    "sources": [
+      {
+        "filename": "roma_outdoor.pth",
+        "kind": "torch_hub",
+        "sha256": "c7a45c80d41ad788a63c641d1b686d7cb3f297f40097c6f4e75039889e5cc8ba",
+        "url": "https://github.com/Parskatt/storage/releases/download/roma/roma_outdoor.pth"
+      },
+      {
+        "filename": "roma_outdoor.pth",
+        "kind": "url",
+        "sha256": "c7a45c80d41ad788a63c641d1b686d7cb3f297f40097c6f4e75039889e5cc8ba",
+        "url": "https://github.com/Parskatt/storage/releases/download/roma/roma_outdoor.pth"
+      }
+    ]
+  },
+  "SALAD_DINOV2": {
+    "checksum_provenance": "Observed SHA256 of the upstream release artifact downloaded through torch.hub, 2026-11-22",
+    "model": "global_descriptor:SALAD",
+    "reference": "https://github.com/serizba/salad/releases/download/v1.0.0/dino_salad.ckpt",
+    "sources": [
+      {
+        "filename": "dino_salad.ckpt",
+        "kind": "torch_hub",
+        "sha256": "6b3f1720954293e83da6966c5cfcfc6713200d7fefadcca76fc51aeb80b3cada",
+        "url": "https://github.com/serizba/salad/releases/download/v1.0.0/dino_salad.ckpt"
+      },
+      {
+        "filename": "dino_salad.ckpt",
+        "kind": "url",
+        "sha256": "6b3f1720954293e83da6966c5cfcfc6713200d7fefadcca76fc51aeb80b3cada",
+        "url": "https://github.com/serizba/salad/releases/download/v1.0.0/dino_salad.ckpt"
+      }
+    ]
+  },
+  "TINY_ROMA_V1_OUTDOOR": {
+    "checksum_provenance": "Observed SHA256 of the upstream artifact downloaded through torch.hub, 2026-11-22",
+    "model": "pair_matcher:TINY_ROMA",
+    "reference": "https://github.com/Parskatt/storage/releases/download/roma/tiny_roma_v1_outdoor.pth",
+    "sources": [
+      {
+        "filename": "tiny_roma_v1_outdoor.pth",
+        "kind": "torch_hub",
+        "sha256": "3e2ac3481f754243eb3f5c8ea0358667561f1ce139c3edd03d7d21927ffba30c",
+        "url": "https://github.com/Parskatt/storage/releases/download/roma/tiny_roma_v1_outdoor.pth"
+      },
+      {
+        "filename": "tiny_roma_v1_outdoor.pth",
+        "kind": "url",
+        "sha256": "3e2ac3481f754243eb3f5c8ea0358667561f1ce139c3edd03d7d21927ffba30c",
+        "url": "https://github.com/Parskatt/storage/releases/download/roma/tiny_roma_v1_outdoor.pth"
+      }
+    ]
+  }
+}

@@ -26,6 +26,7 @@
 #include "rotation_histogram.h"
 
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <opencv2/calib3d.hpp>
 
@@ -44,6 +45,11 @@ Initializer::Initializer(SensorType sensor_type_) : sensor_type(sensor_type_) {
 void Initializer::reset() {
     frames.clear();
     f_ref.reset();
+    num_failures = 0;
+    num_min_triangulated_points = is_monocular ? Parameters::kInitializerNumMinTriangulatedPoints
+                                               : Parameters::kInitializerNumMinTriangulatedPointsStereo;
+    check_min_frame_distance = Parameters::kInitializerUseMinFrameDistanceCheck;
+    check_cell_coverage = Parameters::kInitializerUseCellCoverageCheck;
 }
 
 void Initializer::push_frame(const FramePtr &frame) {
@@ -87,6 +93,17 @@ std::pair<InitializerOutput, bool> Initializer::initialize(const FramePtr &f_cur
 void Initializer::check_num_failures() {
     if (num_failures > kNumOfFailuresAfterWichNumMinTriangulatedPointsIsReduced) {
         const double factor = 2.0 / 3.0;
+        if (sensor_type == SensorType::STEREO) {
+            // Match the Python initializer: progressively relax stereo support, bounded
+            // by twice the depth-PnP minimum. Keep the initial target and all BA checks.
+            const double base = Parameters::kInitializerNumMinTriangulatedPointsStereo;
+            const double floor = std::min(
+                base, 2.0 * Parameters::kInitializerNumMinNumPointsForPnPWithDepth);
+            const int stage =
+                num_failures / kNumOfFailuresAfterWichNumMinTriangulatedPointsIsReduced;
+            num_min_triangulated_points = std::max(floor, base * std::pow(factor, stage));
+            return;
+        }
         num_min_triangulated_points =
             factor * (is_monocular ? Parameters::kInitializerNumMinTriangulatedPoints
                                    : Parameters::kInitializerNumMinTriangulatedPointsStereo);
@@ -164,6 +181,7 @@ std::pair<InitializerOutput, bool> Initializer::process_frames(const FramePtr &f
     std::vector<int> idxs_cur = matches.first;
     std::vector<int> idxs_ref = matches.second;
     if (idxs_cur.empty() || idxs_ref.empty()) {
+        ++num_failures;
         return {out, false};
     }
     if (FeatureSharedResources::oriented_features) {
@@ -223,6 +241,7 @@ std::pair<InitializerOutput, bool> Initializer::process_frames(const FramePtr &f
         const int num_valid = static_cast<int>(
             std::count(mask_pts3d.begin(), mask_pts3d.end(), true));
         if (num_valid < Parameters::kInitializerNumMinNumPointsForPnPWithDepth) {
+            ++num_failures;
             return {out, false};
         }
         std::vector<cv::Point3d> object_points;
@@ -270,11 +289,25 @@ std::pair<InitializerOutput, bool> Initializer::process_frames(const FramePtr &f
     double median_depth = -1.0;
     if (new_pts_count > num_min_triangulated_points) {
         const float reproj_error_before = temp_map->compute_mean_reproj_error();
-        const double reproj_error_after =
+        const double optimized_chi2 =
             temp_map->optimize(Parameters::kLargeBAWindowSize, false, 20, true, false, nullptr);
+        // Stereo/RGB-D BA chi2 includes depth (right-u) residuals: compare the same
+        // left-image reprojection objective before and after, not 2D vs. 3D costs.
+        // Monocular BA has only reprojection edges: keep the original metric.
+        const double reproj_error_after =
+            is_monocular ? optimized_chi2
+                         : static_cast<double>(temp_map->compute_mean_reproj_error());
         const int num_map_points = temp_map->num_points();
-        is_ok = reproj_error_after < reproj_error_before &&
+        is_ok = std::isfinite(optimized_chi2) && optimized_chi2 >= 0.0 &&
+                std::isfinite(reproj_error_before) && std::isfinite(reproj_error_after) &&
+                reproj_error_after >= 0.0 &&
+                reproj_error_after < reproj_error_before &&
                 num_map_points > num_min_triangulated_points;
+        if (sensor_type == SensorType::STEREO) {
+            std::cout << "Initializer stereo: support " << num_map_points << ", target "
+                      << num_min_triangulated_points << ", reprojection " << reproj_error_before
+                      << " -> " << reproj_error_after << ", BA chi2 " << optimized_chi2 << std::endl;
+        }
         if (is_ok) {
             out.pts.reserve(added_map_points.size());
             for (const auto &point : added_map_points) {
