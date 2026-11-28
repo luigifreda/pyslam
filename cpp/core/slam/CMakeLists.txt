@@ -414,23 +414,24 @@ set(SLAM_CPP_CORE_SOURCES
     ${PYSLAM_SLAM_SRC}/tracking.cpp
     ${PYSLAM_SLAM_SRC}/local_mapping.cpp
     ${PYSLAM_SLAM_SRC}/slam.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_params.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/image_utils.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/direct_aligner.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/planar_patch.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/depth_filter.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/semi_direct_pose_tracker.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/features/corner_detection.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/features/corner_grid.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/geometry/reprojection_pose.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/geometry/monocular_initializer.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/klt/klt_tracker.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/klt/klt_pose_tracker.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/depth_measurement.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/pose_tracker.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/hybrid_pose_tracker.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_backend.cpp
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_frontend.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/direct_params.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/image_utils.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/photometric/direct_aligner.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/photometric/planar_patch.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/photometric/depth_filter.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/semi_direct/semi_direct_pose_tracker.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/features/corner_detection.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/features/corner_grid.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/geometry/reprojection_pose.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/geometry/ray_geometry.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/monocular_initializer.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/lk/lk_tracker.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/klt/klt_pose_tracker.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/depth_measurement.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/pose_tracker.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/hybrid/hybrid_pose_tracker.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/direct_backend.cpp
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/direct_frontend.cpp
 )
 
 if (USE_PYTHON)
@@ -489,25 +490,26 @@ set(SLAM_CPP_CORE_HEADERS
     ${PYSLAM_SLAM_SRC}/tracking.h
     ${PYSLAM_SLAM_SRC}/local_mapping.h
     ${PYSLAM_SLAM_SRC}/slam.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/se3.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_params.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/direct_aligner.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/planar_patch.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/depth_filter.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct/semi_direct_pose_tracker.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/features/corner_detection.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/features/corner_grid.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/geometry/reprojection_pose.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/geometry/monocular_initializer.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/klt/klt_tracker.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/klt/klt_pose_tracker.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/depth_measurement.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/pose_tracker.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/hybrid_pose_tracker.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_map.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/live_point.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_backend.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/direct_frontend.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/se3.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/direct_params.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/photometric/direct_aligner.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/photometric/planar_patch.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/photometric/depth_filter.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/semi_direct/semi_direct_pose_tracker.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/features/corner_detection.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/features/corner_grid.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/geometry/reprojection_pose.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/geometry/ray_geometry.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/monocular_initializer.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/lk/lk_tracker.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/klt/klt_pose_tracker.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/depth_measurement.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/pose_tracker.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/hybrid/hybrid_pose_tracker.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/direct_map.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/live_point.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/direct_backend.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/core/direct_frontend.h
 )
 
 if (USE_PYTHON)
@@ -569,7 +571,7 @@ set(SLAM_CPP_PYBIND_MODULE_HEADERS
     ${PYSLAM_SLAM_SRC}/py_module/geometry_matchers_module.h
     ${PYSLAM_SLAM_SRC}/py_module/local_mapping_core_module.h
     ${PYSLAM_SLAM_SRC}/py_module/slam_pipeline_module.h
-    ${PYSLAM_ROOT}/cpp/core/slam_direct/py_module/direct_slam_module.h
+    ${PYSLAM_ROOT}/cpp/core/slam/direct/py_module/direct_slam_module.h
     # semantics
     ${PYSLAM_SEMANTICS_SRC}/py_module/semantic_mapping_shared_resources_module.h
 )

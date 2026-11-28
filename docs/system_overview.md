@@ -187,7 +187,7 @@ This paper provides a presentation of the first version of sparse semantic mappi
 
 ## Direct and Semi-Direct SLAM
 
-[`main_slam_direct.py`](../main_slam_direct.py) runs a separate SLAM pipeline that exists only in C++ ([`cpp/core/slam_direct`](../cpp/core/slam_direct/README.md)) and requires `USE_CPP_CORE`. Tracking and local mapping are descriptor-free: correspondences come from image intensities on raw pixels (grid FAST or GFTT corners, pyramidal Lucas-Kanade, photometric patch alignment). Descriptors are extracted only on separate keyframes, for the optional loop closing. The pipeline shares the configuration, datasets, camera factory, viewers and feature-trail renderer of the indirect pipeline. Dense and semantic mapping are not provided.
+[`main_slam_direct.py`](../main_slam_direct.py) runs a separate SLAM pipeline that exists only in C++ ([`cpp/core/slam/direct`](../cpp/core/slam/direct/README.md)) and requires `USE_CPP_CORE`. Tracking and local mapping are descriptor-free: correspondences come from image intensities on raw pixels (grid FAST or GFTT corners, pyramidal Lucas-Kanade, photometric patch alignment). Descriptors are extracted only on separate keyframes, for the optional loop closing. The pipeline shares the configuration, datasets, camera factory, viewers and feature-trail renderer of the indirect pipeline. Dense and semantic mapping are not provided.
 
 The [Direct SLAM guide](./direct_slam.md) gives the tracking/recovery and BA flowcharts, the depth filter, camera restrictions, parameters and run commands. This section describes the architecture.
 
@@ -231,7 +231,7 @@ This diagram shows the architecture of the *Pose Tracker*. `make_pose_tracker` c
 - `HybridPoseTracker` (`hybrid`, alias `direct`): owns a `KltPoseTracker` for the geometric seed, then applies sparse photometric refinement (`direct_aligner`) when it agrees with the geometric tracks. If the geometric seed fails, it can recover with photometric-only tracking.
 - `SemiDirectPoseTracker` (`semi_direct`): SVO-style alignment of fronto-parallel planar patches against the reference keyframe, then per-feature 2D alignment and the reprojection pose. It owns the depth seeds and is the only mode that accepts monocular input.
 
-`DirectSlam` keeps everything common to all modes: input checks, initialization, the accept/reject decision, live-track bookkeeping, keyframes and local BA. The trackers plug in through `track()`, `after_accept()`, `on_keyframe()` and `reset()`. The building blocks on the right are free functions grouped by folder: indirect (LK) code is under `klt/`, photometric code under `direct/`, and shared geometry under `geometry/` and `features/`.
+`DirectSlam` keeps everything common to all modes: input checks, initialization, the accept/reject decision, live-track bookkeeping, keyframes and local BA. The trackers plug in through `track()`, `after_accept()`, `on_keyframe()` and `reset()`. The building blocks on the right are free functions grouped by folder: LK correspondences under `lk/`, photometric code under `photometric/`, and shared geometry under `geometry/` and `features/`. Each mode has its own folder (`klt/`, `hybrid/`, `semi_direct/`).
 
 #### Direct Map and Local BA
 
@@ -264,9 +264,9 @@ The system provides a modular **sparse-SLAM core**, implemented in **both Python
 
 The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names. The bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++ when possible. The C++ sparse-SLAM core is enabled by default (`USE_CPP_CORE = True` in `pyslam/config_parameters.py`); set it to `False`, or launch with `PYSLAM_USE_CPP=false`, to run the Python core.
 
-A detailed overview of the C++ core architecture, design principles, and implementation details is provided in this [document](../cpp/core/slam/README.md). The C++ camera classes live in [`cpp/core/camera`](../cpp/core/camera/README.md), and the headers shared by `camera`, `slam`, `slam_direct` and `semantics` live in [`cpp/core/common`](../cpp/core/common/README.md); both are compiled into `cpp_core`.
+A detailed overview of the C++ core architecture, design principles, and implementation details is provided in this [document](../cpp/core/slam/README.md). The C++ camera classes live in [`cpp/core/camera`](../cpp/core/camera/README.md), and the headers shared by `camera`, `slam` (including `slam/direct`) and `semantics` live in [`cpp/core/common`](../cpp/core/common/README.md); both are compiled into `cpp_core`.
 
-The [direct SLAM pipeline](#direct-and-semi-direct-slam) is compiled into the same `cpp_core` module ([`cpp/core/slam_direct`](../cpp/core/slam_direct/README.md)). Unlike the sparse-SLAM core, it has no Python counterpart, so `main_slam_direct.py` requires `USE_CPP_CORE`.
+The [direct SLAM pipeline](#direct-and-semi-direct-slam) is compiled into the same `cpp_core` module ([`cpp/core/slam/direct`](../cpp/core/slam/direct/README.md)), as a subfolder of the sparse-SLAM core. Unlike the sparse-SLAM core, it has no Python counterpart, so `main_slam_direct.py` requires `USE_CPP_CORE`.
 
 ---
 

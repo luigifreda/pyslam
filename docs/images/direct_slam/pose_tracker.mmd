@@ -5,7 +5,7 @@ config:
     wrappingWidth: 400
 ---
 graph LR;
-    %% Direct SLAM pose tracker (cpp/core/slam_direct/pose_tracker.h)
+    %% Direct SLAM pose tracker (cpp/core/slam/direct/core/pose_tracker.h)
     linkStyle default stroke:#021526,stroke-width:1px,font-size:14px;
 
     classDef factory fill:#D1F0FF,stroke:#0077B6,stroke-width:1.5px,font-size:16px;
@@ -30,7 +30,7 @@ graph LR;
     HybridPoseTracker -.->|"`_has-a_`"| KltPoseTracker;
     HybridPoseTracker -.->|"`_uses_`"| DirectAligner["direct_aligner<br><i>sparse photometric alignment</i>"];
     KltPoseTracker -.->|"`_uses_`"| DepthMeasurement["depth_measurement<br><i>stereo / RGBD depth</i>"];
-    KltPoseTracker -.->|"`_uses_`"| KltTracker["klt_tracker<br><i>pyramidal LK + fwd/bwd check</i>"];
+    KltPoseTracker -.->|"`_uses_`"| KltTracker["lk_tracker<br><i>pyramidal LK + fwd/bwd check</i>"];
     KltPoseTracker -.->|"`_uses_`"| ReprojectionPose["reprojection_pose<br><i>PnP RANSAC + robust pose</i>"];
     SemiDirectPoseTracker -.->|"`_uses_`"| KltTracker;
     SemiDirectPoseTracker -.->|"`_uses_`"| ReprojectionPose;

@@ -27,7 +27,7 @@ While this may be self-evident, it is important to keep in mind that when `USE_C
 - The Python implementation of the sparse SLAM core is effectively bypassed, and any modifications to it will have no effect at runtime.
 - All functional changes to the sparse SLAM C++ codebase must be rebuilt using `./build_cpp_core.sh` (as explained above) in order to take effect.
 
-The adjacent [`slam_direct`](../slam_direct/README.md) sources provide a separate direct-SLAM frontend (KLT/hybrid tracking) and local BA backend through the same `cpp_core` module. Its entry point, `main_slam_direct.py`, requires the C++ core and has no Python-core fallback. See the [direct-SLAM guide](../../../docs/direct_slam.md) for its architecture and usage.
+The [`direct`](direct/README.md) subfolder holds a separate direct-SLAM frontend (`klt`, `hybrid` and `semi_direct` tracking) and local BA backend, built into the same `cpp_core` module. It has its own map and does not mirror any Python class. Its entry point, `main_slam_direct.py`, requires the C++ core and has no Python-core fallback. See the [direct-SLAM guide](../../../docs/direct_slam.md) for its architecture and usage.
 
 ### macOS, conda Python, and local OpenCV
 
@@ -53,11 +53,14 @@ The adjacent [`slam_direct`](../slam_direct/README.md) sources provide a separat
 │       ├── common          # shared headers (Eigen aliases, smart pointers, dictionary, serialization, drawing)
 │       ├── semantics
 │       │   └── py_module   # pybind11 bindings compiled into cpp_core
-│       ├── slam_direct     # direct-SLAM frontend (klt/hybrid/semi_direct) and local BA
-│       │   ├── py_module   # DirectSlam bindings in cpp_core
-│       │   ├── tests_cpp   # synthetic C++ regression tests
-│       │   └── tests_python # binding and snapshot checks
 │       └── slam            # sparse-SLAM C++ core
+│           ├── direct      # direct-SLAM frontend (klt/hybrid/semi_direct) and local BA, C++ only
+│           │   ├── core        # DirectSlam, map, local BA, settings, pose-tracker interface
+│           │   ├── features, geometry, lk, photometric   # building blocks
+│           │   ├── klt, hybrid, semi_direct              # one pose tracker per mode
+│           │   ├── py_module   # DirectSlam bindings in cpp_core
+│           │   ├── tests_cpp   # synthetic C++ regression tests
+│           │   └── tests_py    # binding and snapshot checks
 │           ├── py_module   # pybind11 module definitions for sparse slam
 │           ├── casters     # SLAM-only pybind11 opaque container types
 │           ├── utils       # SLAM helpers for geometry, features, image processing, etc.
@@ -78,7 +81,7 @@ The codebase is organized into the following categories:
 
 - **Type Casters** — `casters/` keeps the SLAM-only opaque container types. The OpenCV, JSON and dictionary casters are shared headers in `cpp/casters`.
 
-- **Shared headers** — `cpp/core/common/` holds what `camera`, `slam`, `slam_direct` and `semantics` share: Eigen aliases and helpers, smart pointers, `Dict`, messages, JSON/NumPy serialization, descriptor distances, an owned g2o optimizer, and the feature-trail drawing.
+- **Shared headers** — `cpp/core/common/` holds what `camera`, `slam` (including `slam/direct`) and `semantics` share: Eigen aliases and helpers, smart pointers, `Dict`, messages, JSON/NumPy serialization, descriptor distances, an owned g2o optimizer, and the feature-trail drawing.
 
 - **Utilities** — `utils/` houses SLAM helper functions for geometry, features, image processing and map access.
 

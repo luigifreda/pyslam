@@ -10,14 +10,14 @@ cpp/
   core/camera/      # camera models, projection math, rig geometry, camera g2o/gtsam edges
   core/common/      # shared headers: Eigen aliases, smart pointers, dictionary, serialization, drawing
   core/slam/        # sparse-SLAM C++ core
-  core/slam_direct/ # direct-SLAM (klt/hybrid/semi_direct) tracking and local BA, compiled into cpp_core
+  core/slam/direct/ # direct-SLAM (klt/hybrid/semi_direct) tracking and local BA, compiled into cpp_core
   core/semantics/   # compiled into cpp_core
   lib/              # utility extension binaries
 ```
 
 Python imports `cpp_core` through `pyslam/slam/cpp`. The other extension names (`pyslam_utils`, `glutils`, `hamming`, `volumetric`, and so on) are unchanged.
 
-The direct-SLAM (klt/hybrid/semi_direct) tracking and local BA pipeline is introduced in the [direct-SLAM guide](../docs/direct_slam.md), with source layout and regression checks in [core/slam_direct/README.md](core/slam_direct/README.md).
+The direct-SLAM (klt/hybrid/semi_direct) tracking and local BA pipeline is introduced in the [direct-SLAM guide](../docs/direct_slam.md), with source layout and regression checks in [core/slam/direct/README.md](core/slam/direct/README.md).
 
 ## Available Modules
 

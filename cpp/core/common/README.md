@@ -1,6 +1,6 @@
 # Shared C++ headers
 
-Header-only utilities shared by [`camera`](../camera/README.md), [`slam`](../slam/README.md), [`slam_direct`](../slam_direct/README.md), `semantics`, and the `camera_models` / `color_utils` extensions. Include them with their folder, for example `#include "common/eigen_aliases.h"`. Nothing here includes `camera/`, `slam/` or `slam_direct/`.
+Header-only utilities shared by [`camera`](../camera/README.md), [`slam`](../slam/README.md), [`slam/direct`](../slam/direct/README.md), `semantics`, and the `camera_models` / `color_utils` extensions. Include them with their folder, for example `#include "common/eigen_aliases.h"`. Nothing here includes `camera/`, `slam/` or `slam_direct/`.
 
 | File | Role |
 | --- | --- |

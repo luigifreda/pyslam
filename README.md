@@ -148,7 +148,7 @@ See the demo **video** for release v2.10.0
 │   │   ├── camera       # C++ camera models, projection math, rig geometry, camera g2o/gtsam edges
 │   │   ├── common       # shared C++ headers (Eigen aliases, smart pointers, serialization, drawing)
 │   │   ├── slam         # sparse-SLAM C++ core, exposed as the cpp_core module
-│   │   ├── slam_direct  # direct SLAM frontend (klt/hybrid/semi_direct) and local BA, also in cpp_core
+│   │   │   └── direct   # direct SLAM frontend (klt/hybrid/semi_direct) and local BA, also in cpp_core
 │   │   └── semantics    # semantic-mapping sources compiled into cpp_core
 │   └── lib              # built Python extension modules
 ├── data                 # Sample input/output data
@@ -644,7 +644,7 @@ Known **limitations** in volumetric semantic mapping:
 ---
 ### C++ Core Module
 
-The system provides a modular sparse-SLAM core, implemented in both C++ and Python, allowing users to switch between high-performance/speed and high-flexibility modes. The same `cpp_core` module contains the C++-only [direct and semi-direct frontend](./docs/direct_slam.md) (`cpp/core/slam_direct`). That pipeline has no Python implementation. See [Direct and semi-direct SLAM](#direct-and-semi-direct-slam).
+The system provides a modular sparse-SLAM core, implemented in both C++ and Python, allowing users to switch between high-performance/speed and high-flexibility modes. The same `cpp_core` module contains the C++-only [direct and semi-direct frontend](./docs/direct_slam.md) (`cpp/core/slam/direct`). That pipeline has no Python implementation. See [Direct and semi-direct SLAM](#direct-and-semi-direct-slam).
 
 The C++ core reimplements the sparse SLAM originally implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11. The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names (see this [table](./cpp/core/slam/README.md#table-of-corresponding-files)). When feasible, the bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++.
 

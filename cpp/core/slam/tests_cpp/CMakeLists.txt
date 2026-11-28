@@ -30,7 +30,7 @@ set(TESTS
     test_python_to_cpp_to_python_map
 )
 
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../slam_direct/tests_cpp direct_slam)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../direct/tests_cpp direct_slam)
 
 # add cycle for ${TESTS}
 foreach(TEST ${TESTS})
