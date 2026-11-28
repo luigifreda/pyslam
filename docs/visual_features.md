@@ -144,7 +144,7 @@ These options are **off by default**. They are enabled per run with environment 
 | Batched LightGlue | `PYSLAM_LIGHTGLUE_BATCHED=1` | matches one keyframe against all candidate keyframes of `compute_frame_matches` in one masked forward | no speedup here: 10-20% slower than per-pair (pyslam's LightGlue has only 2 layers; masked attention cannot use the fused flash kernel) | no adaptive early stopping/pruning; 11 of 12 test pairs identical, one differed by 1 of 592 matches |
 | torch.compile | `PYSLAM_TORCH_COMPILE=1` (backend: `PYSLAM_TORCH_COMPILE_BACKEND=inductor` or `tensorrt`) | compiles the SuperPoint, XFeat and ALIKED networks and LightGlue (upstream static-length compile) | no benefit here: extraction within ±5%, LightGlue matching 7.8 -> 11.3 ms (padding); 4-16 s compile at first call | 99.3-99.9% of keypoints identical (order can change); LightGlue pruning disabled |
 
-SLAM smoke runs with each option enabled (60 frames, GPU): GPU NN matcher with ALIKED on KITTI stereo, all rows accepted, ATE 0.257 m (default 0.256 m), median tracking 74 ms (default 90 ms); batched LightGlue with SuperPoint on KITTI (Python core), all rows accepted, ATE 0.232 m; torch.compile with ALIKED on TUM, all rows accepted, ATE 5.4 mm, tracking 41 ms (default 45 ms). Evidence: `docs/benchmarks/visual_models/sequence-smoke-optional-accelerations-gpu.json`.
+SLAM smoke runs with each option enabled (60 frames, GPU): GPU NN matcher with ALIKED on KITTI stereo, all rows accepted, ATE 0.257 m (default 0.256 m), median tracking 74 ms (default 90 ms); batched LightGlue with SuperPoint on KITTI (Python core), all rows accepted, ATE 0.232 m; torch.compile with ALIKED on TUM, all rows accepted, ATE 5.4 mm, tracking 41 ms (default 45 ms). Evidence: `benchmarking/benchmarks/visual_models/sequence-smoke-optional-accelerations-gpu.json`.
 
 Notes:
 
@@ -222,7 +222,7 @@ python benchmarking/benchmark_visual_slam.py --presets ORB2 --loop-presets DBOW3
 - `compare_benchmarks.py` is the regression gate (exit 0 pass, 1 regression, 2 incomplete). Tolerances: per-frame times and fps 3% (`--tolerance`), import/model-load 10% (`--startup-tolerance`), peak memory 2% (`--memory-tolerance`). Counts must be exact for deterministic cases and within 3% (`--count-tolerance`) for non-deterministic ones (e.g. ORB2's default extractor, RoMa sampling).
 - `benchmark_visual_slam.py` runs bounded headless `main_slam.py` cases on the datasets in `config.yaml` and records tracking timings, ATE, accepted trajectory rows, memory and artifacts. `--profile-dir` profiles every process.
 - The enum/`FeatureInfo` contract is append-only: recorded names and values must not change and new members must use larger values (saved maps and the C++ core depend on them).
-- Evidence files are in [`docs/benchmarks/visual_models/`](./benchmarks/visual_models/), with the [fixes ledger](./benchmarks/visual_models/fixes-ledger.md).
+- Evidence files are in [`benchmarking/benchmarks/visual_models/`](../benchmarking/benchmarks/visual_models/), with the [fixes ledger](../benchmarking/benchmarks/visual_models/fixes-ledger.md).
 
 ## Model catalog
 

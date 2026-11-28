@@ -1,6 +1,6 @@
 # Benchmarking
 
-Tools for measuring pySLAM visual models and SLAM runs and for comparing the results. They need datasets or prefetched weights (sometimes a GPU), take minutes, and write JSON. They are not part of the pytest suite. Their own unit tests are in [`tests/local_features/`](../tests/local_features/). Committed results are in [`docs/benchmarks/visual_models/`](../docs/benchmarks/visual_models/).
+Tools for measuring pySLAM visual models and SLAM runs and for comparing the results. They need datasets or prefetched weights (sometimes a GPU), take minutes, and write JSON. They are not part of the pytest suite. Their own unit tests are in [`tests/local_features/`](../tests/local_features/). Committed results are in [`benchmarks/visual_models/`](./benchmarks/visual_models/).
 
 Run from the repository root with the pySLAM environment active.
 
