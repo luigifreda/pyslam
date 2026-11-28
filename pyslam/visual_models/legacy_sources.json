@@ -8,7 +8,12 @@
         "sha256": "0e6031ed3e62dc91dc8b1c8f240abd200b1083f60773362e64e339fe01d1bf18"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "code and weights Apache-2.0 (cvg/LightGlue)",
+    "model_licenses": {
+      "ALIKED": "code Apache-2.0 (cvg/LightGlue); ALIKED weights BSD-3-Clause (Shiaoming/ALIKED)",
+      "LIGHTGLUESIFT": "code and weights Apache-2.0 (cvg/LightGlue); SIFT from OpenCV (Apache-2.0)",
+      "LIGHTGLUE": "code and weights Apache-2.0 (cvg/LightGlue); the paired local feature keeps its own license"
+    },
     "patches": [
       "thirdparty/lightglue.patch"
     ],
@@ -23,7 +28,7 @@
   "SOSNet": {
     "checkout_sha": "aea9275e4a3bdbea33d6fa9766bf167847760532",
     "license_evidence": [],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "no license in the upstream repository (yuruntian/SOSNet): all rights reserved",
     "patches": [],
     "path": "thirdparty/SOSNet",
     "revision": "aea9275e4a3bdbea33d6fa9766bf167847760532",
@@ -42,7 +47,7 @@
         "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "code and weights Apache-2.0 (verlab/accelerated_features)",
     "patches": [],
     "path": "thirdparty/accelerated_features",
     "revision": "e92685f57f8318b18725c5c8c0bd28c7fe188d9a",
@@ -59,7 +64,7 @@
     "weights": "github release v1.0 dinov2_12288.pth (SHA-256 registered) + facebookresearch/dinov2 via torch.hub"
   },
   "contextdesc": {
-    "license_review": "pending; no redistribution or model migration authorized by metadata alone",
+    "license_review": "no license in the upstream repository (lzx551402/contextdesc): all rights reserved",
     "path": "thirdparty/contextdesc",
     "revision": null,
     "url": null,
@@ -77,7 +82,7 @@
         "sha256": "f9b2a348d3ac4473f1a9a75e106c71d09eebc155fed1f8998e0d6a7e7a0a5aaa"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "BSD-3-Clause-Clear (mihaidusmanu/d2-net)",
     "patches": [
       "thirdparty/d2net.patch"
     ],
@@ -104,7 +109,7 @@
         "sha256": "27ff1bb1d8d1ee44af861b79882de6f4d1418f3632a8e61b2274c20980588a34"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "GPL-3.0 (cvlab-epfl/disk)",
     "patches": [],
     "path": "thirdparty/disk",
     "revision": "eafa0ee80d26f86d6c838b78cea8ae4c9abd4b51",
@@ -115,7 +120,7 @@
     }
   },
   "geodesc": {
-    "license_review": "pending; no redistribution or model migration authorized by metadata alone",
+    "license_review": "MIT (lzx551402/geodesc)",
     "path": "thirdparty/geodesc",
     "revision": null,
     "url": null,
@@ -133,7 +138,7 @@
         "sha256": "947406498f4d5b6faf8c8ed357687e3b6762b23f51bbb40294b8c96472506c4d"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "MIT (DagnyT/hardnet)",
     "patches": [],
     "path": "thirdparty/hardnet",
     "revision": "74fe11a77460aa2aef84ffeb07fa5cde3afec37f",
@@ -152,7 +157,7 @@
         "sha256": "8e7d780617b788d915f5de780c048426549cc40ae167e25a1133efc31410a46d"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "BSD-3-Clause-Clear (axelBarroso/Key.Net)",
     "patches": [
       "thirdparty/keynet.patch"
     ],
@@ -165,13 +170,17 @@
     }
   },
   "kornia": {
-    "license_review": "existing integration; review code and weight terms before new redistribution",
+    "license_review": "Apache-2.0 (kornia)",
+    "model_licenses": {
+      "KEYNETAFFNETHARDNET": "code Apache-2.0 (kornia); weights: Key.Net BSD-3-Clause-Clear, AffNet MIT, HardNet MIT",
+      "LOFTR": "code Apache-2.0 (kornia); LoFTR weights Apache-2.0 (zju3dv/LoFTR)"
+    },
     "observed_version": "0.8.2",
     "package": "kornia",
     "pin_source": "scripts/install_pip3_packages.sh and scripts/install_final_pip_pins.sh"
   },
   "l2net": {
-    "license_review": "pending; no redistribution or model migration authorized by metadata alone",
+    "license_review": "port code Apache-2.0 (vcg-uvic/image-matching-benchmark-baselines); L2-Net weights: no license in the upstream repository (yuruntian/L2-Net)",
     "path": "thirdparty/l2net",
     "revision": null,
     "url": null,
@@ -189,7 +198,7 @@
         "sha256": "aaf290532c0fcd2cc27cb7cb9a687a51426deb8f7939f266fde33a66d0e3ce9e"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "research and evaluation only; commercial use needs written approval from EPFL and UVic (vcg-uvic/lf-net-release)",
     "patches": [
       "thirdparty/lfnet.patch"
     ],
@@ -210,7 +219,7 @@
         "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "Apache-2.0 (cvlab-epfl/log-polar-descriptors)",
     "patches": [],
     "path": "thirdparty/logpolar",
     "revision": "aed70f882cddcfe0c27b65768b9248bf1f2c65cb",
@@ -221,7 +230,7 @@
     }
   },
   "mast3r": {
-    "license_review": "pending; no redistribution or model migration authorized by metadata alone",
+    "license_review": "CC BY-NC-SA 4.0, non-commercial (naver/mast3r)",
     "path": "thirdparty/mast3r",
     "revision": "e06b0093ddacfd8267cdafe5387954a650af0d3b",
     "url": "https://github.com/naver/mast3r",
@@ -231,7 +240,7 @@
     }
   },
   "megaloc": {
-    "license_review": "pending",
+    "license_review": "MIT (gmberton/MegaLoc)",
     "revision": null,
     "url": "https://github.com/gmberton/MegaLoc",
     "weights": {
@@ -240,13 +249,18 @@
     }
   },
   "opencv": {
-    "license_review": "existing integration; review code and weight terms before new redistribution",
+    "license_review": "Apache-2.0 (OpenCV >= 4.5 and opencv_contrib)",
+    "model_licenses": {
+      "SURF": "Apache-2.0 (opencv_contrib); patented algorithm in the nonfree module (OPENCV_ENABLE_NONFREE)",
+      "ROOT_SIFT": "pyslam wrapper GPL-3.0 on OpenCV SIFT (Apache-2.0)",
+      "SHI_TOMASI": "pyslam wrapper GPL-3.0 on OpenCV (Apache-2.0)"
+    },
     "observed_version": "4.11.0.86",
     "package": "opencv-python",
     "pin_source": "scripts/install_pip3_packages.sh and scripts/install_final_pip_pins.sh"
   },
   "orbslam2_features": {
-    "license_review": "pending; no redistribution or model migration authorized by metadata alone",
+    "license_review": "GPL-3.0 (ORBextractor from raulmur/ORB_SLAM2)",
     "path": "thirdparty/orbslam2_features",
     "revision": null,
     "url": null,
@@ -264,7 +278,7 @@
         "sha256": "3df73bbe7dec87510d0962c404558b1a810bbe3209e745835f1b4cf2bff84cc4"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "MIT (QVPR/Patch-NetVLAD)",
     "patches": [
       "thirdparty/patch_netvlad.patch"
     ],
@@ -285,7 +299,7 @@
         "sha256": "2891af7a316a5783cdbde291bb6122637f0934473997fd7a335f8b668e2dcd7f"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "CC BY-NC-SA 3.0, non-commercial (naver/r2d2)",
     "patches": [
       "thirdparty/r2d2.patch"
     ],
@@ -326,7 +340,7 @@
         "sha256": "a79449584867091af048b81d4b8fa3a0e2cfa724ccf994a5873dea8c073d9266"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "Magic Leap academic license: non-commercial research use only (MagicLeapResearch/SuperPointPretrainedNetwork)",
     "patches": [],
     "path": "thirdparty/superpoint",
     "revision": "4698c7f001663ff2b13304d699f2cdb3f663c28f",
@@ -345,7 +359,7 @@
         "sha256": "5b17814bf0de8cf65069bc6d7cc38cff19fcaa864d243423ad3ef3db01b52385"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "Apache-2.0 (tensorflow/models, DELF)",
     "patches": [],
     "path": "thirdparty/tensorflow_models",
     "revision": "4e1539bf961071710543e0e6d53268d86df5d216",
@@ -364,7 +378,7 @@
         "sha256": "289ac9164a572aa1208afeb7ac93b71a8025af85275c0bfcd383d4fd3a8d0230"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "MIT (vbalnt/tfeat)",
     "patches": [],
     "path": "thirdparty/tfeat",
     "revision": "9a34fb9233b9bfdffab1c6fb5bf9fda0ca82dc49",
@@ -383,7 +397,14 @@
         "sha256": "8b1ba204bb69a0ade2bfcf65ef294a920f6bb361b317dba43c7ef29d96332b9b"
       }
     ],
-    "license_review": "pending; weight terms are separate",
+    "license_review": "wrapper code GPL-3.0 (stschubert/VPR_Tutorial)",
+    "model_licenses": {
+      "COSPLACE": "wrapper GPL-3.0 (VPR_Tutorial); CosPlace code and weights MIT (gmberton/CosPlace)",
+      "EIGENPLACES": "wrapper GPL-3.0 (VPR_Tutorial); EigenPlaces code and weights MIT (gmberton/EigenPlaces)",
+      "ALEXNET": "wrapper GPL-3.0 (VPR_Tutorial); AlexNet BSD-3-Clause (torchvision)",
+      "SAD": "GPL-3.0 (VPR_Tutorial); no weights",
+      "HDC-DELF": "wrapper GPL-3.0 (VPR_Tutorial); DELF weights Apache-2.0 (TF Hub google/delf)"
+    },
     "patches": [
       "thirdparty/vpr.patch"
     ],

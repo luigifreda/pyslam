@@ -6,7 +6,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 
  
 **pySLAM** is a hybrid **python/C++** implementation of a *Visual SLAM* pipeline (Simultaneous Localization And Mapping) that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features in a **single python environment**:
-- A wide range of classical and modern **[local features](#supported-local-features)** and **[matchers](#supported-matchers)** with a convenient interface for their integration.
+- A wide range of classical and modern **[local features](#supported-local-features)** and **[matchers](#supported-matchers)** with a convenient interface for their integration, including learned features and dense matchers such as *DeDoDe v2*, *RDD*, *RoMa* and *tiny-RoMa*. All visual models are described by a common [model catalog](./docs/visual_features.md), with a one-command installer (`./scripts/install_visual_model.sh`).
 - Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (*BoW*, *iBow*), Vector of Locally Aggregated Descriptors (*VLAD*) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors such as *SAD*, *NetVLAD*, *HDC-Delf*, *CosPlace*, *EigenPlaces*, *Megaloc*, *SALAD*, *BoQ*).
 - A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports different voxel grid models (with semantic support) and **TSDF** with voxel hashing, and incremental **Gaussian Splatting**. 
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include *DepthPro*, *DepthAnythingV2*, *DepthAnythingV3*, *RAFT-Stereo*, *CREStereo*, etc.  
@@ -16,8 +16,6 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - A C++ **[direct and semi-direct SLAM](docs/direct_slam.md)** pipeline (`main_slam_direct.py`) with three tracking modes: *KLT* tracks, *hybrid* sparse photometric alignment, and an *SVO*-style **semi-direct** mode with a Bayesian inverse-depth filter. It supports **stereo** and **RGBD** input, plus **monocular** in semi-direct mode, with local bundle adjustment and the same loop closing as the sparse pipeline (with a Sim(3) correction for monocular). Further details [here](docs/direct_slam.md).
 - A modular pipeline for **feed-forward inference of 3D scenes from multiple images**. Supports models like *DUSt3R*, *Mast3r*, *MV-DUSt3R*, *VGGT*, *Robust VGGT*, *DepthFromAnythingV3*, and *Fast3R*. Further details [here](pyslam/scene_from_views/README.md).
 - Built-in support for over **[10 dataset types](#datasets)**.
-
-**New in v2.13.0**: *DeDoDe v2* and *RDD* local features, *RoMa* and *tiny-RoMa* dense matchers, *SALAD* and *BoQ* loop-closure descriptors, a faster and lighter feature pipeline, optional GPU accelerations, and a one-command model installer (`./scripts/install_visual_model.sh`). See [visual features, matchers and loop-closure descriptors](./docs/visual_features.md).
   
 pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction)*, *[depth prediction](#depth-prediction)*, *[semantic mapping](#semantic-mapping-and-image-segmentation)* and *[direct and semi-direct tracking](docs/direct_slam.md)*. It allows to explore, prototype and develop VO/SLAM pipelines both in Python and C++. pySLAM is a research framework and a work in progress.
 
@@ -235,7 +233,7 @@ Grab a coffee. It will take a while.
 
 The install scripts create a **single Python environment** `pyslam` that hosts all the [supported components and models](#supported-components-and-models). If `conda` is available, it automatically uses it; otherwise, it installs and uses `venv`. An internet connection is required.
 
-The learned models added in v2.13.0 (*DeDoDe v2*, *RDD*, *RoMa*, *tiny-RoMa*, *SALAD*, *BoQ*) can be prefetched with `./scripts/install_visual_model.sh`. They are also downloaded on first use. See [visual features](./docs/visual_features.md).
+The models integrated through pinned sources (*DeDoDe v2*, *RDD*, *RoMa*, *tiny-RoMa*, *SALAD*, *BoQ*, *MegaLoc* and the *LoFTR* weights) can be prefetched with `./scripts/install_visual_model.sh`, which also verifies their checksums. They are also downloaded on first use. See [installing models](./docs/visual_features.md#installing-models).
 
 Refer to these links for further details about the specific install procedures that are supported.
 - **Ubuntu**  [=>](#ubuntu)
@@ -815,7 +813,7 @@ Further details [here](pyslam/scene_from_views/README.md).
 ## Supported components and models
 ### Supported local features
 
-**New in v2.13.0**: DeDoDe v2 and RDD local features, RoMa and tiny-RoMa dense matchers, SALAD and BoQ loop-closure descriptors, faster startup and lighter memory, persistent inference threads, opt-in GPU accelerations and a one-command model installer (`./scripts/install_visual_model.sh`). See [visual features, matchers and loop-closure descriptors](./docs/visual_features.md).
+See [visual features, matchers and loop-closure descriptors](./docs/visual_features.md) for how classic and learned models are selected, installed and licensed, and for the full model catalog.
 
 At present time, the following feature **detectors** are supported: 
 * *[FAST](https://www.edwardrosten.com/work/fast.html)*  
@@ -1259,6 +1257,8 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 ## License 
 
 pySLAM is released under [GPLv3 license](./LICENSE). pySLAM contains some modified libraries, each one coming with its license. Where nothing is specified, a GPLv3 license applies to the software.
+
+Some integrated models come with their own, more restrictive terms: *SuperPoint*, *R2D2*, *LF-Net* and *MASt3R* are restricted to non-commercial or research use (SuperPoint's terms also apply when it is paired with LightGlue), *ContextDesc*, *SOSNet* and the *L2-Net* weights come from repositories without a license, and *SURF* is a patented algorithm. Check the license column of the [model catalog](./docs/visual_features.md#model-catalog) before any commercial use or redistribution.
 
 If you use pySLAM in your projects, please cite this document:
 ["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](https://arxiv.org/abs/2502.11955), *Luigi Freda*      

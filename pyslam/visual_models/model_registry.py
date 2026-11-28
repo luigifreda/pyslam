@@ -61,6 +61,11 @@ class ModelSpec:
         """Return recorded provenance, including unresolved license/weight review status."""
         return dict(_sources().get(self.source_key, {}))
 
+    def license(self):
+        """Reviewed license summary: a per-model override of the source, else the source review."""
+        source = _sources().get(self.source_key, {})
+        return source.get("model_licenses", {}).get(self.name) or source.get("license_review", "")
+
 
 @lru_cache(maxsize=1)
 def _sources():

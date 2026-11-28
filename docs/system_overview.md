@@ -22,6 +22,7 @@
   - [Scene from Views](#scene-from-views)
   - [Shared Infrastructure](#shared-infrastructure)
     - [Camera models](#camera-models)
+    - [Classic and learned local features](#classic-and-learned-local-features)
     - [Visual model catalog](#visual-model-catalog)
 
 <!-- /TOC -->
@@ -298,10 +299,34 @@ New-model mapping uses raw-pixel measurements consistently. RGB-D and calibrated
 
 The direct SLAM pipeline uses the same camera classes. All its modes accept an undistorted pinhole or a raw-pixel camera and track in the distorted pixels; for monocular or RGBD input, the runner undistorts the images of a distorted pinhole; see [Direct SLAM](./direct_slam.md#quick-start) for the supported sensors.
 
+### Classic and learned local features
+
+pySLAM supports two families of local features. *Classic* features (ORB, ORB2, SIFT, AKAZE, BRISK, FAST, ...) are hand-designed algorithms that come with OpenCV or with the compiled ORB-SLAM2 extractor: they need no model weights and are always available. *Learned* features (SuperPoint, ALIKED, DISK, XFeat, DeDoDe v2, RDD, ...) are neural networks: each has a pyslam wrapper that loads the network and its weights.
+
+<p align="center">
+<img src="./images/shared/feature_management.png" alt="Classic and Learned Feature Management"  />
+</p>
+
+The diagram shows how both families go through the same path:
+
+- A `FeatureTrackerConfigs` preset names the detector, the descriptor and the tracker type. `feature_tracker_factory` creates the `FeatureTracker`, which owns a `FeatureManager` (extraction) and a `FeatureMatcher` (matching).
+- The `FeatureManager` looks at `detector_type` and `descriptor_type`. For a classic feature it calls the OpenCV factory function (e.g. `cv2.ORB_create`) or one of a few small pyslam wrappers (`Orbslam2Feature2D`, `RootSIFTFeature2D`, `ShiTomasiDetector`). For a learned feature it imports the wrapper module only at that moment, so torch, TensorFlow or a vendor repository are loaded only when a learned feature is actually selected. Learned wrappers derive from `BaseFeature2D`, and torch-based ones run on a dedicated inference thread (`PersistentThreadAdaptor`).
+- Both families expose the same `detect` / `compute` / `detectAndCompute` methods and return the same output: a list of `cv2.KeyPoint` and an array of descriptors. From this point on, the rest of the pipeline treats them the same way.
+- `FeatureInfo` tells the matcher how to compare the descriptors: Hamming distance for binary descriptors (e.g. ORB), L2 distance for float descriptors (e.g. SIFT and the learned ones), plus a calibrated maximum descriptor distance. BF and FLANN match any descriptor; XFeat and LightGlue are learned matchers for their own features.
+- Detector-free trackers (LoFTR, MASt3R, RoMa, tiny-RoMa) take a different route: they skip the `FeatureManager` and their matcher computes matched keypoints directly from the two images.
+
 ### Visual model catalog
 
-The additive [`pyslam.visual_models` catalog](./visual_features.md) records constructor symbols, capabilities, dependency groups and source provenance without importing inference frameworks. Its lazy factories resolve constructors on demand; pipeline owners retain stateful extractor instances. The checksum/offline weight resolver is available for individually validated migrations. Existing feature-manager/matcher dispatch, serialized enums, FeatureInfo tables and loop-detector process remain in use.
+The [`pyslam.visual_models` catalog](./visual_features.md#model-catalog-and-inspection-tools) is a list of every visual model integrated in pySLAM: local features, pair matchers and global descriptors for loop closure. It holds only metadata (strings), so reading it never loads a neural network or an inference framework. The pipeline does not depend on it: it keeps building its models through the factories described above. The catalog is used to inspect models, install their weights and test the integrations.
 
 <p align="center">
 <img src="./images/shared/visual_model_catalog.png" alt="Visual Model Catalog"  />
 </p>
+
+The classes in the diagram, in simple terms:
+
+- `ModelSpec` (in `model_registry.py`) is the record of one model: its name, its kind (`local_feature`, `pair_matcher` or `global_descriptor`), the `module:symbol` of its class, its dependency group (`core`, `dense_matchers`, `tf_models`, `vpr`) and its capabilities (e.g. whether it produces per-keypoint descriptors, or is detector-free). The registry holds all records and answers queries such as `get_spec()`, `list_models()` and `spec_for_enum()`. A record can also report the model's provenance and license notes (`legacy_sources.json`) and its matching parameters from the existing `FeatureInfo` tables.
+- The factory (`get_local_feature()`, `get_pair_matcher()`, `get_global_descriptor()`) builds a model from its name: it looks up the record, imports the class only at that moment (`resolve_symbol()`) and constructs it. If an optional package is missing, it raises `ModelUnavailable` with the dependency group to install.
+- The weight resolver (`WeightResolver`, `WeightSource`, `verify()` in `weights.py`) downloads model weights from a pinned source (Hugging Face commit, torch.hub, HTTPS), stores them in a cache and checks their SHA-256 checksums listed in `verified_weights.json`. It also supports an offline mode (`PYSLAM_OFFLINE=1`). RDD uses it to verify its weights, and the torch.hub global descriptors (SALAD, BoQ) use its offline flag.
+- The installer (`INSTALLERS` in `install.py`) prefetches the models integrated through pinned sources: it constructs each model once, which downloads its code and weights, and then verifies the checksums.
+- The command-line tool (`python -m pyslam.visual_models`, also called by `scripts/install_visual_model.sh`) ties these together: `check` and `table` read the registry, `install` runs the installer, and `prefetch` fetches one registered weight file through the resolver.

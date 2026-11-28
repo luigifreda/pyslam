@@ -336,7 +336,7 @@ camera pose estimation.
 
 \subsection{System Overview}\label{system_overview}
 
-pySLAM contains two SLAM pipelines and a multi-view reconstruction module, summarized in Table~\ref{tab:system_parts}. The three parts share the configuration, the dataset interface, the camera models, and the viewers. The \textit{indirect} pipeline is described in Sect.~\ref{indirect-components} and the \textit{direct and semi-direct} pipeline in Sect.~\ref{direct-slam}. Sect.~\ref{cpp-core} describes the C++ implementation of the sparse core, Sect.~\ref{camera-models} the camera models shared by both pipelines, and Sect.~\ref{scene-from-views} the \textit{Scene from Views} module. The diagrams in these sections are sketches of the workflows, components, and class relationships; some minor components and arrows are omitted for readability. Their Mermaid sources are kept in \texttt{docs/images}, in one subfolder per part.
+pySLAM contains two SLAM pipelines and a multi-view reconstruction module, summarized in Table~\ref{tab:system_parts}. The three parts share the configuration, the dataset interface, the camera models, and the viewers. The \textit{indirect} pipeline is described in Sect.~\ref{indirect-components} and the \textit{direct and semi-direct} pipeline in Sect.~\ref{direct-slam}. Sect.~\ref{cpp-core} describes the C++ implementation of the sparse core, Sect.~\ref{camera-models} the camera models shared by both pipelines, Sect.~\ref{feature-management} how classic and learned local features are managed, Sect.~\ref{visual-model-catalog} the visual model catalog, and Sect.~\ref{scene-from-views} the \textit{Scene from Views} module. The diagrams in these sections are sketches of the workflows, components, and class relationships; some minor components and arrows are omitted for readability. Their Mermaid sources are kept in \texttt{docs/images}, in one subfolder per part.
 
 \begin{table}[!ht]
 \centering
@@ -388,6 +388,8 @@ The main pipeline, run by \texttt{main\_slam.py}, follows the PTAM~\cite{PTAM} a
 \end{itemize}
 
 The first four modules reproduce the PTAM and ORB-SLAM decomposition. The \textit{Tracking} module serves as the front-end, while the remaining modules operate as part of the back-end.
+
+\paragraph{Stereo and RGB-D initialization.} During initialization, both stereo image extractors receive the startup feature boost. After repeated failures, the required point support is progressively relaxed, down to twice the minimum of the depth-based PnP. An initialization is accepted only if the optimization is finite and, for stereo and RGB-D, the left-image reprojection error, measured in the same way before and after BA, improves; monocular initialization keeps its original solver $\chi^2$ comparison. A reset restores the original checks.
 
 In parallel, the system constructs two types of maps:
 \begin{itemize}
@@ -702,6 +704,48 @@ w_2 = \frac{w_1 + \xi}{\sqrt{2 w_1 \xi + \xi^2 + 1}} .
 
 \paragraph{Limitations.} Stereo depth initialization and the legacy initialization and Sim(3) paths have not yet been validated for fields of view beyond $180^\circ$. Supporting a projection model is therefore not equivalent to supporting complete omnidirectional SLAM.
 
+\hypertarget{feature-management}{%
+\subsection{Classic and Learned Local Features}\label{feature-management}}
+
+\begin{figure}[!ht]
+\begin{center}
+    \includegraphics[width=0.75\textwidth]{./images/shared/feature_management.png}
+\end{center}
+\caption{How classic and learned local features are created, run, and matched.}
+\label{Fig:FeatureManagement}
+\end{figure}
+
+pySLAM supports two families of local features. \textit{Classic} features (ORB, ORB2, SIFT, AKAZE, BRISK, FAST, \dots) are hand-designed algorithms provided by OpenCV or by the compiled ORB-SLAM2 extractor: they need no model weights and are always available. \textit{Learned} features (SuperPoint, ALIKED, DISK, XFeat, DeDoDe~v2, RDD, \dots) are neural networks: each one has a pySLAM wrapper that loads the network and its weights. Fig.~\ref{Fig:FeatureManagement} shows how both families go through the same path.
+
+\begin{itemize}
+\item A \texttt{FeatureTrackerConfigs} preset names the detector, the descriptor, and the tracker type. \texttt{feature\_tracker\_factory} creates the \texttt{FeatureTracker}, which owns a \texttt{FeatureManager} (extraction) and a \texttt{FeatureMatcher} (matching).
+\item The \texttt{FeatureManager} dispatches on the detector and descriptor types. For a classic feature, it calls the OpenCV factory function (e.g., \texttt{cv2.ORB\_create}) or one of a few small pySLAM wrappers (\texttt{Orbslam2Feature2D}, \texttt{RootSIFTFeature2D}, \texttt{ShiTomasiDetector}). For a learned feature, it imports the wrapper module only at that moment, so that PyTorch, TensorFlow, or a vendor repository is loaded only when a learned feature is selected. Learned wrappers derive from \texttt{BaseFeature2D}, and torch-based ones run on a dedicated inference thread (\texttt{PersistentThreadAdaptor}).
+\item Both families expose the same \texttt{detect}, \texttt{compute}, and \texttt{detectAndCompute} methods and return the same output: a list of \texttt{cv2.KeyPoint} and an array of descriptors. From this point on, the pipeline treats them in the same way.
+\item \texttt{FeatureInfo} tells the matcher how to compare descriptors: Hamming distance for binary descriptors (e.g., ORB), L2 distance for float descriptors (e.g., SIFT and the learned ones), and a calibrated maximum descriptor distance. Brute-force and FLANN matchers work with any descriptor; XFeat and LightGlue are learned matchers for their own features.
+\item Detector-free trackers (LoFTR, MASt3R, RoMa, tiny-RoMa) skip the \texttt{FeatureManager}: their matcher computes matched keypoints directly from the two images.
+\end{itemize}
+
+\hypertarget{visual-model-catalog}{%
+\subsection{Visual Model Catalog}\label{visual-model-catalog}}
+
+\begin{figure}[!ht]
+\begin{center}
+    \includegraphics[width=\textwidth]{./images/shared/visual_model_catalog.png}
+\end{center}
+\caption{Classes of the \texttt{pyslam.visual\_models} catalog.}
+\label{Fig:VisualModelCatalog}
+\end{figure}
+
+The \texttt{pyslam.visual\_models} catalog lists every visual model integrated in pySLAM: local features, pair matchers, and global descriptors for loop closure. It holds only metadata, so reading it never loads a neural network or an inference framework. The pipeline does not depend on it and keeps building its models through the factories of Sect.~\ref{feature-management}; the catalog is used to inspect models, install their weights, and test the integrations. Fig.~\ref{Fig:VisualModelCatalog} shows its classes:
+
+\begin{itemize}
+\item \texttt{ModelSpec} is the record of one model: its name, its kind (\texttt{local\_feature}, \texttt{pair\_matcher}, or \texttt{global\_descriptor}), the \texttt{module:symbol} of its class, its dependency group, and its capabilities (e.g., whether it produces per-keypoint descriptors or is detector-free). The registry holds all records and answers queries such as \texttt{get\_spec()} and \texttt{list\_models()}. A record also reports the provenance and license of the model and its matching parameters from the \texttt{FeatureInfo} tables.
+\item The factory (\texttt{get\_local\_feature()}, \texttt{get\_pair\_matcher()}, \texttt{get\_global\_descriptor()}) builds a model from its name: it looks up the record, imports the class only at that moment, and constructs it. If an optional package is missing, it raises \texttt{ModelUnavailable} with the dependency group to install.
+\item The weight resolver (\texttt{WeightResolver}, \texttt{WeightSource}, \texttt{verify()}) downloads weights from a pinned source (a Hugging Face commit, torch.hub, or HTTPS), stores them in a cache, and checks their registered SHA-256 checksums. It also supports an offline mode.
+\item The installer prefetches the models integrated through pinned sources: it constructs each model once, which downloads its code and weights, and then verifies the checksums.
+\item The command-line tool \texttt{python -m pyslam.visual\_models}, which the script \texttt{install\_visual\_model.sh} in \texttt{scripts/} also calls, ties these together: \texttt{check} and \texttt{table} read the registry, \texttt{install} runs the installer, and \texttt{prefetch} fetches one registered weight file through the resolver.
+\end{itemize}
+
 \hypertarget{scene-from-views}{%
 \subsection{3D Scene from Views}\label{scene-from-views}}
 
@@ -826,71 +870,19 @@ file \texttt{pyslam/local\_features/feature\_manager.py} for further details.
 able to work with all the
 \protect\hyperlink{supported-local-features}{supported local features}!
 
-\subsection{Visual-model integration and validation}
-The additive \texttt{pyslam.visual\_models} catalog records existing local features,
-pair matchers and global descriptor extractors using lazy constructor symbols.
-The existing serialized enums, \texttt{FeatureInfo} tables, presets and runtime
-dispatch remain authoritative. Stateful extractor instances stay with their
-pipeline owners rather than being shared through a global cache.
+\subsection{Visual-model runtime, installation and validation}\label{visual-model-runtime}
 
-The new weight resolver supports checksum-verified caches, immutable Hugging Face
-revisions, offline operation and explicit prefetching. Existing wrappers retain
-their legacy weight-loading behavior until individually validated migrations.
-The read-only command \texttt{python -m pyslam.visual\_models check} reports
-unresolved dependency, weight and license checks without constructing a model.
+The visual models listed in this section are described by the catalog of Sect.~\ref{visual-model-catalog}. The generated catalog table, with dependency groups and licenses, and all the commands below are in \texttt{docs/visual\_features.md}.
 
-Inventory and benchmark scripts capture source/patch provenance, enum/table
-compatibility, median/p95 pair timings and numerical output fixtures. Missing
-measurements remain explicit: synthetic pair inliers do not replace sequence ATE,
-and a CPU baseline does not certify GPU performance. New methods and runtime
-defaults require output equivalence, license review and completed performance gates.
-See \texttt{docs/visual\_features.md} for the generated catalog and commands.
+\paragraph{Runtime.} The feature manager and feature matcher import learned and vendor wrappers (and kornia, LightGlue, XFeat, TensorFlow) only when the selected configuration constructs them; OpenCV and ORB2 features are always available. Compared with importing every wrapper eagerly, importing the feature stack takes about 0.3\,s instead of 4\,s, and benchmark process startup about 1.4\,s instead of 7.3\,s, with half the peak memory; outputs are bit-identical for the deterministic presets. On Linux, \texttt{pyslam/config.py} also sets glibc's heap trim and mmap thresholds, so that per-frame image buffers are reused instead of being returned to the kernel and page-faulted back on every frame (about 17k faults per SIFT call at 640$\times$480 with glibc defaults); \texttt{PYSLAM\_MALLOC\_TUNING=0} restores the defaults. Torch-based learned detectors run inference on one long-lived thread each. Stereo frames are extracted on threads created per frame, and PyTorch rebuilds its per-thread CUDA/cuDNN state on every call from a new thread: at KITTI resolution, ALIKED would take 45\,ms instead of 20\,ms per image and DeDoDe 2.8\,s instead of 175\,ms. With the persistent thread, the outputs are unchanged and the KITTI stereo median tracking time with ALIKED is 90\,ms per frame instead of 197\,ms.
 
-The feature manager and feature matcher import learned/vendor wrappers (and kornia,
-LightGlue, XFeat, TensorFlow) only when the selected configuration constructs them.
-OpenCV and ORB2 features are unaffected. Importing the feature stack dropped from about
-4\,s to 0.3\,s, and benchmark process startup from about 7.3\,s to 1.4\,s with half the
-peak memory; outputs are bit-identical for the deterministic presets. On Linux,
-\texttt{pyslam/config.py} also fixes glibc's heap trim/mmap thresholds, so per-frame
-image buffers are reused instead of being returned to the kernel and page-faulted back
-on every frame (about 17k faults per SIFT call at 640$\times$480 with glibc defaults).
-\texttt{PYSLAM\_MALLOC\_TUNING=0} restores the defaults.
+\paragraph{Optional accelerations.} Three accelerations are opt-in and off by default. They are enabled with environment variables, or the matching fields in \texttt{pyslam/config\_parameters.py}, and can change matches slightly; those differences are accepted when the option is on. \texttt{PYSLAM\_GPU\_NN\_MATCHER=1} matches float L2 descriptors on the GPU with the same one-to-one ratio test as the C++ path (about 5--10$\times$ faster per pair). Rare near-ties can flip, and FLANN's approximate search becomes exact. It applies to the Python \texttt{FeatureMatcher} only. \texttt{PYSLAM\_LIGHTGLUE\_BATCHED=1} matches one keyframe against every candidate of \texttt{compute\_frame\_matches} in one forward. On the measured GPU it was 10--20\% slower than per-pair matching, and one of twelve test pairs differed by a single match. \texttt{PYSLAM\_TORCH\_COMPILE=1} compiles SuperPoint, XFeat, ALIKED and LightGlue (\texttt{PYSLAM\_TORCH\_COMPILE\_BACKEND} is \texttt{inductor} or \texttt{tensorrt}). Extraction stays within $\pm$5\%, the first call spends several seconds compiling, and keypoint order can change. The TensorRT backend needs \texttt{torch\_tensorrt}, which pySLAM does not install, and any failure falls back to eager mode. Set \texttt{TORCHINDUCTOR\_COMPILE\_THREADS=1} so that the inductor workers stay within memory.
 
-Torch-based learned detectors run inference on one long-lived thread each. Stereo
-frames are extracted on threads created per frame, and PyTorch rebuilds per-thread
-CUDA/cuDNN state on every call from a new thread (at KITTI resolution: ALIKED 20 to
-45\,ms, DeDoDe 175\,ms to 2.8\,s per image). Outputs are unchanged; KITTI stereo tracking
-went from 197 to 90\,ms per frame with ALIKED. New integrations: the DeDoDe~v2 local
-feature (via kornia) and the SALAD and BoQ global descriptors for loop closure (pinned
-torch.hub sources); the MegaLoc loop detector, previously unusable because of a factory
-error, works again.
+\paragraph{Installing models.} Classic features need no installation beyond the standard build, and most learned integrations are installed by the standard install scripts. Models integrated through pinned sources (DeDoDe, RDD, RoMa, tiny-RoMa, SALAD, BoQ, MegaLoc, and the LoFTR weights) are prefetched with \texttt{./scripts/install\_visual\_model.sh}, or downloaded on first use. Installing a model constructs it once on the CPU, which fetches the pinned source snapshot and all its checkpoints into the standard caches, and then verifies every registered SHA-256 checksum. No package is installed and no pin changes; afterwards, the models also run offline (\texttt{PYSLAM\_OFFLINE=1}).
 
-Three accelerations are opt-in and off by default. They are enabled with environment
-variables, or the matching fields in \texttt{pyslam/config\_parameters.py}, and can
-change matches slightly; those differences are accepted when the option is on.
-\texttt{PYSLAM\_GPU\_NN\_MATCHER=1} matches float L2 descriptors on the GPU with the
-same one-to-one ratio test as the C++ path (about 5--10$\times$ faster per pair).
-Rare near-ties can flip, and FLANN's approximate search becomes exact. It applies
-to the Python \texttt{FeatureMatcher} only.
-\texttt{PYSLAM\_LIGHTGLUE\_BATCHED=1} matches one keyframe against every candidate of
-\texttt{compute\_frame\_matches} in one forward. On the measured GPU it was 10--20\%
-slower than per-pair matching, and one of twelve test pairs differed by a single
-match. \texttt{PYSLAM\_TORCH\_COMPILE=1} compiles SuperPoint, XFeat, ALIKED and
-LightGlue (\texttt{PYSLAM\_TORCH\_COMPILE\_BACKEND} is \texttt{inductor} or
-\texttt{tensorrt}). Extraction stayed within $\pm$5\%, the first call spends
-several seconds compiling, and keypoint order can change. The TensorRT backend
-needs \texttt{torch\_tensorrt}, which pySLAM does not install, and any failure
-falls back to eager mode. Set \texttt{TORCHINDUCTOR\_COMPILE\_THREADS=1} so the
-inductor workers stay within memory. Commands and the 60-frame smoke results are
-in \texttt{docs/visual\_features.md}.
+\paragraph{Validation.} Inventory and benchmark scripts capture source and patch provenance, enum and \texttt{FeatureInfo} compatibility, median/p95 pair timings, and numerical output fixtures, and a comparison script acts as a regression gate on time, memory, and match counts. Missing measurements remain explicit: synthetic pair inliers do not replace sequence ATE, and a CPU baseline does not certify GPU performance. Map benchmarks isolate map operations from feature extraction; cross-backend speed ratios are advisory by default, with optional same-backend baseline regression checks. New methods and changes of runtime defaults require output equivalence, a license review, and completed performance gates.
 
-Stereo initialization boosts both image extractors and progressively relaxes
-point support after repeated failures, bounded by twice the depth-PnP minimum.
-Acceptance requires finite optimization and, for stereo/RGB-D, improved left-image
-reprojection error measured consistently before and after BA (monocular keeps its
-original solver-chi2 comparison). Reset restores the original initialization checks.
-Map benchmarks isolate map operations from feature extraction; cross-backend speed
-ratios are advisory by default, with optional same-backend baseline regression checks.
+\paragraph{Licenses.} The catalog records the license of each model's upstream code and weights, with the license files in \texttt{thirdparty/} as evidence, and the generated table in \texttt{docs/visual\_features.md} reports it. Licenses should be checked before any commercial use or redistribution: SuperPoint, R2D2, LF-Net, and MASt3R are restricted to non-commercial or research use; ContextDesc, SOSNet, and the L2-Net weights come from repositories without a license; and SURF is a patented algorithm. SuperPoint's terms also apply when it is paired with LightGlue.
 
 \hypertarget{supported-matchers}{%
 \subsection{Supported matchers}\label{supported-matchers}}

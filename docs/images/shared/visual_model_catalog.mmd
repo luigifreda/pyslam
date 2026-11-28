@@ -4,27 +4,76 @@ config:
   flowchart:
     wrappingWidth: 400
 ---
-graph LR;
-    %% Additive visual-model catalog beside the existing feature runtime
+graph TB;
+    %% pyslam.visual_models: metadata registry, lazy factory, weight resolver, installer and CLI
     linkStyle default stroke:#021526,stroke-width:1px,font-size:16px;
 
     classDef catalog fill:#EAD7F3,stroke:#6A0DAD,stroke-width:1.5px,font-size:16px;
+    classDef data fill:#FAFAFA,stroke:#888888,stroke-width:1.5px,stroke-dasharray:6 4,font-size:16px;
     classDef tool fill:#FFFACD,stroke:#E1A100,stroke-width:1.5px,font-size:16px;
     classDef factory fill:#D1F0FF,stroke:#0077B6,stroke-width:1.5px,font-size:16px;
+    classDef weights fill:#FFE3F1,stroke:#C71585,stroke-width:1.5px,font-size:16px;
     classDef existing fill:#D6FFD6,stroke:#218380,stroke-width:1.5px,font-size:16px;
-    classDef runtime fill:#FFE3F1,stroke:#C71585,stroke-width:1.5px,font-size:16px;
-    classDef future fill:#FAFAFA,stroke:#888888,stroke-width:1.5px,stroke-dasharray:6 4,font-size:16px;
 
-    Catalog["Visual model<br>specs"] --> Inspect["Read-only check<br>/ model table"];
-    Catalog --> Factory["Explicit<br>lazy factory"];
-    Factory --> Existing["Existing wrapper<br>constructors"];
-    Resolver["Verified offline<br>weight resolver"] -.->|"`_validated future migration_`"| Existing;
-    Presets["Existing tracker<br>and loop presets"] --> Runtime["Current runtime<br>dispatch"];
-    Runtime --> Existing;
+    subgraph registry["model_registry.py"]
+        Registry["_SPECS registry<br>get_spec() / list_models()<br>spec_for_enum() / validate_frontend()"];
+        ModelSpec["ModelSpec<br>name, kind, wrapper, group,<br>provides_descriptors, detector_free,<br>source_key"];
+    end
+    Sources[("legacy_sources.json<br>revision, license notes")];
+    FeatureInfo[("FeatureInfo tables<br>norm_type,<br>max_descriptor_distance")];
 
-    class Catalog catalog;
-    class Inspect tool;
-    class Factory factory;
-    class Existing existing;
-    class Presets,Runtime runtime;
-    class Resolver future;
+    subgraph factorymod["factory.py"]
+        Factory["get_local_feature()<br>get_pair_matcher()<br>get_global_descriptor()"];
+        Resolve["resolve_symbol()<br>'module:symbol'"];
+        Unavailable["ModelUnavailable"];
+    end
+
+    subgraph weightsmod["weights.py"]
+        Resolver["WeightResolver<br>offline mode, cache,<br>locking, atomic publish"];
+        WeightSource["WeightSource<br>HF commit / torch.hub / HTTPS"];
+        Verify["verify()<br>SHA-256"];
+    end
+    Verified[("verified_weights.json")];
+
+    subgraph installmod["install.py"]
+        Installers["INSTALLERS<br>Installer per<br>self-installing model"];
+    end
+    Script["scripts/<br>install_visual_model.sh"];
+    CLI["python -m pyslam.visual_models<br>check / table / install / prefetch"];
+
+    subgraph wrappers["Model classes (imported only on construction)"]
+        Local["Local features<br>cv2 Feature2D (classic)<br>BaseFeature2D subclasses (learned)"];
+        Matchers["Pair matchers<br>FeatureMatcher subclasses<br>DetectorFreeMatcher (RoMa, tiny-RoMa)"];
+        Global["Global descriptors<br>GlobalFeatureTorchHub (SALAD, BoQ)<br>GlobalFeatureMegaloc, VPR extractors"];
+    end
+
+    Registry -->|"`_holds_`"| ModelSpec;
+    ModelSpec -->|"`_source()_`"| Sources;
+    ModelSpec -->|"`_feature_info()_`"| FeatureInfo;
+    ModelSpec -.->|"`_wrapper names_`"| wrappers;
+
+    Factory -->|"`_get_spec()_`"| Registry;
+    Factory --> Resolve;
+    Resolve -->|"`_imports and constructs_`"| wrappers;
+    Factory -.->|"`_missing optional package_`"| Unavailable;
+
+    Resolver --> WeightSource;
+    Resolver --> Verify;
+    Resolver -->|"`_reads_`"| Verified;
+    Local -.->|"`_RDD weights_`"| Verify;
+    Global -.->|"`_offline flag_`"| Resolver;
+
+    Script --> CLI;
+    CLI -->|"`_check / table_`"| Registry;
+    CLI -->|"`_install_`"| Installers;
+    CLI -->|"`_prefetch_`"| Resolver;
+    Installers -->|"`_get_spec()_`"| Registry;
+    Installers -->|"`_construct once (downloads)_`"| wrappers;
+    Installers -->|"`_verify checksums_`"| Verify;
+
+    class Registry,ModelSpec catalog;
+    class Sources,FeatureInfo,Verified data;
+    class CLI,Script,Installers tool;
+    class Factory,Resolve,Unavailable factory;
+    class Resolver,WeightSource,Verify weights;
+    class Local,Matchers,Global existing;

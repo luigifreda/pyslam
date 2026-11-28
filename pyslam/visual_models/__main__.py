@@ -57,7 +57,7 @@ def inspect(spec):
         "name": spec.name, "kind": spec.kind, "group": spec.group, "code": code,
         "provides_descriptors": spec.provides_descriptors,
         "weights": weights,
-        "license": source.get("license_review", "review pending"),
+        "license": spec.license() or "review pending",
         "revision": source.get("revision"), "wrapper": wrapper,
     }
 
@@ -67,7 +67,7 @@ def markdown_table():
              "| --- | --- | --- | --- | --- |"]
     for spec in list_models():
         if spec.wrapper:
-            review = spec.source().get("license_review", "")
+            review = spec.license()
             license_text = ("existing integration (not re-reviewed)"
                             if not review or review.startswith(("existing", "pending")) else review)
             lines.append(f"| {spec.name} | {spec.kind} | {'yes' if spec.provides_descriptors else 'no'} | "
