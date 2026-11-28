@@ -18,17 +18,18 @@ graph TB;
     Preset["FeatureTrackerConfigs preset<br>detector_type, descriptor_type,<br>num_features, tracker_type"];
     TrackerFactory["feature_tracker_factory()"];
     Tracker["FeatureTracker<br>DescriptorFeatureTracker / LkFeatureTracker"];
-    DFTracker["LoftrFeatureTracker / Mast3rFeatureTracker<br>(LOFTR, ROMA, TINY_ROMA, MAST3R)"];
-    Manager["FeatureManager<br>dispatch on detector_type<br>and descriptor_type"];
+    DFTracker["DetectorFreeFeatureTracker<br>(LOFTR, ROMA, TINY_ROMA, MAST3R)"];
+    Manager["FeatureManager<br>per-feature options<br>(pyramid, NMS, color input)"];
     Adaptors["PyramidAdaptor<br>BlockAdaptor"];
+    Registry[("visual model registry<br>ModelSpec: class 'module:symbol',<br>norm, max distance, joint")];
+    Load["load_constructor(name)<br>imports the class on first use"];
 
     subgraph classicbox["Classic features: always available"]
         CV["OpenCV factories<br>cv2.ORB_create, SIFT_create,<br>AKAZE_create, xfeatures2d.*"];
         CvWrap["Small pyslam wrappers<br>Orbslam2Feature2D (C++),<br>RootSIFTFeature2D, ShiTomasiDetector"];
     end
 
-    subgraph learnedbox["Learned features: imported on first use"]
-        Lazy["_wrapper(name)<br>lazy import of the wrapper module<br>(torch, TF, kornia, vendor repo)"];
+    subgraph learnedbox["Learned features: torch, TF, kornia, vendor repo"]
         Base["BaseFeature2D subclasses<br>SuperPointFeature2D, AlikedFeature2D,<br>DeDoDeFeature2D, RddFeature2D, ..."];
         Persistent["PersistentThreadAdaptor<br>one inference thread<br>(torch models)"];
     end
@@ -47,25 +48,26 @@ graph TB;
     DFTracker -->|"`_has-a_`"| DFMatcher;
     Manager -->|"`_has-a_`"| Adaptors;
 
-    Manager -->|"`_classic type_`"| CV;
-    Manager -->|"`_classic type_`"| CvWrap;
-    Manager -->|"`_learned type_`"| Lazy;
-    Lazy --> Base;
+    Manager -->|"`_detector_type, descriptor_type_`"| Load;
+    Load -->|"`_get_spec()_`"| Registry;
+    Load -->|"`_classic type_`"| CV;
+    Load -->|"`_classic type_`"| CvWrap;
+    Load -->|"`_learned type_`"| Base;
     Base -->|"`_wrapped by_`"| Persistent;
+    Registry -->|"`_builds_`"| Info;
 
     CV --> Output;
     CvWrap --> Output;
     Persistent --> Output;
-    Output -->|"`_descriptor type_`"| Info;
     Output --> Matcher;
-    Info --> Matcher;
+    Info -->|"`_descriptor type_`"| Matcher;
     MatcherFactory -->|"`_creates_`"| Matcher;
     MatcherFactory -->|"`_creates_`"| DFMatcher;
 
 
     class Preset config;
-    class TrackerFactory,MatcherFactory factory;
+    class TrackerFactory,MatcherFactory,Load factory;
     class Tracker,DFTracker,Manager,Adaptors,Matcher,DFMatcher manager;
     class CV,CvWrap classic;
-    class Lazy,Base,Persistent learned;
-    class Output,Info output;
+    class Base,Persistent learned;
+    class Output,Info,Registry output;

@@ -25,7 +25,11 @@
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path
+
+# Calibration fixtures shared with the camera tests.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tests" / "camera"))
 
 from camera_test_support import ROOT, SettingsConfig
 import numpy as np

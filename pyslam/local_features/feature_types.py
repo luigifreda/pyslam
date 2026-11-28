@@ -26,11 +26,11 @@ NOTES:
 In order to add a new DETECTOR:
 - add a new enum in FeatureDetectorTypes
 - manage its 'case' in the detector inialization in feature_manager.py 
-- add the related information (need_mask_management) in the class FeatureInfo below
+- add its spec in pyslam/visual_models/model_registry.py (MASK_MANAGED_DETECTORS if it filters keypoints itself)
 
 In order to add a new DESCRIPTOR:
 - add a new enum in FeatureDescriptorTypes
-- add the related information (norm_type, max_descriptor_distance) in the class FeatureInfo below
+- add its metric (norm, max_descriptor_distance) in _DESCRIPTOR_METRIC of pyslam/visual_models/model_registry.py
 - manage its 'case' in the descriptor inialization in feature_manager.py 
 """
 
@@ -118,161 +118,32 @@ class FeatureDescriptorTypes(SerializableEnum):
 
 # FeatureInfo class
 # This class contains the information about the features and descriptors.
-class FeatureInfo(object):
+# The values come from the visual-model registry (pyslam/visual_models/model_registry.py),
+# the single place where a model's matching metric is declared.
+def _feature_info_tables():
+    from pyslam.visual_models.model_registry import MASK_MANAGED_DETECTORS, get_spec
 
-    need_mask_management = dict()  # detector type -> need mask management
-
-    norm_type = dict()  #  descriptor type -> norm type
-
-    # Reference max descriptor distances used by SLAM for locally searching matches around frame keypoints.
-    max_descriptor_distance = dict()  # descriptor type -> max descriptor distance
-
-    # DETECTOR INFOS
-    custom_detector_types = (
-        FeatureDetectorTypes.SHI_TOMASI,
-        FeatureDetectorTypes.ORB2,
-        FeatureDetectorTypes.SUPERPOINT,
-        FeatureDetectorTypes.XFEAT,
-        FeatureDetectorTypes.D2NET,
-        FeatureDetectorTypes.DELF,
-        FeatureDetectorTypes.CONTEXTDESC,
-        FeatureDetectorTypes.LFNET,
-        FeatureDetectorTypes.R2D2,
-        FeatureDetectorTypes.KEYNET,
-        FeatureDetectorTypes.DISK,
-        FeatureDetectorTypes.ALIKED,
-        FeatureDetectorTypes.LIGHTGLUESIFT,
-        FeatureDetectorTypes.KEYNETAFFNETHARDNET,
-        FeatureDetectorTypes.DEDODE,
-        FeatureDetectorTypes.RDD,
-    )
-    for detector_type in custom_detector_types:
-        need_mask_management[detector_type] = True
-
-    # DESCRIPTOR INFOS
-    # These reference distances are used as initial values at init time and are then online updated by using standard deviation robust estimation (MAD) and exponential smoothing.
-    # N.B.: These reference distances can be easily estimated by using the script main_feature_matching.py:
-    #       Use as reference max descriptor distance the computed value: 3 * sigma_mad (see main_feature_matching.py code, this value is dumped out).
-    #
-    norm_type[FeatureDescriptorTypes.NONE] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.NONE] = float("inf")
+    norms = {"l2": cv2.NORM_L2, "hamming": cv2.NORM_HAMMING}
+    # The registry stores cv2 norm values without importing cv2: keep them in sync.
+    assert get_spec("ORB").feature_info()["norm_type"] == cv2.NORM_HAMMING
+    assert get_spec("SIFT").feature_info()["norm_type"] == cv2.NORM_L2
+    custom_detector_types = tuple(FeatureDetectorTypes[name] for name in MASK_MANAGED_DETECTORS)
+    need_mask_management = {detector_type: True for detector_type in custom_detector_types}
     need_mask_management[FeatureDescriptorTypes.NONE] = False
-    #
-    norm_type[FeatureDescriptorTypes.SIFT] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.SIFT] = 450  # SIFT
-    #
-    norm_type[FeatureDescriptorTypes.ROOT_SIFT] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.ROOT_SIFT] = 0.9  # ROOT_SIFT
-    #
-    norm_type[FeatureDescriptorTypes.SURF] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.SURF] = 0.45  # SURF
-    #
-    norm_type[FeatureDescriptorTypes.ORB] = cv2.NORM_HAMMING
-    max_descriptor_distance[FeatureDescriptorTypes.ORB] = 100  # ORB
-    #
-    norm_type[FeatureDescriptorTypes.ORB2] = cv2.NORM_HAMMING
-    max_descriptor_distance[FeatureDescriptorTypes.ORB2] = 100  # ORB2
-    #
-    norm_type[FeatureDescriptorTypes.BRISK] = cv2.NORM_HAMMING
-    max_descriptor_distance[FeatureDescriptorTypes.BRISK] = 200  # BRISK
-    #
-    norm_type[FeatureDescriptorTypes.KAZE] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.KAZE] = 1.2  # KAZE
-    #
-    norm_type[FeatureDescriptorTypes.AKAZE] = cv2.NORM_HAMMING
-    max_descriptor_distance[FeatureDescriptorTypes.AKAZE] = 190  # AKAZE
-    #
-    norm_type[FeatureDescriptorTypes.FREAK] = cv2.NORM_HAMMING
-    max_descriptor_distance[FeatureDescriptorTypes.FREAK] = 180  # FREAK
-    #
-    norm_type[FeatureDescriptorTypes.SUPERPOINT] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.SUPERPOINT] = 2.878  # SUPERPOINT
-    #
-    norm_type[FeatureDescriptorTypes.XFEAT] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.XFEAT] = 1.9877  # XFEAT
-    #
-    norm_type[FeatureDescriptorTypes.TFEAT] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.TFEAT] = 11  # TFEAT
-    #
-    norm_type[FeatureDescriptorTypes.BOOST_DESC] = cv2.NORM_HAMMING
-    max_descriptor_distance[FeatureDescriptorTypes.BOOST_DESC] = 100  # BOOST_DESC
-    #
-    norm_type[FeatureDescriptorTypes.DAISY] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.DAISY] = 0.4  # DAISY
-    #
-    norm_type[FeatureDescriptorTypes.LATCH] = cv2.NORM_HAMMING
-    max_descriptor_distance[FeatureDescriptorTypes.LATCH] = 120  # LATCH
-    #
-    norm_type[FeatureDescriptorTypes.LUCID] = cv2.NORM_HAMMING
-    max_descriptor_distance[FeatureDescriptorTypes.LUCID] = 100  # LUCID
-    #
-    norm_type[FeatureDescriptorTypes.VGG] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.VGG] = 5  # VGG
-    #
-    norm_type[FeatureDescriptorTypes.HARDNET] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.HARDNET] = 1.8  # HARDNET
-    #
-    norm_type[FeatureDescriptorTypes.GEODESC] = (
-        cv2.NORM_L2
-    )  # unless GeodescFeature2D.quantize == True
-    max_descriptor_distance[FeatureDescriptorTypes.GEODESC] = 0.4  # GEODESC
-    #
-    norm_type[FeatureDescriptorTypes.SOSNET] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.SOSNET] = 2  # SOSNET
-    #
-    norm_type[FeatureDescriptorTypes.L2NET] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.L2NET] = 2.9  # L2NET
-    #
-    norm_type[FeatureDescriptorTypes.LOGPOLAR] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.LOGPOLAR] = 3.2  # LOGPOLAR
-    #
-    norm_type[FeatureDescriptorTypes.D2NET] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.D2NET] = 2.8  # D2NET
-    #
-    norm_type[FeatureDescriptorTypes.DELF] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.DELF] = 2.1  # DELF
-    #
-    norm_type[FeatureDescriptorTypes.CONTEXTDESC] = (
-        cv2.NORM_L2
-    )  # unless ContextDescFeature2D.quantize == True
-    max_descriptor_distance[FeatureDescriptorTypes.CONTEXTDESC] = 1.6  # CONTEXTDESC
-    #
-    norm_type[FeatureDescriptorTypes.LFNET] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.LFNET] = 2.2  # LFNET
-    #
-    norm_type[FeatureDescriptorTypes.R2D2] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.R2D2] = 1.4  # R2D2
-    #
-    norm_type[FeatureDescriptorTypes.KEYNET] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.KEYNET] = 1.6  # KEYNET
-    #
-    norm_type[FeatureDescriptorTypes.BEBLID] = cv2.NORM_HAMMING
-    max_descriptor_distance[FeatureDescriptorTypes.BEBLID] = (
-        110  # BEBLID     (BEBLID_SIZE_256_BITS)
+    norm_type, max_descriptor_distance = {}, {}
+    for descriptor_type in FeatureDescriptorTypes:
+        spec = get_spec(descriptor_type.name)
+        norm_type[descriptor_type] = norms[spec.norm]
+        max_descriptor_distance[descriptor_type] = spec.max_descriptor_distance
+    return custom_detector_types, need_mask_management, norm_type, max_descriptor_distance
+
+
+class FeatureInfo(object):
+    # custom_detector_types: detectors that manage the keypoint mask themselves
+    # need_mask_management: detector type -> need mask management
+    # norm_type: descriptor type -> norm type
+    # max_descriptor_distance: descriptor type -> reference max descriptor distance, used by SLAM
+    #   for locally searching matches around frame keypoints
+    custom_detector_types, need_mask_management, norm_type, max_descriptor_distance = (
+        _feature_info_tables()
     )
-    #
-    norm_type[FeatureDescriptorTypes.DISK] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.DISK] = 3.22  # DISK
-    #
-    norm_type[FeatureDescriptorTypes.ALIKED] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.ALIKED] = 3.19  # ALIKED
-    #
-    norm_type[FeatureDescriptorTypes.LIGHTGLUESIFT] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.LIGHTGLUESIFT] = 1.0  # LIGHTGLUESIFT
-    #
-    norm_type[FeatureDescriptorTypes.KEYNETAFFNETHARDNET] = cv2.NORM_L2
-    max_descriptor_distance[FeatureDescriptorTypes.KEYNETAFFNETHARDNET] = (
-        2.40  # KEYNETAFFNETHARDNET
-    )
-    #
-    norm_type[FeatureDescriptorTypes.DEDODE] = cv2.NORM_L2
-    # 3 * sigma_mad of descriptor distances (main_feature_matching.py rule) on 12 TUM/KITTI/EuRoC
-    # pairs; descriptors are L2-normalized, so distances lie in [0, 2].
-    max_descriptor_distance[FeatureDescriptorTypes.DEDODE] = 1.76  # DEDODE
-    #
-    norm_type[FeatureDescriptorTypes.RDD] = cv2.NORM_L2
-    # 3 * sigma_mad of descriptor distances on the same 12 TUM/KITTI/EuRoC pairs; L2-normalized.
-    max_descriptor_distance[FeatureDescriptorTypes.RDD] = 1.41  # RDD
-    #
-    # norm_type[FeatureDescriptorTypes.MAST3R] = cv2.NORM_L2
-    # max_descriptor_distance[FeatureDescriptorTypes.MAST3R] = 2.0               # MAST3R

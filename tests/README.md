@@ -23,10 +23,10 @@ There are two pytest passes because `pyslam.slam` binds its classes to one core 
 
 | Folder | Scope |
 |--------|-------|
-| `local_features/` | Visual-model enum/FeatureInfo and installer contracts, registry/lazy factories, verified weights, benchmark/output gates and generated documentation. CPU/no-network tests. |
+| `local_features/` | Visual-model enum/FeatureInfo and installer contracts, FeatureManager settings against recorded pre-refactor values, tracker dispatch, registry/lazy factories, verified weights, benchmark/output gates and generated documentation. CPU/no-network tests. |
 | `slam/` | Core-agnostic front end and back end: tracking, motion model, two-view initialization, adaptive thresholds, local BA interrupted by its abort flag. Runs in both passes. |
 | `python_core/` | Python-core-only back end: local-mapping culling, essential-graph optimization (g2o, GTSAM), and local BA aborted just before g2o's first iteration (only the Python core can raise the flag at that exact point; the timed aborts in `slam/` cover both cores). |
-| `camera/` | Camera models, local-map limits, triangulation, trajectory evaluation (C++ core). |
+| `camera/` | Camera models, local-map limits, triangulation, and the trajectory-evaluation and benchmark-guard helpers of `benchmarking/camera/` (C++ core). |
 | `cv/` | Pose estimators and depth from point clouds. |
 | `viz/` | Viewer startup/shutdown, pending queue data on close, and direct-SLAM map/trajectory snapshots. |
 | `scene_from_views/` | Multi-view reconstruction wrappers and scene optimizers (camera-frame depth, view ordering, sparse-optimizer pose initialization, densification subsample, canonical views, temp-dir cleanup), using synthetic scenes and fake models (no weights needed). |
@@ -57,7 +57,7 @@ Failed timing samples and missing or incompatible baseline cases fail the check.
 
 ## Adding a test
 
-Put a `unittest.TestCase` or a pytest function in `tests/<topic>/test_*.py`. Keep helpers out of that filename pattern so pytest does not collect them (for example `tests/slam/slam_test_support.py`, the replay and benchmark harnesses in `tests/camera/`).
+Put a `unittest.TestCase` or a pytest function in `tests/<topic>/test_*.py`. Keep helpers out of that filename pattern so pytest does not collect them (for example `tests/slam/slam_test_support.py` and `tests/camera/camera_test_support.py`). Replay and benchmark harnesses belong in [`benchmarking/`](../benchmarking/).
 
 - A test that should hold on both cores imports from `pyslam.slam` and goes in `tests/slam/`.
 - A test of Python-only core code goes in `tests/python_core/`, and so does a check that only the Python core can reach. Keep the C++ pass free of skips.

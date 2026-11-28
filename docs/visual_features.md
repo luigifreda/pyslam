@@ -65,15 +65,19 @@ Detector-free matchers (RoMa, tiny-RoMa, LoFTR, MASt3R) return matched keypoints
 
 In short: a preset names a detector, a descriptor and a matcher; the `FeatureManager` builds the detector and the descriptor; classic ones come straight from OpenCV, learned ones are imported only when selected. Both expose the same `detect` / `compute` / `detectAndCompute` interface and return OpenCV keypoints plus a descriptor array, so the rest of the pipeline does not need to know which kind it is using.
 
+<p align="center">
+<img src="./images/shared/feature_management.png" alt="Classic and Learned Feature Management"  />
+</p>
+
 1. A `FeatureTrackerConfigs` preset is a plain dictionary (`detector_type`, `descriptor_type`, `num_features`, `num_levels`, `tracker_type`, ...). `feature_tracker_factory` turns it into a `FeatureTracker`, which owns a `FeatureManager` and a `FeatureMatcher`.
-2. `FeatureManager` ([feature_manager.py](../pyslam/local_features/feature_manager.py)) chooses the extractor from `detector_type` and `descriptor_type`:
+2. `FeatureManager` ([feature_manager.py](../pyslam/local_features/feature_manager.py)) chooses the extractor from `detector_type` and `descriptor_type`, and takes its class from the [model registry](#model-catalog-and-inspection-tools) (`load_constructor()`):
    - **Classic features** are created with the OpenCV factory functions of the locally built OpenCV (`cv2.ORB_create`, `cv2.SIFT_create`, `cv2.xfeatures2d.*`, ...). A few have small pyslam wrappers: `ORB2` (the ORB-SLAM2 extractor, compiled C++), `ROOT_SIFT` and Shi-Tomasi. Multi-scale detection uses each method's own pyramid or pyslam's `PyramidAdaptor`, and `BlockAdaptor` can spread keypoints over image tiles.
    - **Learned features** are pyslam wrappers deriving from `BaseFeature2D` ([feature_base.py](../pyslam/local_features/feature_base.py)), one file per method (`feature_superpoint.py`, `feature_aliked.py`, `feature_dedode.py`, `feature_rdd.py`, ...). The wrapper module, and with it torch, TensorFlow, kornia or the vendor repository, is imported the first time the feature is selected. Each wrapper loads its network and weights, converts the image to the network's input, and converts the network output back to `cv2.KeyPoint` arrays and float descriptors in original image coordinates. Torch-based detectors run on a long-lived inference thread (`PersistentThreadAdaptor`).
-3. `FeatureInfo` ([feature_types.py](../pyslam/local_features/feature_types.py)) records, per descriptor, the norm (Hamming for binary descriptors such as ORB, L2 for float descriptors such as SIFT and the learned ones) and the calibrated `max_descriptor_distance` used by the SLAM front end.
-4. The `FeatureMatcher` matches descriptors: BF and FLANN work with classic and learned descriptors alike (using the norm from `FeatureInfo`); XFeat and LightGlue are learned matchers for their own features. Detector-free matchers (LoFTR, MASt3R, RoMa, tiny-RoMa) skip the `FeatureManager` and compute matches directly from the two images.
+3. `FeatureInfo` ([feature_types.py](../pyslam/local_features/feature_types.py)) exposes, per descriptor, the norm (Hamming for binary descriptors such as ORB, L2 for float descriptors such as SIFT and the learned ones) and the calibrated `max_descriptor_distance` used by the SLAM front end. Its tables are built from the registry.
+4. The `FeatureMatcher` matches descriptors: BF and FLANN work with classic and learned descriptors alike (using the norm from `FeatureInfo`); XFeat and LightGlue are learned matchers for their own features. Detector-free matchers (LoFTR, MASt3R, RoMa, tiny-RoMa) compute matches directly from the two images; one `DetectorFreeFeatureTracker` drives all of them. Its presets set `detector_type` and `descriptor_type` to `NONE`, so the tracker's `FeatureManager` loads no network and `detectAndCompute()` returns `(None, None)`.
 5. Loop closure follows the same split: classic loop detectors aggregate the local descriptors of a keyframe into a bag of words (DBoW2/DBoW3, iBoW, OBIndex2) or a VLAD vector, while learned VPR detectors compute one global descriptor per image with a network, in the loop-detecting process.
 
-The [`pyslam.visual_models`](#model-catalog-and-inspection-tools) catalog describes all these integrations (constructor, capabilities, dependency group, license and weights) without importing any of them; it is used for inspection, installation and tests, while the pipeline keeps building its models through the factories above. Diagrams of the feature path and of the catalog classes are in the system overview: [Classic and learned local features](./system_overview.md#classic-and-learned-local-features) and [Visual model catalog](./system_overview.md#visual-model-catalog).
+The [`pyslam.visual_models`](#model-catalog-and-inspection-tools) catalog describes all these integrations (constructor, capabilities, descriptor metric, dependency group, license and weights) without importing any of them. It is the single source of truth: the `FeatureManager` resolves its classes from it, `FeatureInfo` is built from it, and the installer and the tests read it. Its classes are shown in the diagram of [Model catalog and inspection tools](#model-catalog-and-inspection-tools).
 
 ## Local features
 
@@ -175,7 +179,7 @@ Classic features need no installation beyond the standard build. Most learned in
 ```bash
 ./scripts/install_visual_model.sh --list          # self-installing models and their groups
 ./scripts/install_visual_model.sh                 # all of them
-./scripts/install_visual_model.sh ROMA SALAD      # selected models
+./scripts/install_visual_model.sh ROMA SALAD      # selected models (other registered names are reported with their installer)
 ./scripts/install_visual_model.sh --group vpr     # a group (members installed by the standard installers are reported)
 ./scripts/install_visual_model.sh --dry-run       # plan and cache status only
 python -m pyslam.visual_models check --artifacts  # per-artifact cache status (no download)
@@ -186,6 +190,12 @@ Installing a model constructs it once on the CPU with downloads allowed. This fe
 ## Model catalog and inspection tools
 
 `pyslam.visual_models` is a registry of every integration (local features, pair matchers, global descriptors) with its wrapper, dependency group, capabilities (e.g. per-keypoint descriptors), source revision, license notes and checksum-pinned weights. Importing it loads no inference framework.
+
+<p align="center">
+<img src="./images/shared/visual_model_catalog.png" alt="Visual Model Catalog"  />
+</p>
+
+The diagram shows the registry (`ModelSpec` records), the factory that imports a model's class on first use, the installer, the weight resolver and the command-line tool. The [system overview](./system_overview.md#visual-model-catalog) describes each block.
 
 ```bash
 python -m pyslam.visual_models check                       # all models
@@ -202,7 +212,7 @@ python -m pyslam.visual_models prefetch LOFTR_OUTDOOR      # fetch one registere
 
 1. Review the upstream code and weight licenses separately. Record an immutable source revision and checksum-pinned weight sources.
 2. Implement the wrapper on the existing interfaces: `BaseFeature2D` (local features), `FeatureMatcher` or `DetectorFreeMatcher` (matchers), `LoopDetectorVprBase` / `GlobalFeatureTorchHub` (global descriptors). Keep aspect ratio, original pixel coordinates, descriptor dtype/norm and feature limits; run torch inference through `PersistentThread` when it may be called from per-frame threads.
-3. Append enum values (never renumber), add the preset, the registry spec, the `FeatureInfo` entries (calibrate `max_descriptor_distance`) and an `INSTALLERS` entry in `pyslam/visual_models/install.py`.
+3. Append enum values (never renumber), add the preset and the registry spec in `pyslam/visual_models/model_registry.py`: its class, its descriptor metric in `_DESCRIPTOR_METRIC` (calibrate `max_descriptor_distance`; `FeatureInfo` is built from it), `_JOINT` if only its own detector computes the descriptor, and its prefetch arguments in `_SELF_INSTALLING` if it downloads pinned code or weights. Then add its options branch in `FeatureManager`.
 4. Add output-contract and equivalence tests, and record pair timings and SLAM smoke runs.
 5. Regenerate the table below and update the README, TeX document and install docs.
 

@@ -35,6 +35,10 @@ import subprocess
 import sys
 import tempfile
 import time
+from pathlib import Path
+
+# Calibration fixtures shared with the camera tests.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tests" / "camera"))
 
 from camera_test_support import ROOT, calibration_cases, sample_points
 from benchmark_guard import BenchmarkGuard

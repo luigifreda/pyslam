@@ -26,9 +26,9 @@
 * a fresh process.
 *
 * Examples:
-*   python tests/camera/replay_sequence.py --dataset TUM_VI_DATASET --base-path <tum_vi> \\
+*   python benchmarking/camera/replay_sequence.py --dataset TUM_VI_DATASET --base-path <tum_vi> \\
 *       --name dataset-room1_512_16 --set stereo_mode=native --output /tmp/room1_native.json
-*   python tests/camera/replay_sequence.py --dataset KITTI_DATASET --base-path <kitti>/dataset \\
+*   python benchmarking/camera/replay_sequence.py --dataset KITTI_DATASET --base-path <kitti>/dataset \\
 *       --name 00 --sensor-type stereo --set is_color=false --frames 1000 --output /tmp/k00.json
 """
 

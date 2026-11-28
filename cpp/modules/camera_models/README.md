@@ -329,11 +329,11 @@ The optional paired benchmark loads the pinhole implementation from a Git commit
 
 ```bash
 # Compare against a pinhole-only commit, for example:
-python tests/camera/benchmark_pinhole.py \
+python benchmarking/camera/benchmark_pinhole.py \
   --baseline-ref 96019cfafcfc099ac9866884d7143a9ed1451a0d \
   --output /tmp/pinhole-benchmark.json
 # Faster optimizer-only check:
-python tests/camera/benchmark_pinhole.py \
+python benchmarking/camera/benchmark_pinhole.py \
   --baseline-ref 96019cfafcfc099ac9866884d7143a9ed1451a0d \
   --optimizers-only --output /tmp/pinhole-optimizers.json
 # Native C++ edges/factors against the original g2o/GTSAM implementations:
@@ -347,12 +347,12 @@ The Python camera timings compare real revisions. The C++ camera rows compare th
 
 ### End-to-end replay and pinhole regression
 
-`tests/camera/replay_sequence.py` replays a dataset section of `config.yaml` with a fixed procedure. The procedure uses ORB2 and synchronous local mapping. It does not run loop closure unless you pass `--loop-closure`. The script writes JSON with the tracking states, the track and map time of each frame, the keyframe count, and the map-point count. The JSON also has the ATE. Mono ATE uses a Sim(3) alignment. Every other sensor uses an SE(3) alignment. The script also writes an NPZ file with the trajectory and the raw timings. `--pyslam-root` imports another checkout. You can export a pinhole-only baseline from the last pinhole commit and build its C++ core. The same harness then replays that baseline:
+`benchmarking/camera/replay_sequence.py` replays a dataset section of `config.yaml` with a fixed procedure. The procedure uses ORB2 and synchronous local mapping. It does not run loop closure unless you pass `--loop-closure`. The script writes JSON with the tracking states, the track and map time of each frame, the keyframe count, and the map-point count. The JSON also has the ATE. Mono ATE uses a Sim(3) alignment. Every other sensor uses an SE(3) alignment. The script also writes an NPZ file with the trajectory and the raw timings. `--pyslam-root` imports another checkout. You can export a pinhole-only baseline from the last pinhole commit and build its C++ core. The same harness then replays that baseline:
 
 ```bash
 git archive <pinhole-commit> | tar -x -C ../pyslam-baseline   # then build its C++ core
 for root in ../pyslam-baseline .; do
-  python tests/camera/replay_sequence.py --pyslam-root $root \
+  python benchmarking/camera/replay_sequence.py --pyslam-root $root \
     --dataset KITTI_DATASET --base-path <kitti>/dataset --name 00 --sensor-type stereo \
     --settings settings/KITTI00-02.yaml --set is_color=false --frames 1500 \
     --output /tmp/kitti00_stereo_$(basename $root).json
@@ -367,12 +367,12 @@ On Linux, the replay and the component benchmark share one process lock. A watch
 
 For a memory investigation, `--trace-memory` prints Python allocation summaries every 200 frames. Tracing adds overhead. Do not use those timings in a throughput comparison.
 
-For repeated comparisons, edit the dataset roots and the sequences in `tests/camera/pinhole_replay_cases.example.json`. Then run:
+For repeated comparisons, edit the dataset roots and the sequences in `benchmarking/camera/pinhole_replay_cases.example.json`. Then run:
 
 ```bash
-python tests/camera/run_pinhole_regression.py \
+python benchmarking/camera/run_pinhole_regression.py \
   --baseline-root ../pyslam-baseline-pinhole \
-  --cases tests/camera/pinhole_replay_cases.example.json \
+  --cases benchmarking/camera/pinhole_replay_cases.example.json \
   --frames 300 --repeats 3 --output results/pinhole-regression
 ```
 
@@ -380,7 +380,7 @@ The example covers KITTI mono and stereo, EuRoC mono and stereo, and TUM mono an
 
 The runner alternates the baseline and candidate order between pairs. It saves each JSON file, each trajectory, and each log. The run fails in three cases. The median of the paired mean frame-time ratios is above 1.20. A pair loses more than two percentage points of tracking, trajectory, or motion-capture coverage. The ATE increases by more than the larger of 20 percent and 0.02 m. Set the timing budget with `--max-ratio`. A baseline from `git archive` is supported. If `.git` is absent, the source hash and the native binary hash identify the baseline. Compilation caches and replay logs stay in the output directory.
 
-Replay ATE uses `tests/camera/trajectory_evaluation.py`. Mono alignment is a Sim(3). A metric sensor uses an SE(3) alignment. Interpolation needs the full motion-capture interval around the sample. That interval must be at most `--max-align-dt`. The tool does not extrapolate ground truth. The tool does not fill a longer gap. Fewer than three associations is an error. The report includes the association coverage and the alignment scale. The tests cover a known similarity transform, interpolation, sparse gaps, and input that is not valid or is degenerate. They also cover the separate regression gates:
+Replay ATE uses `benchmarking/camera/trajectory_evaluation.py`. Mono alignment is a Sim(3). A metric sensor uses an SE(3) alignment. Interpolation needs the full motion-capture interval around the sample. That interval must be at most `--max-align-dt`. The tool does not extrapolate ground truth. The tool does not fill a longer gap. Fewer than three associations is an error. The report includes the association coverage and the alignment scale. The tests cover a known similarity transform, interpolation, sparse gaps, and input that is not valid or is degenerate. They also cover the separate regression gates:
 
 ```bash
 python -m unittest discover -s tests/camera -p 'test_*.py'

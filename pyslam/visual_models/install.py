@@ -24,46 +24,21 @@ the pinned code and every checkpoint into the standard caches (torch.hub, Huggin
 including indirect ones such as DINOv2 backbones. Registered SHA-256 values are then
 verified. Afterwards the models run offline (PYSLAM_OFFLINE=1).
 
-Existing integrations keep their installers (scripts/install_*.sh, git submodules, pip
-pins); for them this module only reports where they come from.
+The self-installing models are the registry specs with install_kwargs; the constructor is the
+spec's class, resolved by the factory as at run time. Existing integrations keep their
+installers (scripts/install_*.sh, git submodules, pip pins); for them this module only
+reports where they come from.
 """
 
-from dataclasses import dataclass
-import importlib
 import os
 from pathlib import Path
 
-from .model_registry import get_spec, list_models
+from .model_registry import list_models
 from .weights import registered_weights, verify
 
 
-@dataclass(frozen=True)
-class Installer:
-    spec_kind: str
-    spec_name: str
-    constructor: str  # "module:callable", called with keyword arguments on CPU
-    kwargs: tuple = ()
-
-
-# Self-installing integrations (pinned snapshots / hub artifacts). Name -> installer.
-INSTALLERS = {
-    "DEDODE": Installer("local_feature", "DEDODE", "pyslam.local_features.feature_dedode:DeDoDeFeature2D",
-                        (("num_features", 16), ("device", "cpu"))),
-    "RDD": Installer("local_feature", "RDD", "pyslam.local_features.feature_rdd:RddFeature2D",
-                     (("num_features", 16), ("device", "cpu"))),
-    "ROMA": Installer("pair_matcher", "ROMA", "pyslam.local_features.feature_matcher_detector_free:RoMaMatcher",
-                      (("device", "cpu"),)),
-    "TINY_ROMA": Installer("pair_matcher", "TINY_ROMA",
-                           "pyslam.local_features.feature_matcher_detector_free:TinyRoMaMatcher",
-                           (("device", "cpu"),)),
-    "SALAD": Installer("global_descriptor", "SALAD", "pyslam.loop_closing.global_feature_torchhub:GlobalFeatureSalad",
-                       (("device", "cpu"),)),
-    "BOQ": Installer("global_descriptor", "BOQ", "pyslam.loop_closing.global_feature_torchhub:GlobalFeatureBoQ",
-                     (("device", "cpu"),)),
-    "MEGALOC": Installer("global_descriptor", "MEGALOC", "pyslam.loop_closing.global_feature_megaloc:GlobalFeatureMegaloc",
-                         (("device", "cpu"),)),
-    "LOFTR": Installer("pair_matcher", "LOFTR", "pyslam.local_features.feature_matcher:LoFTRMatcher", ()),
-}
+# Self-installing integrations: registry specs that declare install_kwargs. Name -> spec.
+INSTALLERS = {spec.name: spec for spec in list_models() if spec.install_kwargs is not None}
 
 
 def artifacts_for(spec):
@@ -108,38 +83,34 @@ def artifact_status(entry, verify_checksum=False):
 
 
 def plan(names=None, group=None):
-    """Specs to install: explicit names, a dependency group, or every self-installing model."""
+    """Specs to install: explicit names, a dependency group, or every self-installing model.
+
+    Unknown names are returned as strings; group members without install_kwargs are returned
+    too, so that their legacy installer is reported.
+    """
     if names:
-        return [INSTALLERS[name.upper()] if name.upper() in INSTALLERS else name for name in names]
-    selected = []
-    for name, installer in INSTALLERS.items():
-        spec = get_spec(installer.spec_name, installer.spec_kind)
-        if group is None or spec.group == group:
-            selected.append(installer)
-    if group is not None:  # report the group's other members (installed by legacy scripts)
-        covered = {(i.spec_kind, i.spec_name) for i in INSTALLERS.values()}
-        selected += [spec for spec in list_models(group=group)
-                     if spec.wrapper and (spec.kind, spec.name) not in covered]
-    return selected
+        return [INSTALLERS.get(name.upper(), name) for name in names]
+    if group is None:
+        return list(INSTALLERS.values())
+    selected = [spec for spec in INSTALLERS.values() if spec.group == group]
+    return selected + [spec for spec in list_models(group=group) if spec.wrapper and spec.install_kwargs is None]
 
 
-def install(installer, dry_run=False):
-    """Construct once (fetching code + weights), then verify registered checksums."""
-    spec = get_spec(installer.spec_name, installer.spec_kind)
-    report = {"name": spec.name, "kind": spec.kind, "group": spec.group, "action": installer.constructor}
+def install(spec, dry_run=False):
+    """Construct once through the factory (fetching code + weights), then verify registered checksums."""
+    report = {"name": spec.name, "kind": spec.kind, "group": spec.group, "action": spec.wrapper}
     if not dry_run:
         os.environ.pop("PYSLAM_OFFLINE", None)
-        module, _, symbol = installer.constructor.partition(":")
         import contextlib
         import sys
 
+        from .factory import load_constructor
+
         # Model constructors print progress: keep stdout for the machine-readable report.
         with contextlib.redirect_stdout(sys.stderr):
-            constructor = getattr(importlib.import_module(module), symbol)
-            instance = constructor(**dict(installer.kwargs))
+            instance = load_constructor(spec.name, spec.kind)(**dict(spec.install_kwargs))
             del instance
-    report["artifacts"] = {name: (artifact_status(entry, verify_checksum=not dry_run) if not dry_run
-                                  else artifact_status(entry))
+    report["artifacts"] = {name: artifact_status(entry, verify_checksum=not dry_run)
                            for name, entry in artifacts_for(spec).items()}
     report["status"] = ("planned" if dry_run else
                         "failed" if any(v in ("missing", "checksum mismatch") for v in report["artifacts"].values())

@@ -30,7 +30,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from pyslam.visual_models import get_local_feature, list_models, validate_frontend
+from pyslam.visual_models import get_local_feature, get_spec, list_models, validate_frontend
 from pyslam.visual_models.factory import ModelUnavailable, resolve_symbol
 from pyslam.visual_models.weights import (ChecksumError, WeightResolver, WeightSource,
                                          WeightsUnavailable, default_cache, registered_weights)
@@ -73,7 +73,8 @@ assert matcher.K is None and matcher.KF is None
 assert matcher.LightGlue is not None and 'lightglue' in sys.modules  # compat attribute loads on demand
 for vendor in ('thirdparty/lfnet', 'thirdparty/contextdesc', 'thirdparty/geodesc', 'thirdparty/superpoint'):
     assert not any(path.rstrip('/').endswith(vendor) for path in sys.path), vendor
-assert fm.Orbslam2Feature2D is fm._wrapper('Orbslam2Feature2D') is not None
+assert fm.Orbslam2Feature2D is fm._wrapper('ORB2') is not None
+assert fm.XfeatFeature2D is fm._wrapper('XFEAT')
 try:
     fm.NotAWrapper
 except AttributeError:
@@ -86,18 +87,33 @@ else:
                                 timeout=120, env=env, cwd=Path(__file__).resolve().parents[2])
         self.assertEqual(result.returncode, 0, result.stderr[-4000:])
 
-    def test_feature_manager_lazy_table_points_to_existing_wrappers(self):
-        import ast
+    def test_registry_wrappers_point_to_existing_classes(self):
+        # FeatureManager and the installer resolve classes only through the registry.
+        import re
         root = Path(__file__).resolve().parents[2]
-        tree = ast.parse((root / "pyslam/local_features/feature_manager.py").read_text())
-        table = next(node.value for node in tree.body if isinstance(node, ast.Assign)
-                     and getattr(node.targets[0], "id", None) == "_LAZY_WRAPPERS")
-        entries = ast.literal_eval(table)
-        self.assertEqual(len(entries), 21)
-        for name, (module, symbol) in entries.items():
-            with self.subTest(name=name):
+        for spec in list_models():
+            if not (spec.wrapper or "").startswith("pyslam."):
+                continue
+            module, symbol = spec.wrapper.split(":")
+            with self.subTest(name=spec.name, kind=spec.kind):
                 source = (root / (module.replace(".", "/") + ".py")).read_text()
                 self.assertRegex(source, rf"(?m)^class {symbol}\b")
+        manager = (root / "pyslam/local_features/feature_manager.py").read_text()
+        used = set(re.findall(r'_wrapper\("([A-Z0-9_]+)"\)', manager))
+        self.assertGreater(len(used), 40)
+        for name in used:
+            with self.subTest(name=name):
+                self.assertIsNotNone(get_spec(name).wrapper)
+
+    def test_descriptor_metric_lives_in_the_registry(self):
+        from pyslam.local_features.feature_types import FeatureDescriptorTypes, FeatureInfo
+        for value in FeatureDescriptorTypes:
+            spec = get_spec(value.name)
+            with self.subTest(name=value.name):
+                self.assertEqual(FeatureInfo.norm_type[value], spec.feature_info()["norm_type"])
+                self.assertEqual(FeatureInfo.max_descriptor_distance[value], spec.max_descriptor_distance)
+        self.assertTrue(get_spec("SUPERPOINT").joint)
+        self.assertFalse(get_spec("ORB").joint)
 
     def test_constructors_are_lazy_but_stateful_instances_are_not_shared(self):
         with patch("pyslam.visual_models.factory.importlib.import_module") as importer:

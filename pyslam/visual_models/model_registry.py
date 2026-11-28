@@ -19,13 +19,15 @@
 * Declarative catalog of existing pyslam integrations.
 *
 * Only strings and immutable metadata live here. Importing this catalog does not import
-* cv2, torch, TensorFlow, kornia, a vendor repository, or a feature manager. Existing
-* constructor branches remain authoritative until their equivalence gates pass.
+* cv2, torch, TensorFlow, kornia, a vendor repository, or a feature manager.
+*
+* This is the single source of truth for: the class of each model (FeatureManager and the
+* factory resolve it from here), the descriptor matching metric (FeatureInfo is built from
+* it), and the arguments used to prefetch self-installing models.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
-import importlib
 import json
 from pathlib import Path
 
@@ -43,18 +45,23 @@ class ModelSpec:
     detector_free: bool = False
     isolate: bool = False
     notes: str = ""
+    # Descriptor matching metric: "hamming" or "l2", and the reference max distance.
+    norm: str | None = None
+    max_descriptor_distance: float | None = None
+    # The descriptor can only be computed by the detector of the same name.
+    joint: bool = False
+    # The detector applies its own keypoint mask/filtering.
+    need_mask_management: bool = False
+    # Keyword arguments for a one-time CPU construction that prefetches code and weights.
+    install_kwargs: tuple | None = None
 
     def feature_info(self):
-        """Read existing tables at construction/inspection, never on the frame path."""
-        module = importlib.import_module("pyslam.local_features.feature_types")
+        """Matching metadata, as the FeatureInfo tables expose it (cv2.NORM_* values)."""
         info = {}
         if self.descriptor:
-            key = module.FeatureDescriptorTypes[self.descriptor]
-            info.update(norm_type=module.FeatureInfo.norm_type[key],
-                        max_descriptor_distance=module.FeatureInfo.max_descriptor_distance[key])
+            info.update(norm_type=_CV_NORMS[self.norm], max_descriptor_distance=self.max_descriptor_distance)
         if self.detector:
-            key = module.FeatureDetectorTypes[self.detector]
-            info["need_mask_management"] = module.FeatureInfo.need_mask_management.get(key, False)
+            info["need_mask_management"] = self.need_mask_management
         return info
 
     def source(self):
@@ -115,7 +122,72 @@ _DESCRIPTOR_ONLY = {"TFEAT", "HARDNET", "GEODESC", "SOSNET", "L2NET", "LOGPOLAR"
                     "BOOST_DESC", "DAISY", "LATCH", "LUCID", "VGG", "BEBLID"}
 
 
+# Descriptor metric: (norm, reference max descriptor distance). The distances are initial
+# values, updated online by robust (MAD) estimation and exponential smoothing. They can be
+# estimated with main_feature_matching.py: use the dumped 3 * sigma_mad value.
+_DESCRIPTOR_METRIC = {
+    "NONE": ("l2", float("inf")),
+    "SIFT": ("l2", 450),
+    "ROOT_SIFT": ("l2", 0.9),
+    "SURF": ("l2", 0.45),
+    "ORB": ("hamming", 100),
+    "ORB2": ("hamming", 100),
+    "BRISK": ("hamming", 200),
+    "KAZE": ("l2", 1.2),
+    "AKAZE": ("hamming", 190),
+    "FREAK": ("hamming", 180),
+    "SUPERPOINT": ("l2", 2.878),
+    "XFEAT": ("l2", 1.9877),
+    "TFEAT": ("l2", 11),
+    "BOOST_DESC": ("hamming", 100),
+    "DAISY": ("l2", 0.4),
+    "LATCH": ("hamming", 120),
+    "LUCID": ("hamming", 100),
+    "VGG": ("l2", 5),
+    "HARDNET": ("l2", 1.8),
+    "GEODESC": ("l2", 0.4),  # unless GeodescFeature2D.quantize == True
+    "SOSNET": ("l2", 2),
+    "L2NET": ("l2", 2.9),
+    "LOGPOLAR": ("l2", 3.2),
+    "D2NET": ("l2", 2.8),
+    "DELF": ("l2", 2.1),
+    "CONTEXTDESC": ("l2", 1.6),  # unless ContextDescFeature2D.quantize == True
+    "LFNET": ("l2", 2.2),
+    "R2D2": ("l2", 1.4),
+    "KEYNET": ("l2", 1.6),
+    "BEBLID": ("hamming", 110),  # BEBLID_SIZE_256_BITS
+    "DISK": ("l2", 3.22),
+    "ALIKED": ("l2", 3.19),
+    "LIGHTGLUESIFT": ("l2", 1.0),
+    "KEYNETAFFNETHARDNET": ("l2", 2.40),
+    # DEDODE, RDD: 3 * sigma_mad on 12 TUM/KITTI/EuRoC pairs; L2-normalized descriptors.
+    "DEDODE": ("l2", 1.76),
+    "RDD": ("l2", 1.41),
+}
+# cv2.NORM_L2 and cv2.NORM_HAMMING (checked against cv2 in feature_types.py).
+_CV_NORMS = {"l2": 4, "hamming": 6}
+# Descriptors that only their own detector can compute (end-to-end networks).
+_JOINT = {"SUPERPOINT", "XFEAT", "D2NET", "DELF", "CONTEXTDESC", "LFNET", "R2D2", "KEYNET", "DISK",
+          "ALIKED", "LIGHTGLUESIFT", "KEYNETAFFNETHARDNET", "DEDODE", "RDD"}
+# Detectors that manage the keypoint mask themselves. Ordered: FeatureInfo.custom_detector_types.
+MASK_MANAGED_DETECTORS = ("SHI_TOMASI", "ORB2", "SUPERPOINT", "XFEAT", "D2NET", "DELF", "CONTEXTDESC",
+                          "LFNET", "R2D2", "KEYNET", "DISK", "ALIKED", "LIGHTGLUESIFT",
+                          "KEYNETAFFNETHARDNET", "DEDODE", "RDD")
+
 _DETECTOR_FREE_MATCHERS = {"LOFTR", "MAST3R", "ROMA", "TINY_ROMA"}
+
+# Self-installing integrations (pinned snapshots / hub artifacts): constructed once on the
+# CPU to fetch code and weights. (kind, name) -> constructor keyword arguments.
+_SELF_INSTALLING = {
+    ("local_feature", "DEDODE"): (("num_features", 16), ("device", "cpu")),
+    ("local_feature", "RDD"): (("num_features", 16), ("device", "cpu")),
+    ("pair_matcher", "ROMA"): (("device", "cpu"),),
+    ("pair_matcher", "TINY_ROMA"): (("device", "cpu"),),
+    ("global_descriptor", "SALAD"): (("device", "cpu"),),
+    ("global_descriptor", "BOQ"): (("device", "cpu"),),
+    ("global_descriptor", "MEGALOC"): (("device", "cpu"),),
+    ("pair_matcher", "LOFTR"): (),
+}
 
 
 def _build_specs():
@@ -128,10 +200,13 @@ def _build_specs():
             wrapper, source, group = "cv2:" + _CV[name], "opencv", "core"
         else:
             wrapper, source, group = None, None, "core"
+        descriptor = name if name not in _DETECTOR_ONLY else None
+        norm, max_distance = _DESCRIPTOR_METRIC[descriptor] if descriptor else (None, None)
         specs[("local_feature", name)] = ModelSpec(
             name, "local_feature", wrapper, group, name not in _DETECTOR_ONLY | {"NONE"},
             detector=name if name not in _DESCRIPTOR_ONLY else None,
-            descriptor=name if name not in _DETECTOR_ONLY else None, source_key=source)
+            descriptor=descriptor, source_key=source, norm=norm, max_descriptor_distance=max_distance,
+            joint=name in _JOINT, need_mask_management=name in MASK_MANAGED_DETECTORS)
     for name, cls, group, source in (
         ("NONE", None, "core", None), ("LK", None, "core", "opencv"),
         ("BF", "BfFeatureMatcher", "core", "opencv"),
@@ -167,6 +242,8 @@ def _build_specs():
         specs[("global_descriptor", name)] = ModelSpec(
             name, "global_descriptor", None, "core", False,
             notes="Local-descriptor aggregation; construct with LoopDetectorConfigs and its vocabulary")
+    for key, kwargs in _SELF_INSTALLING.items():
+        specs[key] = replace(specs[key], install_kwargs=kwargs)
     return specs
 
 

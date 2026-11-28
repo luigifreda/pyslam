@@ -85,7 +85,7 @@ For a recorded replay, run each mode in a fresh process with the generic replay 
 
 ```bash
 for mode in rectified native; do
-  python tests/camera/replay_sequence.py --dataset TUM_VI_DATASET \
+  python benchmarking/camera/replay_sequence.py --dataset TUM_VI_DATASET \
     --base-path <tum_vi_root> --name dataset-room1_512_16 \
     --set stereo_mode=$mode --output /tmp/tum-vi-room1-$mode.json
 done
@@ -93,25 +93,9 @@ done
 
 The harness uses ORB2 with the configured feature count, includes synchronous local mapping in the per-frame timings, and disables loop closure (unless `--loop-closure`), semantics, and dense mapping. It writes JSON with tracking states, timings, keyframe/map-point counts, and translation ATE, plus an NPZ with the trajectory. ATE interpolates mocap between bracketing samples at most `--max-align-dt` (default 0.1 s) apart and uses SE(3) alignment, preserving stereo scale. `--start` and `--frames` select a segment. Set `PYSLAM_USE_CPP=false` before launch to exercise the Python core.
 
-## Recorded-data smoke validation (2026-10-18)
+## Recorded-data smoke validation
 
-The validation dataset root contained corridor1 (5,990 pairs), magistrale1 (15,447), outdoors8 (16,213), room1 (2,821), and slides3 (7,233). For all five sequences, both modes passed manifest/timestamp association, existence checks for every paired image, mocap loading, and image decoding at the first, middle, and last pair. This does not establish that every image decodes successfully.
-
-The first 300 room1 frames were replayed separately in each mode with the C++ core, g2o, ORB2/1,200 features, and synchronous local mapping:
-
-| Measurement | Rectified | Native |
-| --- | ---: | ---: |
-| Tracking states | 1 initializing, 299 OK | 1 initializing, 299 OK |
-| Final trajectory / mocap associations | 299 / 299 | 299 / 299 |
-| SE(3)-aligned translation RMSE | 0.0061 m | 0.0127 m |
-| Mean tracking + local mapping | 81.5 ms/frame | 238.1 ms/frame |
-| Median tracking + local mapping | 38.4 ms/frame | 188.0 ms/frame |
-| Mean image loading/preprocessing | 14.5 ms/pair | 9.7 ms/pair |
-| Final keyframes / map points | 48 / 2,141 | 54 / 2,417 |
-
-The associated mocap path spans 8.03 m. Timings include warm-up and logging; manifest validation for the other sequences ran in the background. These are exploratory component timings, not a controlled performance comparison against a prior pinhole build. Native matching, projection, and optimization cost more and produce a different map. Full-sequence drift, loop closing, the remaining sequences' tracking, and real-data replay through the Python/GTSAM paths remain unvalidated.
-
-Use the commands above to regenerate these results.
+On 2026-10-18 all five local TUM-VI sequences passed loading and timestamp association in both modes, and the first 300 room1 frames tracked with 299/300 frames OK in each mode (SE(3)-aligned translation RMSE 0.0061 m rectified, 0.0127 m native). The full table, timings and limits of that run are in [benchmarking/benchmarks/tum_vi/room1-smoke-2026-10-18.md](../benchmarking/benchmarks/tum_vi/room1-smoke-2026-10-18.md).
 
 ## Comparing with PLVS2 / ORB-SLAM3
 
@@ -121,11 +105,11 @@ sequence timestamps, preprocessing, and feature count. Export EuRoC trajectories
 seconds. Evaluate both with the same camera-frame conversion and association policy:
 
 ```bash
-python tests/camera/evaluate_tum_vi.py \
+python benchmarking/camera/evaluate_tum_vi.py \
   --trajectory results/reference/f_room1_mono.txt --sensor-type mono \
   --base-path <tum_vi_root> \
   --output results/reference/mono_ate.json
-python tests/camera/evaluate_tum_vi.py \
+python benchmarking/camera/evaluate_tum_vi.py \
   --trajectory results/room1_native.npz --sensor-type stereo --mode native \
   --base-path <tum_vi_root> \
   --output results/room1_native_ate.json
@@ -141,7 +125,7 @@ the disabled detector returns without consuming its keyframe queue. For a visual
 odometry reference with loop closure off, build local copies of its examples:
 
 ```bash
-python tests/camera/build_plvs2_reference.py --plvs2-root /path/to/plvs2 \
+python benchmarking/camera/build_plvs2_reference.py --plvs2-root /path/to/plvs2 \
   --output results/plvs2-reference
 ```
 

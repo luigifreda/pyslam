@@ -25,6 +25,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+# The benchmarking helpers under test live in benchmarking/camera.
+BENCHMARKING = Path(__file__).resolve().parents[2] / "benchmarking" / "camera"
+sys.path.insert(0, str(BENCHMARKING))
+
 from benchmark_guard import BenchmarkGuard
 
 
@@ -41,11 +45,11 @@ class TestBenchmarkGuard(unittest.TestCase):
                     f"guard=BenchmarkGuard(lock_path={str(lock)!r}, min_available_gib=0); "
                     "guard.__enter__(); guard.__exit__(None,None,None)")
             with BenchmarkGuard(lock_path=lock, min_available_gib=0):
-                result = subprocess.run([sys.executable, '-c', code], cwd=Path(__file__).parent,
+                result = subprocess.run([sys.executable, '-c', code], cwd=BENCHMARKING,
                                         text=True, capture_output=True, timeout=5)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn('run tests sequentially', result.stderr)
-            result = subprocess.run([sys.executable, '-c', code], cwd=Path(__file__).parent,
+            result = subprocess.run([sys.executable, '-c', code], cwd=BENCHMARKING,
                                     text=True, capture_output=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -59,7 +63,7 @@ with BenchmarkGuard(max_rss_gib=0.032, min_available_gib=0,
     allocation = bytearray(40 * 1024**2)
     time.sleep(3)
 """
-            result = subprocess.run([sys.executable, '-c', code], cwd=Path(__file__).parent,
+            result = subprocess.run([sys.executable, '-c', code], cwd=BENCHMARKING,
                                     text=True, capture_output=True, timeout=5)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('BENCHMARK_MEMORY_STOP', result.stderr)

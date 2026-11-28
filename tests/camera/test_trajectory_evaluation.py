@@ -17,11 +17,17 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
+import sys
 import unittest
 import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+
+# The benchmarking helpers under test live in benchmarking/camera.
+BENCHMARKING = Path(__file__).resolve().parents[2] / "benchmarking" / "camera"
+sys.path.insert(0, str(BENCHMARKING))
 
 from trajectory_evaluation import translation_ate
 from run_pinhole_regression import compare

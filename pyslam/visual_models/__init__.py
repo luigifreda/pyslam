@@ -22,7 +22,8 @@
 """
 
 from .model_registry import ModelSpec, get_spec, list_models, spec_for_enum, validate_frontend
-from .factory import get_local_feature, get_pair_matcher, get_global_descriptor, ModelUnavailable
+from .factory import get_local_feature, get_pair_matcher, get_global_descriptor, load_constructor, ModelUnavailable
 
 __all__ = ["ModelSpec", "get_spec", "list_models", "spec_for_enum", "validate_frontend",
-           "get_local_feature", "get_pair_matcher", "get_global_descriptor", "ModelUnavailable"]
+           "get_local_feature", "get_pair_matcher", "get_global_descriptor", "load_constructor",
+           "ModelUnavailable"]

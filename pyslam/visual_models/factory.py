@@ -56,7 +56,8 @@ def _unavailable(spec, exc):
                             f"Original error: {exc}")
 
 
-def _construct(name, kind, kwargs):
+def load_constructor(name, kind="local_feature"):
+    """Import and return the class/factory of a registered model, without constructing it."""
     spec = get_spec(name, kind)
     if spec.wrapper is None:
         raise ValueError(f"{spec.name} is a sentinel, not a constructible {kind}")
@@ -65,9 +66,14 @@ def _construct(name, kind, kwargs):
     if kind == "global_descriptor" and spec.source_key in {"vpr", "patch_netvlad"}:
         _set_lib_once("vpr")
     try:
-        constructor = resolve_symbol(spec.wrapper)
+        return resolve_symbol(spec.wrapper)
     except (ImportError, AttributeError) as exc:
         raise _unavailable(spec, exc) from exc
+
+
+def _construct(name, kind, kwargs):
+    spec = get_spec(name, kind)
+    constructor = load_constructor(spec, kind)
     try:
         return constructor(**kwargs)
     except ImportError as exc:

@@ -20,12 +20,12 @@
 """
 
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
-import types
 import unittest
 from unittest.mock import patch
 
@@ -37,26 +37,26 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class InstallPlanTest(unittest.TestCase):
     def test_every_installer_maps_to_a_registered_spec(self):
-        for name, installer in inst.INSTALLERS.items():
+        self.assertEqual(set(inst.INSTALLERS), {"DEDODE", "RDD", "ROMA", "TINY_ROMA", "SALAD", "BOQ", "MEGALOC", "LOFTR"})
+        for name, spec in inst.INSTALLERS.items():
             with self.subTest(name=name):
-                spec = get_spec(installer.spec_name, installer.spec_kind)
+                self.assertIs(spec, get_spec(spec.name, spec.kind))
                 self.assertIsNotNone(spec.wrapper)
-                module = installer.constructor.split(":")[0]
+                module = spec.wrapper.split(":")[0]
                 self.assertTrue((ROOT / (module.replace(".", "/") + ".py")).is_file(), module)
 
     def test_group_plan_reports_legacy_members(self):
         items = inst.plan(group="vpr")
-        installers = {i.spec_name for i in items if isinstance(i, inst.Installer)}
-        legacy = {i.name for i in items if not isinstance(i, inst.Installer)}
+        installers = {i.name for i in items if i.install_kwargs is not None}
+        legacy = {i.name for i in items if i.install_kwargs is None}
         self.assertTrue({"SALAD", "BOQ", "MEGALOC"} <= installers)
         self.assertIn("COSPLACE", legacy)
         self.assertEqual(inst.legacy_report(get_spec("COSPLACE", "global_descriptor"))["status"], "legacy installer")
 
     def test_new_integrations_have_registered_checksums(self):
         for name in ("DEDODE", "RDD", "ROMA", "TINY_ROMA", "SALAD", "BOQ"):
-            installer = inst.INSTALLERS[name]
             with self.subTest(name=name):
-                self.assertTrue(inst.artifacts_for(get_spec(installer.spec_name, installer.spec_kind)))
+                self.assertTrue(inst.artifacts_for(inst.INSTALLERS[name]))
 
 
 class ArtifactStatusTest(unittest.TestCase):
@@ -81,13 +81,12 @@ class ArtifactStatusTest(unittest.TestCase):
         self.assertEqual(self.status(b"corrupt", verify=True), "checksum mismatch")
 
     def test_install_fails_when_an_artifact_is_missing_after_construction(self):
-        module = types.ModuleType("fake_model_module")
-        module.Model = lambda **kwargs: object()
-        installer = inst.Installer("local_feature", "DEDODE", "fake_model_module:Model", ())
-        with patch.dict(sys.modules, {"fake_model_module": module}), \
+        installer = inst.INSTALLERS["DEDODE"]
+        with patch("pyslam.visual_models.factory.load_constructor", return_value=lambda **kwargs: object()) as load, \
              patch.object(inst, "artifacts_for", return_value={"W": self.entry}), \
              patch.object(inst, "artifact_status", return_value="missing"):
             self.assertEqual(inst.install(installer)["status"], "failed")
+        load.assert_called_once_with("DEDODE", "local_feature")
         with patch.object(inst, "artifacts_for", return_value={"W": self.entry}), \
              patch.object(inst, "artifact_status", return_value="present"):
             self.assertEqual(inst.install(installer, dry_run=True)["status"], "planned")
@@ -103,6 +102,22 @@ class InstallCliTest(unittest.TestCase):
         script = ROOT / "scripts/install_visual_model.sh"
         self.assertTrue(os.access(script, os.X_OK))
         self.assertIn("pyslam.visual_models install", script.read_text())
+
+    def test_named_install_resolves_every_model_kind(self):
+        # Registered names that are not self-installing are reported with their legacy installer.
+        result = subprocess.run([sys.executable, "-m", "pyslam.visual_models", "install", "--dry-run",
+                                 "COSPLACE", "LIGHTGLUE", "MAST3R", "ORB"], cwd=ROOT, text=True,
+                                capture_output=True, timeout=60, env=dict(os.environ, CUDA_VISIBLE_DEVICES=""))
+        self.assertEqual(result.returncode, 0, result.stderr[-2000:])
+        reports = {r["name"]: r for r in json.loads(result.stdout)}
+        self.assertEqual(set(reports), {"COSPLACE", "LIGHTGLUE", "MAST3R", "ORB"})
+        self.assertEqual({r["status"] for r in reports.values()}, {"legacy installer"})
+        self.assertEqual(reports["COSPLACE"]["kind"], "global_descriptor")
+        self.assertEqual(reports["MAST3R"]["kind"], "pair_matcher")
+        unknown = subprocess.run([sys.executable, "-m", "pyslam.visual_models", "install", "--dry-run", "NO_SUCH_MODEL"],
+                                 cwd=ROOT, text=True, capture_output=True, timeout=60)
+        self.assertEqual(unknown.returncode, 2)
+        self.assertIn("Unknown model 'NO_SUCH_MODEL'", unknown.stderr)
 
 
 if __name__ == "__main__":

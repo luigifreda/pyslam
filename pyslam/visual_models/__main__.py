@@ -75,26 +75,37 @@ def markdown_table():
     return "\n".join(lines)
 
 
+def _find_spec(name):
+    """Registered spec of any kind (local feature, pair matcher, global descriptor), or None."""
+    for kind in ("local_feature", "pair_matcher", "global_descriptor"):
+        try:
+            return get_spec(name, kind)
+        except ValueError:
+            pass
+    return None
+
+
 def run_install(args, parser):
-    from .install import INSTALLERS, Installer, install, legacy_report, plan
+    from .install import INSTALLERS, install, legacy_report, plan
 
     if args.list:
-        for name, installer in INSTALLERS.items():
-            print(f"{name:10s} {installer.spec_kind:18s} {get_spec(installer.spec_name, installer.spec_kind).group}")
+        for name, spec in INSTALLERS.items():
+            print(f"{name:10s} {spec.kind:18s} {spec.group}")
         return 0
     reports, failed = [], False
     for item in plan(args.names, args.group):
-        if isinstance(item, Installer):
+        if isinstance(item, str):
+            spec = _find_spec(item)
+            if spec is None:
+                parser.error(f"Unknown model {item!r}; see `install --list` and `check`")
+            item = spec
+        if item.install_kwargs is not None:
             try:
                 reports.append(install(item, dry_run=args.dry_run))
             except Exception as exc:  # report and continue with the other models
-                reports.append({"name": item.spec_name, "status": "failed", "error": f"{type(exc).__name__}: {exc}"})
+                reports.append({"name": item.name, "status": "failed", "error": f"{type(exc).__name__}: {exc}"})
         else:
-            try:
-                spec = item if not isinstance(item, str) else get_spec(item, "local_feature")
-            except ValueError:
-                parser.error(f"Unknown model {item!r}; see `install --list` and `check`")
-            reports.append(legacy_report(spec))
+            reports.append(legacy_report(item))
         failed |= reports[-1]["status"] == "failed"
     print(json.dumps(reports, indent=2))
     return 1 if failed else 0

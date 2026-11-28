@@ -25,6 +25,7 @@ from .feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, Feature
 from .feature_matcher import feature_matcher_factory, FeatureMatcherTypes
 
 from pyslam.utilities.serialization import SerializableEnum, register_class
+from pyslam.visual_models.model_registry import spec_for_enum
 from pyslam.utilities.logging import Printer
 from pyslam.config_parameters import Parameters
 
@@ -78,20 +79,8 @@ def feature_tracker_factory(
             tracker_type=tracker_type,
             **kwargs,
         )
-    elif tracker_type in (FeatureTrackerTypes.LOFTR, FeatureTrackerTypes.ROMA, FeatureTrackerTypes.TINY_ROMA):
-        return LoftrFeatureTracker(
-            num_features=num_features,
-            num_levels=num_levels,
-            scale_factor=scale_factor,
-            sigma_level0=sigma_level0,
-            detector_type=detector_type,
-            descriptor_type=descriptor_type,
-            match_ratio_test=match_ratio_test,
-            tracker_type=tracker_type,
-            **kwargs,
-        )
-    elif tracker_type == FeatureTrackerTypes.MAST3R:
-        return Mast3rFeatureTracker(
+    elif spec_for_enum(tracker_type).detector_free:  # LOFTR, MAST3R, ROMA, TINY_ROMA
+        return DetectorFreeFeatureTracker(
             num_features=num_features,
             num_levels=num_levels,
             scale_factor=scale_factor,
@@ -362,7 +351,9 @@ class DescriptorFeatureTracker(FeatureTracker):
 # =======================================================
 
 
-class LoftrFeatureTracker(FeatureTracker):
+# Detector-free tracker (LOFTR, MAST3R, ROMA, TINY_ROMA): the matcher computes matched
+# keypoints directly from the two images; no keypoints or descriptors on single images.
+class DetectorFreeFeatureTracker(FeatureTracker):
     def __init__(
         self,
         num_features=kMinNumFeatureDefault,
@@ -394,15 +385,10 @@ class LoftrFeatureTracker(FeatureTracker):
             **kwargs,
         )
 
-        # Detector-free trackers share this class: track() only needs matcher.match().
-        if tracker_type == FeatureTrackerTypes.LOFTR:
-            self.matcher_type = FeatureMatcherTypes.LOFTR
-        elif tracker_type == FeatureTrackerTypes.ROMA:
-            self.matcher_type = FeatureMatcherTypes.ROMA
-        elif tracker_type == FeatureTrackerTypes.TINY_ROMA:
-            self.matcher_type = FeatureMatcherTypes.TINY_ROMA
-        else:
+        # The matcher has the tracker's name (see FeatureMatcherTypes).
+        if not spec_for_enum(tracker_type).detector_free:
             raise ValueError("Unmanaged matching algo for feature tracker %s" % self.tracker_type)
+        self.matcher_type = FeatureMatcherTypes[tracker_type.name]
 
         # init matcher
         self.matcher = feature_matcher_factory(
@@ -410,11 +396,11 @@ class LoftrFeatureTracker(FeatureTracker):
             ratio_test=match_ratio_test,
             matcher_type=self.matcher_type,
             detector_type=detector_type,
-            descriptor_type=detector_type,
+            descriptor_type=descriptor_type,
             **kwargs,
         )
 
-    # out: keypoints and descriptors (LOFTR does not compute kps,des on single images)
+    # out: keypoints and descriptors (not computed on single images)
     def detectAndCompute(self, frame, mask=None):
         return None, None
 
@@ -457,89 +443,6 @@ class LoftrFeatureTracker(FeatureTracker):
 # =======================================================
 
 
-class Mast3rFeatureTracker(FeatureTracker):
-    def __init__(
-        self,
-        num_features=kMinNumFeatureDefault,
-        num_levels=1,  # number of pyramid levels for detector
-        scale_factor=1.2,  # detection scale factor (if it can be set, otherwise it is automatically computed)
-        sigma_level0=Parameters.kSigmaLevel0,  # sigma of the keypoint localization at level 0
-        detector_type=FeatureDetectorTypes.NONE,
-        descriptor_type=FeatureDescriptorTypes.NONE,
-        match_ratio_test=kDefaultRatioTest,
-        tracker_type=FeatureTrackerTypes.MAST3R,
-        **kwargs,  # Collect all remaining keyword arguments
-    ):
-        super().__init__(
-            num_features=num_features,
-            num_levels=num_levels,
-            scale_factor=scale_factor,
-            detector_type=detector_type,
-            descriptor_type=descriptor_type,
-            match_ratio_test=match_ratio_test,
-            tracker_type=tracker_type,
-            **kwargs,
-        )
-        self.feature_manager = feature_manager_factory(
-            num_features=num_features,
-            num_levels=num_levels,
-            scale_factor=scale_factor,
-            sigma_level0=sigma_level0,
-            detector_type=detector_type,
-            descriptor_type=descriptor_type,
-            **kwargs,
-        )
-
-        if tracker_type == FeatureTrackerTypes.MAST3R:
-            self.matcher_type = FeatureMatcherTypes.MAST3R
-        else:
-            raise ValueError("Unmanaged matching algo for feature tracker %s" % self.tracker_type)
-
-        # init matcher
-        self.matcher = feature_matcher_factory(
-            norm_type=self.norm_type,
-            ratio_test=match_ratio_test,
-            matcher_type=self.matcher_type,
-            detector_type=detector_type,
-            descriptor_type=detector_type,
-            **kwargs,
-        )
-
-    # out: keypoints and descriptors (MAST3R does not compute kps,des on single images)
-    def detectAndCompute(self, frame, mask=None):
-        return None, None
-
-    # out: FeatureTrackingResult()
-    def track(self, image_ref, image_cur, kps_ref=None, des_ref=None, mask_ref=None, mask_cur=None):
-        # Printer.orange(des_ref.shape)
-        matching_result = self.matcher.match(
-            image_ref, image_cur, des1=None, des2=None, kps1=None, kps2=None
-        )
-        idxs_ref, idxs_cur = matching_result.idxs1, matching_result.idxs2
-        # print('num matches: ', len(matches))
-
-        res = FeatureTrackingResult()
-        res.kps_ref = matching_result.kps1  # all the reference keypoints
-        res.kps_cur = matching_result.kps2  # all the current keypoints
-        res.des_ref = matching_result.des1  # all the reference descriptors
-        res.des_cur = matching_result.des2  # all the current descriptors
-
-        # convert from list of keypoints to an array of points
-        if not (
-            isinstance(res.kps_ref, np.ndarray)
-            and (res.kps_ref.dtype == np.float32 or res.kps_ref.dtype == np.float64)
-        ):
-            res.kps_ref = np.array([x.pt for x in res.kps_ref], dtype=np.float32)
-        if not (
-            isinstance(res.kps_cur, np.ndarray)
-            and (res.kps_cur.dtype == np.float32 or res.kps_cur.dtype == np.float64)
-        ):
-            res.kps_cur = np.array([x.pt for x in res.kps_cur], dtype=np.float32)
-
-        res.idxs_ref = np.asarray(idxs_ref)
-        res.kps_ref_matched = np.asarray(res.kps_ref[res.idxs_ref])  # the matched ref kps
-
-        res.idxs_cur = np.asarray(idxs_cur)
-        res.kps_cur_matched = np.asarray(res.kps_cur[res.idxs_cur])  # the matched cur kps
-
-        return res
+# Backward-compatible names
+LoftrFeatureTracker = DetectorFreeFeatureTracker
+Mast3rFeatureTracker = DetectorFreeFeatureTracker
