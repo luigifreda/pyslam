@@ -82,7 +82,7 @@ def import_tf_compat_v1():
     except Exception as exc:
         _fail(
             "TensorFlow is not installed. Please install TensorFlow 2.x with compat.v1 support "
-            "(e.g., on macOS: pip install 'tensorflow-macos==2.15.*' tensorflow-metal)",
+            "(e.g.: pip install 'tensorflow==2.21.*')",
             exc,
         )
 
@@ -99,7 +99,7 @@ def import_tf_compat_v1():
             f"TensorFlow {tf_version} does not have 'compat' attribute and does not appear to be TF 1.x. "
             "This typically happens with incomplete macOS installations (e.g., tensorflow-macos without the full wheel). "
             "Please ensure TensorFlow 2.x with compat.v1 support is installed (suggestion: "
-            "pip install 'tensorflow-macos==2.15.*' tensorflow-metal)."
+            "pip install 'tensorflow==2.21.*')."
         )
 
     # Try to access compat.v1
@@ -132,8 +132,8 @@ def _assert_not_stub(tf):
     if getattr(tf, "_pyslam_tf_stub", False):
         raise RuntimeError(
             "TensorFlow stub detected. Install a full TensorFlow package with compat.v1 "
-            "support to use TensorFlow-based features (e.g., on macOS: pip install "
-            "'tensorflow-macos==2.15.*' tensorflow-metal)."
+            "support to use TensorFlow-based features (e.g.: pip install "
+            "'tensorflow==2.21.*')."
         )
 
 

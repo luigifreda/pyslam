@@ -58,6 +58,7 @@ kResultsFolder = kRootFolder + "/results"
 
 
 kUseRerun = True
+kRerunFollowCamera = True  # Rerun 3D view eye tracks the current camera
 # check rerun does not have issues
 if kUseRerun and not Rerun.is_ok:
     kUseRerun = False
@@ -133,7 +134,7 @@ if __name__ == "__main__":
     is_draw_3d = True
     is_draw_with_rerun = kUseRerun
     if is_draw_with_rerun:
-        Rerun.init_vo()
+        Rerun.init_vo(follow_camera=kRerunFollowCamera)
     else:
         if kUsePangolin:
             viewer3D = Viewer3D(scale=dataset.scale_viewer_3d * 10)

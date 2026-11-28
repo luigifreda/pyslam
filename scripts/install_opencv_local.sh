@@ -192,7 +192,7 @@ print_blue  "Configuring and building $TARGET_FOLDER/opencv ..."
 pip3 uninstall -y opencv-python
 pip3 uninstall -y opencv-contrib-python
 
-pip3 install --no-warn-conflicts --upgrade "numpy<2"  # stay on numpy 1.x: an upgrade to 2.x would conflict with matplotlib/tensorflow and is reverted at the end anyway
+pip3 install --no-warn-conflicts "numpy>=2,<2.6"  # build cv2 against the numpy 2 C-API used by pyslam (numba requires numpy<2.6)
 
 #set -e
 
@@ -785,7 +785,7 @@ fi
 
 cd $STARTING_DIR
 
-# Install supported numpy version <2 to avoid conflicts
-pip3 install --no-warn-conflicts "numpy<2"
+# Make sure the supported numpy version is installed
+pip3 install --no-warn-conflicts "numpy>=2,<2.6"
 
 echo "...done with opencv"

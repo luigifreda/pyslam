@@ -241,10 +241,10 @@ Please consider opening an issue and attaching the logs (including the *gdb back
 
 #### Under mac
 
-I got a segmentation fault problem due to a tensorflow import problem. I solved it with
+With the old tensorflow 2.13 I got a segmentation fault problem due to a tensorflow import problem, which I solved by installing tensorflow 2.15. pyslam now installs tensorflow 2.21 (with numpy 2), so this workaround is no longer applied: do not install tensorflow 2.15, since it requires numpy<2. If you still get a tensorflow-related segmentation fault, reinstall the supported version:
 ```bash
 pip uninstall tensorflow
-pip install "tensorflow==2.15.*"
+pip install "tensorflow==2.21.*" "tf-keras==2.21.*"
 ```
 
 Under mac a first step is to run: 

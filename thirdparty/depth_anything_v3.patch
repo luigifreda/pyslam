@@ -1,8 +1,8 @@
 diff --git a/pyproject.toml b/pyproject.toml
-index 6a11c7a..8045562 100644
+index 6a11c7a..d1456b9 100644
 --- a/pyproject.toml
 +++ b/pyproject.toml
-@@ -16,7 +16,7 @@ dependencies = [
+@@ -16,10 +16,10 @@ dependencies = [
      "trimesh",
      "torch>=2",
      "torchvision",
@@ -10,12 +10,16 @@ index 6a11c7a..8045562 100644
 +    "einops>=0.7.0",
      "huggingface_hub",
      "imageio",
-     "numpy<2",
+-    "numpy<2",
++    "numpy",
+     "opencv-python",
+     "xformers",
+     "open3d",
 diff --git a/requirements.txt b/requirements.txt
-index 878db3f..14744f5 100644
+index 878db3f..41aede6 100644
 --- a/requirements.txt
 +++ b/requirements.txt
-@@ -2,7 +2,7 @@ pre-commit
+@@ -2,10 +2,10 @@ pre-commit
  trimesh
  torch>=2
  torchvision
@@ -23,4 +27,8 @@ index 878db3f..14744f5 100644
 +einops>=0.7.0
  huggingface_hub
  imageio
- numpy<2
+-numpy<2
++numpy
+ opencv-python
+ xformers
+ open3d

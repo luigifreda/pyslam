@@ -128,7 +128,7 @@ function rebuild_detectron() {
     fi
 
     "$SCRIPT_DIR_/install_detectron2.sh"
-    "$PYTHON_BIN" -m pip install --no-warn-conflicts "numpy<2" --force-reinstall
+    "$PYTHON_BIN" -m pip install --no-warn-conflicts "numpy>=2,<2.6"
     print_green "detectron2 C++ extension has been rebuilt."
 }
 

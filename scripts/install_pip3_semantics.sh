@@ -101,8 +101,8 @@ else
     pip install "$FILES" --force-reinstall
 fi
 
-# Install supported numpy version <2 to avoid conflicts
-pip install --no-warn-conflicts "numpy<2"
+# Make sure the supported numpy version is installed (some semantic packages may have changed it)
+pip install --no-warn-conflicts "numpy>=2,<2.6"
 
 # for EOV-Seg
 pip install open-clip-torch==2.24.0

@@ -70,11 +70,8 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 $SCRIPTS_DIR/install_pip3_semantics.sh  # must use "./"
 
 # 9. outliers under macos
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # To solve under mac the (crash) issue mentioned in the troubleshoting document
-    pip uninstall tensorflow
-    pip install "tensorflow==2.15.*" --force-reinstall
-fi 
+# NOTE: tensorflow 2.13 used to crash under mac and was replaced here by tensorflow 2.15 (see the troubleshooting document).
+# pyslam now installs tensorflow 2.21, which supports numpy 2 (tensorflow 2.15 requires numpy<2), so no override is needed.
 
 # 10. outliers 
 pip install "pyarrow<19"  # See https://github.com/luigifreda/pyslam/issues/193
@@ -87,7 +84,7 @@ pip install "wandb>=0.25.1,<0.26"
 pip install "wandb>=0.25.1,<0.26" --force-reinstall --no-deps  # --no-deps: do not upgrade protobuf/setuptools/... behind our back
 # Verify the detectron2 C++ extension against the installed torch stack and rebuild if needed.
 $SCRIPTS_DIR/detectron_check.sh
-# Restore the pins (numpy<2, setuptools<81, typing_extensions, ...) that may have been overridden by previous steps
+# Restore the pins (numpy>=2, setuptools<81, typing_extensions, ...) that may have been overridden by previous steps
 $SCRIPTS_DIR/install_final_pip_pins.sh
 
 cd "$STARTING_DIR"

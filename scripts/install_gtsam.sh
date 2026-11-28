@@ -126,7 +126,17 @@ if [ ! -d gtsam_local ]; then
     cd gtsam_local
     git checkout tags/4.2a9   
     git apply ../gtsam.patch
-    cd .. 
+    cd ..
+fi
+# GTSAM 4.2a9 bundles pybind11 2.10 in wrap/pybind11, which predates numpy 2 support (pybind11>=2.12).
+# Use pyslam's bundled pybind11 instead, as the other python modules do (gtsam_factors follows via its own
+# symlink to gtsam_local/wrap/pybind11, so gtsam and gtsam_factors keep sharing the same pybind11).
+if [ ! -L gtsam_local/wrap/pybind11 ]; then
+    print_yellow "Replacing gtsam_local/wrap/pybind11 (pybind11 2.10) with a link to thirdparty/pybind11 (numpy 2 support)"
+    rm -rf gtsam_local/wrap/pybind11
+    ln -s ../../pybind11 gtsam_local/wrap/pybind11
+    # force a rebuild of gtsam and of its python bindings with the new pybind11
+    rm -rf gtsam_local/build gtsam_local/install
 fi
 cd gtsam_local
 make_buid_dir

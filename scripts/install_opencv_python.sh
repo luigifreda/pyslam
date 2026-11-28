@@ -80,7 +80,7 @@ if [ "$PIXI_ACTIVATED" = true ]; then
     find $(python -c "import site; print(site.getsitepackages()[0])") -name "opencv*" -exec rm -rf {} +
 fi
 
-pip3 install --no-warn-conflicts --upgrade "numpy<2"  # stay on numpy 1.x: an upgrade to 2.x would conflict with matplotlib/tensorflow and is reverted at the end anyway
+pip3 install --no-warn-conflicts "numpy>=2,<2.6"  # build cv2 against the numpy 2 C-API used by pyslam (numba requires numpy<2.6)
 
 
 if [[ $version != *"darwin"* ]]; then
@@ -293,7 +293,7 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
 
 fi
 
-# Install supported numpy version <2 to avoid conflicts
-pip3 install --no-warn-conflicts "numpy<2"
+# Make sure the supported numpy version is installed
+pip3 install --no-warn-conflicts "numpy>=2,<2.6"
 
 cd "$STARTING_DIR"

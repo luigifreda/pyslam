@@ -98,5 +98,5 @@ else
     fi             
 fi 
 
-"$PYTHON_EXE" -m pip install --no-warn-conflicts "numpy<2"
+"$PYTHON_EXE" -m pip install --no-warn-conflicts "numpy>=2,<2.6"
 

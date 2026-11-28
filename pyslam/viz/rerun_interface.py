@@ -60,6 +60,15 @@ class Rerun:
     is_initialized = False
     is_z_up = False
 
+    # Third-person "chase" eye for the VO 3D view. It is an invisible pinhole rigidly attached
+    # to /world/camera; when the 3D eye tracks a pinhole it takes that pinhole's viewpoint, so
+    # the eye follows the camera from this offset (expressed in the camera RDF frame).
+    chase_cam_entity = "/world/camera/chase"
+    chase_cam_back = 50.0  # distance behind the camera (along -Z)
+    chase_cam_up = 10.0  # height above the camera (along -Y)
+    chase_cam_tilt_deg = 15.0  # downward pitch towards the camera
+    chase_cam_fov_y_deg = 60.0
+
     def __init__(self) -> None:
         self.init()
 
@@ -83,6 +92,9 @@ class Rerun:
 
         if Rerun.blueprint:
             rr.init("pyslam", spawn=True, default_blueprint=Rerun.blueprint)
+            # default_blueprint alone does not replace a blueprint the viewer kept for the
+            # "pyslam" app id from a previous session (possibly from another script).
+            rr.send_blueprint(Rerun.blueprint, make_active=True)
         else:
             rr.init("pyslam", spawn=True)
         # rr.connect()  # Connect to a remote viewer
@@ -99,21 +111,39 @@ class Rerun:
             Rerun.log_3d_grid_plane()
 
     @staticmethod
-    def init_vo(img_compress=False) -> None:
+    def _vo_blueprint(follow_camera: bool):
         import rerun.blueprint as rrb
 
-        # Setup the blueprint
-        Rerun.blueprint = rrb.Vertical(
+        # 3D view: optionally make the eye follow the moving camera.
+        # EyeControls3D(tracking_entity=...) needs rerun-sdk >= 0.27 (blueprint eye controls +
+        # tracking of arbitrary entities). Tracking a pinhole puts the eye at its viewpoint, so we
+        # track the invisible chase pinhole (see log_3d_chase_camera()) rather than
+        # "/world/camera/image", whose image plane would fill the view. Older SDKs fall back to a
+        # static 3D view.
+        view_3d = None
+        if follow_camera:
+            if hasattr(rrb, "EyeControls3D"):
+                try:
+                    view_3d = rrb.Spatial3DView(
+                        name="3D",
+                        origin="/world",
+                        eye_controls=rrb.EyeControls3D(
+                            kind=rrb.Eye3DKind.Orbital,
+                            tracking_entity=Rerun.chase_cam_entity,
+                        ),
+                    )
+                except TypeError:
+                    view_3d = None  # SDK has EyeControls3D but no tracking_entity
+            if view_3d is None:
+                Printer.yellow(
+                    f"Rerun: camera-follow in 3D view needs rerun-sdk >= 0.27 (found {rr.__version__})"
+                )
+        if view_3d is None:
+            view_3d = rrb.Spatial3DView(name="3D", origin="/world")
+
+        return rrb.Vertical(
             rrb.Horizontal(
-                rrb.Spatial3DView(name="3D", origin="/world"),
-                # rrb.Spatial3DView(
-                #     name="3D",
-                #     origin="/world",
-                #     eye_controls=rrb.EyeControls3D(
-                #         kind=rrb.Eye3DKind.FirstPerson,
-                #         tracking_entity="/world/camera",  # <- try this first
-                #     ),
-                # ),
+                view_3d,
                 rrb.Spatial2DView(name="Camera", origin="/world/camera/image"),
             ),
             rrb.Horizontal(
@@ -127,8 +157,54 @@ class Rerun:
             ),
             row_shares=[3, 2],  # 3 "parts" in the first Horizontal, 2 in the second
         )
+
+    @staticmethod
+    def init_vo(img_compress=False, follow_camera=True) -> None:
+        Rerun.blueprint = Rerun._vo_blueprint(follow_camera)
         # Init rerun
         Rerun.init3d(img_compress)
+        Rerun.log_3d_chase_camera()
+
+    @staticmethod
+    def log_3d_chase_camera() -> None:
+        """Log the static third-person chase pinhole under /world/camera (see chase_cam_*)."""
+        a = math.radians(Rerun.chase_cam_tilt_deg)
+        c, s = math.cos(a), math.sin(a)
+        # Rotation about the camera X axis (right) that tilts the chase view's +Z (forward)
+        # down towards +Y (down in RDF).
+        R = np.array([[1.0, 0.0, 0.0], [0.0, c, s], [0.0, -s, c]])
+        rr.log(
+            Rerun.chase_cam_entity,
+            rr.Transform3D(
+                translation=[0.0, -Rerun.chase_cam_up, -Rerun.chase_cam_back],
+                mat3x3=R,
+                from_parent=False,
+            ),
+            # The chase pinhole is only a viewpoint for the eye: hide its axes and shrink its
+            # frustum to nothing. Otherwise the viewer draws them right in front of the eye and,
+            # since the eye trails the tracked entity smoothly, they wobble across the view.
+            rr.TransformAxes3D(0.0, show_frame=False),
+            static=True,
+        )
+        rr.log(
+            Rerun.chase_cam_entity,
+            rr.Pinhole(
+                fov_y=math.radians(Rerun.chase_cam_fov_y_deg),
+                aspect_ratio=16.0 / 9.0,
+                image_plane_distance=1e-4,
+                color=[0, 0, 0, 0],
+                line_width=0.0,
+            ),
+            static=True,
+        )
+
+    @staticmethod
+    def set_vo_follow_camera(follow_camera: bool) -> None:
+        """Switch the VO 3D view between following the camera and a free eye.
+        Re-sends the VO blueprint, so layout changes made in the viewer are reset."""
+        Rerun.blueprint = Rerun._vo_blueprint(follow_camera)
+        if Rerun.is_initialized:
+            rr.send_blueprint(Rerun.blueprint, make_active=True)
 
     # ===================================================================================
     # 3D logging

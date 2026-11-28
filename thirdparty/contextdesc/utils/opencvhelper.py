@@ -68,7 +68,7 @@ class SiftWrapper(object):
             cv_kpts = cv_kpts[0:self.n_feature]
 
         if len(cv_kpts) > 0:
-            all_octaves = [np.int8(i.octave & 0xFF) for i in cv_kpts]
+            all_octaves = [(((i.octave & 0xFF) ^ 0x80) - 0x80) for i in cv_kpts]  # signed int8 octave (numpy 2: np.int8(255) raises instead of wrapping)
             self.first_octave = int(np.min(all_octaves))
             self.max_octave = int(np.max(all_octaves))
 
@@ -280,7 +280,7 @@ class SiftWrapper(object):
             npy_kpts[idx, 1] = val.pt[1]
             npy_kpts[idx, 2] = val.size
             npy_kpts[idx, 3] = 0 if self.ori_off else (360. - val.angle) * (np.pi / 180.)
-            npy_kpts[idx, 4] = np.int8(val.octave & 0xFF)
+            npy_kpts[idx, 4] = (((val.octave & 0xFF) ^ 0x80) - 0x80)
 
         if down_octave:
             sort_idx = (-npy_kpts[:, 2]).argsort()

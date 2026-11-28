@@ -38,10 +38,9 @@ import warnings  # to disable tensorflow-numpy warnings: from https://github.com
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 import numpy as np
-from pyslam.utilities.tensorflow import import_tf_compat_v1
-
-# Import TensorFlow using the unified function
-tf = import_tf_compat_v1()
+# NOTE: the DELF extractor below uses the TF2 eager API (tf.saved_model.load(path), model.prune()).
+# With tensorflow.compat.v1, tf.saved_model.load is the TF1 loader load(sess, tags, export_dir) and fails.
+import tensorflow as tf
 
 from google.protobuf import text_format
 
@@ -457,7 +456,7 @@ class DelfFeature2D(BaseFeature2D):
         if self.session is not None:
             print("DELF: closing tf session")
             self.session.close()
-            tf.reset_default_graph()
+            tf.compat.v1.reset_default_graph()
 
     def compute_kps_des(self, frame):
         with self.lock:

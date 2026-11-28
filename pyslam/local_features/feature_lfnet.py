@@ -23,6 +23,7 @@ import pyslam.config as config
 config.cfg.set_lib("lfnet", prepend=True)
 
 import os
+import re
 import sys
 import time
 
@@ -195,6 +196,50 @@ def build_lfnet_config():
     return lfnet_config
 
 
+def restore_lfnet_checkpoint(session, model_path):
+    """Restore the pretrained LF-Net weights into the graph built by build_networks().
+
+    A plain tf.train.Saver().restore() fails: the patched LF-Net builds its batch-norm layers with
+    tf.keras.layers.BatchNormalization, which ignores the enclosing variable_scope. The checkpoint key
+    'SimpleDesc/bn1/beta' becomes the graph variable 'bn1/beta', and the repeated
+    'ConvOnlyResNet/block-{1,2,3}/pre-bn/gamma' become 'pre-bn/gamma', 'pre-bn/gamma_1', 'pre-bn/gamma_2'.
+    Here each graph variable is mapped onto its checkpoint key: exact name first, otherwise the k-th
+    checkpoint key ending with the scope-less name (graph creation order == checkpoint key order).
+    Raises if any variable cannot be mapped, so that LF-Net never runs with random weights.
+    Returns the number of restored variables.
+    """
+    # NOTE: the module-level 'tf' is rebound to plain tensorflow by the lfnet star imports: use tf.compat.v1 explicitly
+    checkpoint = tf.compat.v1.train.latest_checkpoint(model_path) if os.path.isdir(model_path) else model_path
+    if checkpoint is None:
+        raise ValueError(f"Cannot find an LF-Net checkpoint in {model_path}")
+    ckpt_shapes = tf.compat.v1.train.load_checkpoint(checkpoint).get_variable_to_shape_map()
+    ckpt_keys = sorted(ckpt_shapes)
+
+    var_map = {}
+    for var in tf.compat.v1.global_variables():
+        name = var.op.name
+        # with v1 control flow the BN variables get an extra 'MSDeepDet/' prefix and 'cond/' scopes
+        name = re.sub(r"/cond(_\d+)?/", "/", re.sub(r"^MSDeepDet/", "", name))
+        if name not in ckpt_shapes:
+            base, k = re.fullmatch(r"(.+?)(?:_(\d+))?", name).groups()
+            candidates = [key for key in ckpt_keys if key.endswith("/" + base)]
+            k = int(k or 0)
+            if k >= len(candidates):
+                raise ValueError(f"LF-Net: no checkpoint key for graph variable {var.op.name} in {checkpoint}")
+            name = candidates[k]
+        if list(ckpt_shapes[name]) != var.shape.as_list():
+            raise ValueError(
+                f"LF-Net: shape mismatch for {var.op.name} -> {name}: "
+                f"{var.shape.as_list()} vs {ckpt_shapes[name]}"
+            )
+        if name in var_map:
+            raise ValueError(f"LF-Net: checkpoint key {name} mapped twice ({var_map[name].op.name}, {var.op.name})")
+        var_map[name] = var
+
+    tf.compat.v1.train.Saver(var_list=var_map).restore(session, checkpoint)
+    return len(var_map)
+
+
 def convert_to_keypoints(kpts, scales, orientations, heatmaps):
     kps = []
     for kp, size, angle in zip(kpts, scales, orientations):
@@ -242,65 +287,15 @@ class LfNetFeature2D(BaseFeature2D):
         self.session.run(tf.compat.v1.global_variables_initializer())
 
         # load model
-        # saver = tf.compat.v1.train.Saver()
-
-        # print('Loading trained models...')
-
-        # if os.path.isdir(self.lfnet_config.model):
-        #     checkpoint = tf.compat.v1.train.latest_checkpoint(self.lfnet_config.model)
-        #     model_dir = self.lfnet_config.model
-        # else:
-        #     checkpoint = self.lfnet_config.model
-        #     model_dir = os.path.dirname(self.lfnet_config.model)
-
-        # if checkpoint is not None:
-        #     print('Checkpoint', os.path.basename(checkpoint))
-        #     print("[{}] Resuming...".format(time.asctime()))
-        #     #try:
-        #     saver.restore(self.session, checkpoint)
-        #     # except tf.errors.NotFoundError as e:
-        #     #     print("Error restoring checkpoint: ", e)
-        #     #     print("Attempting partial restore...")
-        #     #     var_list = tf.compat.v1.global_variables()
-        #     #     var_list = {v.name.split(':')[0]: v for v in var_list}
-        #     #     saver = tf.compat.v1.train.Saver(var_list=var_list)
-        #     #     saver.restore(self.session, checkpoint)
-        # else:
-        #     raise ValueError('Cannot load model from {}'.format(model_dir))
-        # print('==> Successfully loaded pre-trained network.')
-
-        # load model
         print("Loading trained models...")
-        self.model = self.load_pretrained_network(self.lfnet_config.model)
-        if self.model is None:
-            raise ValueError("Cannot load model from {}".format(self.lfnet_config.model))
-        print("==> Successfully loaded pre-trained network.")
+        num_restored = restore_lfnet_checkpoint(self.session, self.lfnet_config.model)
+        print(f"==> Successfully loaded pre-trained network ({num_restored} variables).")
 
         self.pts = []
         self.kps = []
         self.des = []
         self.frame = None
         self.keypoint_size = 20.0  # just a representative size for visualization and in order to convert extracted points to cv2.KeyPoint
-
-    def load_pretrained_network(self, checkpoint_path):
-        try:
-            # Create a new model instance
-            model = tf.keras.models.Sequential()  # Replace with your model architecture
-
-            # Create a checkpoint object
-            checkpoint = tf.train.Checkpoint(model=model)
-
-            # Restore the checkpoint
-            checkpoint.restore(tf.train.latest_checkpoint(checkpoint_path)).expect_partial()
-            return model
-        except tf.errors.NotFoundError as e:
-            if "bn1/beta" in str(e):
-                print(
-                    "Warning: Key 'bn1/beta' not found in checkpoint. Please check the checkpoint file."
-                )
-            else:
-                print("Error loading model:", e)
-            return None
 
     def __del__(self):
         try:
@@ -312,7 +307,7 @@ class LfNetFeature2D(BaseFeature2D):
         if self.session is not None:
             print("LFNET: closing tf session")
             self.session.close()
-            tf.reset_default_graph()
+            tf.compat.v1.reset_default_graph()
 
     def setMaxFeatures(
         self, num_features
