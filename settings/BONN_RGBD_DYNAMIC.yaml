@@ -60,3 +60,60 @@ DepthMapFactor: 5000.0
 
 FeatureTrackerConfig.nFeatures: 1000
 
+#--------------------------------------------------------------------------------------------
+# Direct SLAM frontend (main_slam_direct.py). The runner undistorts this distorted pinhole (monocular/RGBD input).
+# mode: klt (LK + reprojection), hybrid (klt + photometric refinement), or semi_direct (planar patches and inverse-depth seeds). direct aliases hybrid.
+#--------------------------------------------------------------------------------------------
+# Tracking mode: klt uses LK + geometry; hybrid adds photometric refinement; semi_direct is the only monocular mode.
+DIRECT_SLAM.mode: hybrid
+# gftt: one global Shi-Tomasi pass. grid_fast: strongest FAST corners in each cell.
+DIRECT_SLAM.corner_detector: grid_fast
+# Maximum corners per detection; also the target live-track count when replenishing.
+DIRECT_SLAM.num_features: 200
+# Grid FAST cell count. The grid is reduced, keeping this aspect ratio, when it exceeds num_features.
+DIRECT_SLAM.grid_cols: 5
+DIRECT_SLAM.grid_rows: 5
+# FAST intensity difference. Lower values accept weaker corners.
+DIRECT_SLAM.fast_threshold: 10
+# Keep only FAST corners stronger than their radius-3 neighbors.
+DIRECT_SLAM.fast_nonmax_suppression: true
+# Refine grid FAST corners to subpixel. Odd window side length, in pixels.
+DIRECT_SLAM.corner_subpix: true
+DIRECT_SLAM.subpixel_window: 5
+# LK search-window side length, in pixels at each pyramid level (left/right and temporal).
+DIRECT_SLAM.lk_patch_size: 11
+# Highest zero-based LK pyramid level; 3 means levels 0 through 3.
+DIRECT_SLAM.lk_max_level: 3
+# Photometric patch half-width; 1 samples a 3x3 patch at each pyramid level.
+DIRECT_SLAM.half_patch_size: 1
+# Maximum photometric Gauss-Newton iterations per pyramid level.
+DIRECT_SLAM.num_iterations: 10
+# Number of photometric pyramid levels, including the full-resolution image.
+DIRECT_SLAM.num_pyramid_levels: 4
+# Photometric image/intrinsic scale between adjacent levels (0 < value < 1).
+DIRECT_SLAM.pyramid_scale: 0.5
+# TRACKING_GOOD requires strictly more geometric/accepted inliers than this count.
+DIRECT_SLAM.num_features_tracking: 50
+# Accepted tracking requires strictly more inliers than this count; otherwise LOST.
+DIRECT_SLAM.num_features_tracking_bad: 20
+# Replenish tracks and insert a keyframe when the live-track count falls below this value.
+DIRECT_SLAM.num_features_needed_for_keyframe: 80
+
+
+# Local bundle adjustment of shared landmarks and keyframe poses.
+# Run synchronous local BA on keyframes; manual bundle_adjustment() remains available.
+DIRECT_SLAM.local_ba: true
+# Maximum recent keyframes in the BA window (>= 2); the oldest window pose is fixed.
+DIRECT_SLAM.num_active_keyframes: 7
+# Initial robust LM iteration cap; refinement uses max(1, ba_iterations / 2) iterations.
+DIRECT_SLAM.ba_iterations: 10
+# Force a keyframe after this input-frame ID gap when automatic BA is enabled.
+DIRECT_SLAM.max_keyframe_interval: 10
+
+# Monocular-only overrides (ignored for stereo/RGBD): DIRECT_SLAM.monocular.<key> replaces
+# DIRECT_SLAM.<key> when the input is monocular. Monocular semi_direct creates landmarks only
+# from converged depth seeds, so it needs more corners and seeds than the stereo/RGBD setup.
+DIRECT_SLAM.monocular.mode: semi_direct
+DIRECT_SLAM.monocular.num_features: 400
+DIRECT_SLAM.monocular.max_seeds: 800
+DIRECT_SLAM.monocular.max_seed_updates: 200

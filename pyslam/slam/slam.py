@@ -227,6 +227,8 @@ class Slam(object):
             self.loop_closing.quit()
         if self.volumetric_integrator is not None:
             self.volumetric_integrator.quit()
+        if self.GBA_on_demand is not None:
+            self.GBA_on_demand.quit()
 
         # Give processes time to clean up
         time.sleep(0.5)
@@ -553,7 +555,7 @@ class Slam(object):
                 return
             else:
                 print(f"SLAM: quitting existing GBA if needed...")
-                self.GBA_on_demand.quit()
+                self.GBA_on_demand.stop()
                 print(f"SLAM: starting new GBA process/thread...")
                 self.GBA_on_demand.start(
                     loop_kf_id=0

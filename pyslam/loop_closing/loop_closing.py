@@ -688,7 +688,7 @@ class LoopCorrector:
                 f"LoopCorrector: starting global bundle adjustment with loop_keyframe {loop_keyframe.kid}..."
             )
             if Parameters.kUseGBA:
-                self.GBA.quit()
+                self.GBA.stop()
                 self.GBA.start(loop_keyframe.kid)
 
             # tell local mapping to restart in normal mode
@@ -858,7 +858,7 @@ class LoopClosing:
         if self.reset_requested:
             LoopClosing.print("LoopClosing: reset already requested...")
             return
-        self.GBA.quit()
+        self.GBA.stop()
         with self.reset_mutex:
             self.reset_requested = True
         while True:
@@ -979,7 +979,12 @@ class LoopClosing:
 
                 # wait until we get loop-detection candidates from parallel LoopDetectingProcess
                 LoopClosing.print("LoopClosing: waiting for loop-detection output...")
-                detection_output = self.loop_detecting_process.pop_output()  # blocking call
+                detection_output = self.loop_detecting_process.pop_output()  # blocking call (with timeout)
+
+                # Keep the debug windows owned by this thread responsive even when no new
+                # detection output arrives (e.g. after the dataset end); otherwise the desktop
+                # reports the process as "not responding".
+                self.pump_cv2_windows()
 
                 if detection_output is not None:
                     self.timer.start()
@@ -1137,6 +1142,19 @@ class LoopClosing:
                     f"LoopClosing: ERROR: loop image is None. This is not expected !!!!!!!!"
                 )
             self.loop_consistent_candidate_imgs.add(loop_img.copy(), loop_img_id, loop_img_score)
+
+    def pump_cv2_windows(self):
+        # cv2.waitKey() processes the GUI events of all the HighGUI windows of this process.
+        if self.headless or not kUseCv2ForDrawing:
+            return
+        has_windows = (
+            self.draw_loop_consistent_candidate_imgs_init
+            or self.draw_loop_detection_imgs_init
+            or self.draw_similarity_matrix_init
+            or Parameters.kLoopClosingDebugShowLoopMatchedPoints
+        )
+        if has_windows:
+            cv2.waitKey(1)
 
     def draw_loop_detection_output_imgs(
         self, img_cur, img_id, detection_output: LoopDetectorOutput

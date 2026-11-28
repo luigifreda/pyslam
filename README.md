@@ -1,6 +1,6 @@
 <p align="center"><img src="./images/pyslam-logo.png" height="160"></p>
 
-# pySLAM v2.13.0
+# pySLAM v2.13.1
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -53,7 +53,7 @@ See the demo **video** for release v2.10.0
 
 <!-- TOC -->
 
-- [pySLAM v2.13.0](#pyslam-v2130)
+- [pySLAM v2.13.1](#pyslam-v2131)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)

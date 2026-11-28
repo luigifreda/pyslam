@@ -220,9 +220,11 @@ class GlobalBundleAdjustment:
         else:
             self.opt_abort_flag.value = True
 
-    def quit(self):
+    def stop(self):
+        # Stop a running GBA (if any) and wait for it to exit. The multiprocessing manager is kept
+        # alive so that GBA can be started again (e.g. on a new loop closure or after a reset).
         if self.is_running():
-            GlobalBundleAdjustment.print("GlobalBundleAdjustment: quitting...")
+            GlobalBundleAdjustment.print("GlobalBundleAdjustment: stopping...")
             self.abort()
             if self.process.is_alive():
                 timeout = (
@@ -238,17 +240,24 @@ class GlobalBundleAdjustment:
                 self.process.terminate()
             if self.use_multiprocessing:
                 empty_queue(self.q_message)
-                # Shutdown the manager AFTER the process has exited
-                if hasattr(self, "mp_manager") and self.mp_manager is not None:
-                    try:
-                        self.mp_manager.shutdown()
-                    except Exception as e:
-                        GlobalBundleAdjustment.print(f"Warning: Error shutting down manager: {e}")
             else:
                 self.q_message.clear()
             self._is_running.value = 0
             self._is_correcting.value = 0
-            GlobalBundleAdjustment.print("GlobalBundleAdjustment: done")
+            GlobalBundleAdjustment.print("GlobalBundleAdjustment: stopped")
+
+    def quit(self):
+        # Final shutdown: stop GBA and release the multiprocessing manager. GBA cannot be restarted after this.
+        GlobalBundleAdjustment.print("GlobalBundleAdjustment: quitting...")
+        self.stop()
+        # Shutdown the manager AFTER the process has exited
+        if getattr(self, "mp_manager", None) is not None:
+            try:
+                self.mp_manager.shutdown()
+            except Exception as e:
+                GlobalBundleAdjustment.print(f"Warning: Error shutting down manager: {e}")
+            self.mp_manager = None
+        GlobalBundleAdjustment.print("GlobalBundleAdjustment: done")
 
     # def check_GBA_has_finished_and_correct_if_needed(self):
     #     if (
@@ -310,6 +319,7 @@ class GlobalBundleAdjustment:
 
     def correct_after_GBA(self):
         GlobalBundleAdjustment.print(f"GlobalBundleAdjustment: correct after GBA...")
+        time_start_correction = time.perf_counter()
 
         self._is_correcting.value = 1
 
@@ -474,7 +484,9 @@ class GlobalBundleAdjustment:
 
                 self.local_mapping.release()
 
-                GlobalBundleAdjustment.print(f"GlobalBundleAdjustment: map updated!")
+                GlobalBundleAdjustment.print(
+                    f"GlobalBundleAdjustment: map updated! correction time: {time.perf_counter() - time_start_correction:.3f} s"
+                )
                 return True
 
         except Exception as e:
