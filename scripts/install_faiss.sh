@@ -22,7 +22,7 @@ if pip index versions faiss-gpu-cu12 >/dev/null 2>&1; then
     echo "Uninstalling faiss-cpu if present..."
     pip uninstall -y faiss faiss-cpu || true
     echo "Installing faiss-gpu-cu12..."
-    pip install faiss-gpu-cu12
+    pip install "faiss-gpu-cu12<1.13"  # faiss-gpu-cu12>=1.13 requires numpy>=2, while pyslam pins numpy<2
     echo "Done: faiss-gpu-cu12 installed."
 else
     echo "faiss-gpu-cu12 not available for this Python/CUDA version."

@@ -38,13 +38,16 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     print_yellow "Skipping xformers on macOS (optional for ODISE; not supported by Apple clang)"
 elif ! python3 -c "import xformers" 2>/dev/null; then
     print_blue "Installing optional xformers for ODISE..."
-    pip install --no-build-isolation "xformers>=0.0.16" || \
+    # Pin torch to the installed version: each xformers release requires an exact torch version, and an
+    # unpinned install pulls the latest xformers, which replaces torch (and its CUDA libs) with a newer build.
+    TORCH_BASE_VERSION=$(python3 -c "import torch; print(torch.__version__.split('+')[0])")
+    pip install --no-build-isolation "xformers>=0.0.16" "torch==$TORCH_BASE_VERSION" || \
         print_yellow "xformers install failed (optional for ODISE; inference still works without it)"
 fi
 
 if [ -d "odise" ]; then
     # install back kornia target version since stable-diffusion-sdkit requires kornia=0.6.0 and downgrades it
-    pip install --upgrade kornia==0.8.2
+    pip install --no-warn-conflicts --upgrade kornia==0.8.2
 fi
 
 cd $ROOT_DIR

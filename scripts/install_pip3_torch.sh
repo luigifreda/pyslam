@@ -60,8 +60,9 @@ else
     #TARGET_TORCHVISION_VERSION="0.17"
 
     # current target versions
-    TARGET_TORCH_VERSION="2.9.1"
-    TARGET_TORCHVISION_VERSION="0.24.1"
+    # NOTE: rf-detr requires torch<=2.8.0 (upstream excludes torch>=2.9 due to known issues)
+    TARGET_TORCH_VERSION="2.8.0"
+    TARGET_TORCHVISION_VERSION="0.23.0"
 
     TORCH_CUDA_VERSION=0
     if [ "$CUDA_VERSION" != "0" ]; then
@@ -97,5 +98,5 @@ else
     fi             
 fi 
 
-"$PYTHON_EXE" -m pip install "numpy<2"
+"$PYTHON_EXE" -m pip install --no-warn-conflicts "numpy<2"
 

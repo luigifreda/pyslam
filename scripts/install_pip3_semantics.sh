@@ -59,7 +59,7 @@ pip install "transformers>=4.41.2" $CONSTRAINTS # supports RTDetrV2 and rf_detr
 pip install "fpsample<0.3.0"  # required by f3rm without upgrading pybind11 version
 pip install f3rm $CONSTRAINTS
 
-pip install timm==1.0.15 $CONSTRAINTS
+pip install --no-warn-conflicts timm==1.0.15 $CONSTRAINTS  # nerfstudio (from f3rm) pins timm==0.6.7: deliberate override
 #pip install protobuf==3.20.3 --force-reinstall
 
 # Install Ultralytics for YOLO
@@ -102,7 +102,7 @@ else
 fi
 
 # Install supported numpy version <2 to avoid conflicts
-pip install "numpy<2"
+pip install --no-warn-conflicts "numpy<2"
 
 # for EOV-Seg
 pip install open-clip-torch==2.24.0

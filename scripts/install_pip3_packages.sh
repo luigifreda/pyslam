@@ -111,15 +111,15 @@ else
 fi 
 
 # Install tesorflow and related packages
-pip install tensorflow==2.13
+pip install --no-warn-conflicts tensorflow==2.13  # tensorflow 2.13 pins old numpy/typing-extensions/protobuf: deliberate override
 pip install "tensorflow_hub<0.16"  # required by VPR (>=0.16 pulls tf-keras -> latest tensorflow built against numpy 2). Pure-python wheel, all platforms
-pip install "setuptools<81"  # tensorflow_hub<0.16 imports pkg_resources (removed in setuptools>=81)
+pip install --no-warn-conflicts "setuptools<81"  # tensorflow_hub<0.16 imports pkg_resources (removed in setuptools>=81)
 pip install tf_slim==1.1.0
-pip install protobuf==3.20.3 --force-reinstall # delf
+pip install --no-warn-conflicts protobuf==3.20.3 --force-reinstall # delf
 
 pip3 install -U imgviz
 
-pip install "numpy<2"
+pip install --no-warn-conflicts "numpy<2"
 
 # HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
 # $SCRIPTS_DIR/install_pip3_semantics.sh

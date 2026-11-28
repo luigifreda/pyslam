@@ -40,4 +40,4 @@ PY
 )
 
 echo "PROTOBUF_SPEC: $PROTOBUF_SPEC"
-pip install --force-reinstall "protobuf${PROTOBUF_SPEC}"
+pip install --no-warn-conflicts --force-reinstall "protobuf${PROTOBUF_SPEC}"

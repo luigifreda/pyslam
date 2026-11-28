@@ -80,7 +80,7 @@ if [ "$PIXI_ACTIVATED" = true ]; then
     find $(python -c "import site; print(site.getsitepackages()[0])") -name "opencv*" -exec rm -rf {} +
 fi
 
-pip3 install --upgrade numpy
+pip3 install --no-warn-conflicts --upgrade "numpy<2"  # stay on numpy 1.x: an upgrade to 2.x would conflict with matplotlib/tensorflow and is reverted at the end anyway
 
 
 if [[ $version != *"darwin"* ]]; then
@@ -294,6 +294,6 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
 fi
 
 # Install supported numpy version <2 to avoid conflicts
-pip3 install "numpy<2"
+pip3 install --no-warn-conflicts "numpy<2"
 
 cd "$STARTING_DIR"

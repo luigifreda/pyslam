@@ -20,7 +20,7 @@ PYTHON_EXE=$(get_python_exe)
 DETECTRON2_DIR="$ROOT_DIR/thirdparty/detectron2"
 
 ensure_pip "$PYTHON_EXE" || exit 1
-"$PYTHON_EXE" -m pip install wheel "setuptools<70"
+"$PYTHON_EXE" -m pip install --no-warn-conflicts wheel "setuptools<70"
 
 if ! "$PYTHON_EXE" -c "import torch" 2>/dev/null; then
     print_red "ERROR: torch is not installed in ${PYTHON_EXE}."

@@ -19,10 +19,10 @@ print_blue "Running install_final_pip_pins.sh"
 pip uninstall -y tf-keras > /dev/null 2>&1
 
 # tensorflow_hub 0.15 (and other legacy packages) import pkg_resources, which was removed in setuptools>=81
-pip install "setuptools<81"
+pip install --no-warn-conflicts "setuptools<81"
 
 # tensorflow 2.13 pins typing-extensions<4.6 but torch and other recent packages need a newer one (e.g. typing_extensions.TypeIs)
-pip install -U "typing_extensions>=4.12"
+pip install --no-warn-conflicts -U "typing_extensions>=4.12"
 
 # compiled modules (tensorflow 2.13, cpp core, etc.) are built against the numpy 1.x C-API
-pip install "numpy<2" --force-reinstall
+pip install --no-warn-conflicts "numpy<2" --force-reinstall
